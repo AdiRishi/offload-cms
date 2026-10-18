@@ -1,11 +1,23 @@
-From 5f94da39ca12de971bafaab05d4f7578c62c5010 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Offload PoC <poc@offload.test>
 Date: Sun, 18 Oct 2026 20:22:26 +1100
 Subject: [PATCH] fix(payload): cap PBKDF2 iterations on Cloudflare Workers
 
+Cloudflare Workers rejects PBKDF2 above 100,000 iterations, and Payload hashes
+passwords with 600,000. On a deployed Worker, creating the first user and every
+login fail with "iteration counts above 100000 are not supported". Local
+workerd does not enforce the limit, so only a deployed Worker shows it.
+
+The patch caps iterations at 100,000 when navigator.userAgent is
+Cloudflare-Workers and stores the iteration count in the hash
+(pbkdf2-sha256-v2-i<iterations>-l<keyLength>:<hex>), so any runtime can verify
+it. Hashes made at 600,000 iterations elsewhere still cannot be verified on
+Workers, so seed users through the Worker, not the Node CLI.
+
 Offload-Patch: workers-pbkdf2-cap
 Upstream: https://github.com/payloadcms/payload/pull/18276
-Drop-When: upstream PR 18276 (or an equivalent) is in the pinned release
+Drop-When: the pinned release contains PR 18276 or another fix for the Workers PBKDF2 limit
+Tests: pnpm --filter payload exec vitest run src/auth/strategies/local; Workers smoke suite against a deployed Worker
 ---
  .../strategies/local/authenticate.spec.ts     |  30 +++++
  .../local/generatePasswordSaltHash.spec.ts    | 112 ++++++++++++++++++
@@ -304,6 +316,3 @@ index b33c57b91..8d8e2664d 100644
          expect(updatedUser?.salt).not.toBe(existingSalt)
        })
      })
--- 
-2.50.1 (Apple Git-155)
-
