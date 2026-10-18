@@ -39,24 +39,24 @@ In `vendor/payload`, run `pnpm install`, then `pnpm build:all`, then each remain
 
 Done when the build and every `Tests` command pass.
 
-## 4. Verify the site template
+## 4. Verify Offload end to end
 
-1. Apply the site-facing breaking changes from step 1 to `packages/` and `templates/site`.
-2. Run `pnpm registry` in the background and `pnpm release`.
-3. Run `pnpm use-version templates/site`.
-4. In `templates/site`, run `pnpm install`, `pnpm payload migrate:create` (it generates a migration only when the schema changed), `pnpm payload migrate`, `pnpm build`, then `pnpm preview` in the background, then `pnpm test:smoke`.
+1. Apply the site-facing breaking changes from step 1 to `packages/` and `apps/e2e`.
+2. Run `pnpm registry` in the background, then `pnpm release` and `pnpm use-version apps/e2e`.
+3. In `apps/e2e`, run `pnpm install`, then `pnpm payload migrate:create` and `CLOUDFLARE_ENV=postgres pnpm payload migrate:create`. Each generates a migration only when the schema changed.
+4. Run `pnpm test:e2e` and `pnpm test:e2e:postgres` from the root.
 
-Done when the smoke suite passes.
+Done when both suites pass.
 
 ## 5. Verify on Cloudflare
 
-If a staging Worker is configured, deploy `templates/site` to it, then run `SMOKE_BASE_URL=<staging url> pnpm test:smoke`. Some behaviour exists only on deployed Workers. Password hashing limits are the known case.
+Some behaviour exists only on deployed Workers; password hashing limits are the known case. The suite runs only locally. If a staging Worker is configured, deploy `apps/e2e` to it, then log in to its admin and publish a page.
 
-Done when the smoke suite passes against staging, or when the report says staging is not configured.
+Done when that works on staging, or when the report says staging is not configured.
 
 ## 6. Report
 
-Commit the patch series, `PATCHES.md`, the pin, and the package and template changes as separate commits. Then report:
+Commit the patch series, `PATCHES.md`, the pin, and the changes to `packages/` and `apps/e2e` as separate commits. Then report:
 
 - each patch's verdict and what changed in reworked patches
 - the breaking changes that affect sites, and what a site must change
