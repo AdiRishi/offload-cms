@@ -1,16 +1,16 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig } from "payload";
 
 export const Folders: CollectionConfig = {
-  slug: 'folders',
+  slug: "folders",
   admin: {
-    useAsTitle: 'name',
+    useAsTitle: "name",
   },
   folders: true,
   fields: [
     {
-      name: 'name',
-      type: 'text',
+      name: "name",
+      type: "text",
       required: true,
     },
   ],
-}
+};

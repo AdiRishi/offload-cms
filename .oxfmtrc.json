@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "sortImports": {
+    "groups": [
+      "type-import",
+      ["value-builtin", "value-external"],
+      "type-internal",
+      "value-internal",
+      ["type-parent", "type-sibling", "type-index"],
+      ["value-parent", "value-sibling", "value-index"],
+      "unknown"
+    ]
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/.wrangler/**",
+    "vendor/**",
+    "pnpm-lock.yaml",
+    "upstream/patches/**",
+    "upstream/PATCHES.md",
+    "templates/*/pnpm-lock.yaml",
+    "templates/*/src/migrations/**",
+    "templates/*/src/payload-types.ts",
+    "templates/*/src/routeTree.gen.ts",
+    "templates/*/src/app/_payload/importMap.js",
+    "templates/*/worker-configuration.d.ts"
+  ]
+}

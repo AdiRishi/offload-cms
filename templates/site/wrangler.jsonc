@@ -6,5 +6,5 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [{ "binding": "D1", "database_name": "offload-site", "database_id": "local" }],
-  "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-site" }]
+  "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-site" }],
 }

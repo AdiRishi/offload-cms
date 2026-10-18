@@ -51,3 +51,6 @@ node_modules/
 *.log
 worker-configuration.d.ts
 .dev.vars
+
+# Resolved against the local Offload registry; regenerate per environment
+pnpm-lock.yaml

@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "react"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "env": {
+    "builtin": true
+  },
+  "rules": {
+    "eslint/no-underscore-dangle": "off",
+    "react/react-in-jsx-scope": "off",
+    "typescript/no-floating-promises": [
+      "error",
+      {
+        "allowForKnownSafeCalls": [
+          {
+            "from": "package",
+            "package": "node:test",
+            "name": ["test", "describe", "it", "suite", "before", "after"]
+          }
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/.wrangler/**",
+    "vendor/**",
+    "upstream/patches/**",
+    "templates/*/src/migrations/**",
+    "templates/*/src/payload-types.ts",
+    "templates/*/src/routeTree.gen.ts",
+    "templates/*/src/app/_payload/importMap.js",
+    "templates/*/worker-configuration.d.ts"
+  ]
+}

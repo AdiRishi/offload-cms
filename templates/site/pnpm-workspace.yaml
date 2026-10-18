@@ -7,16 +7,16 @@ allowBuilds:
   sharp: true
   workerd: true
 minimumReleaseAgeExclude:
-  - '@arishi/offload-cloudflare@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-db-d1-sqlite@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-drizzle@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-graphql@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-payload@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-plugin-cloud-storage@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-richtext-lexical@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-storage-r2@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-storage-s3@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-tanstack-start@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-translations@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-ui@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1'
-  - '@arishi/offload-transformer-cloudflare@4.0.0-beta.2-offload.1'
+  - "@arishi/offload-cloudflare@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-db-d1-sqlite@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-drizzle@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-graphql@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-payload@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-plugin-cloud-storage@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-richtext-lexical@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-storage-r2@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-storage-s3@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-tanstack-start@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-translations@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-ui@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1"
+  - "@arishi/offload-transformer-cloudflare@4.0.0-beta.2-offload.1"

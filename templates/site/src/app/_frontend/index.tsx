@@ -1,11 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute('/_frontend/')({
+export const Route = createFileRoute("/_frontend/")({
   component: HomePage,
   head: () => ({
-    meta: [{ title: 'Payload TanStack Blank Template' }],
+    meta: [{ title: "Payload TanStack Blank Template" }],
   }),
-})
+});
 
 function HomePage() {
   return (
@@ -40,5 +40,5 @@ function HomePage() {
         <code className="codeLink">src/app/_frontend/index.tsx</code>
       </div>
     </div>
-  )
+  );
 }

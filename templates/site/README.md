@@ -4,7 +4,7 @@ A TanStack Start site with the Payload admin, running on Cloudflare Workers with
 
 ## First run
 
-Start the registry from the repo root (`pnpm registry:start`) and publish a release (`pnpm release`). Then:
+Start the registry from the repo root (`pnpm registry`) and publish a release (`pnpm release`). Then:
 
 ```bash
 cp .dev.vars.example .dev.vars
@@ -44,11 +44,11 @@ Create the first user through the deployed site, not the Node CLI. On Workers, O
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `vite.config.ts` | `offloadVite()` builds for workerd and runs dev in Node |
-| `src/payload.config.ts` | Payload config. Bindings come from `getBindings()`. |
-| `src/server.ts` | Worker entry: TanStack Start for requests, Payload jobs on each Cron Trigger, which drives scheduled publishing |
-| `src/app/_payload/` | Admin, REST and GraphQL routes |
-| `src/app/_frontend/` | The website |
-| `tests/smoke.test.ts` | The smoke suite |
+| File                    | Purpose                                                                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `vite.config.ts`        | `offloadVite()` builds for workerd and runs dev in Node                                                         |
+| `src/payload.config.ts` | Payload config. Bindings come from `getBindings()`.                                                             |
+| `src/server.ts`         | Worker entry: TanStack Start for requests, Payload jobs on each Cron Trigger, which drives scheduled publishing |
+| `src/app/_payload/`     | Admin, REST and GraphQL routes                                                                                  |
+| `src/app/_frontend/`    | The website                                                                                                     |
+| `tests/smoke.test.ts`   | The smoke suite                                                                                                 |
