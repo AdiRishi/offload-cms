@@ -60,6 +60,9 @@ export const vendorGit = (args: string[], options: ExecFileSyncOptions = {}) =>
 
 export const vendorGitOutput = (args: string[]) => output('git', args, { cwd: vendorDir })
 
+/** Uncommitted changes in vendor/payload, ignoring the AGENTS.md block Turborepo rewrites on every run. */
+export const vendorChanges = () => vendorGitOutput(['status', '--porcelain', '--', '.', ':!AGENTS.md'])
+
 export const fail = (message: string): never => {
   console.error(`\n${message}`)
   process.exit(1)

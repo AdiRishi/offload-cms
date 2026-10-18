@@ -14,7 +14,7 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { fail, readPin, run, vendorDir, vendorGit, vendorGitOutput, writePin } from '../lib.ts'
+import { fail, readPin, run, vendorChanges, vendorDir, vendorGit, vendorGitOutput, writePin } from '../lib.ts'
 import { type PatchCommit, readPatchCommits } from './patches.ts'
 
 type QueuedPatch = Pick<PatchCommit, 'id' | 'intent' | 'sha' | 'subject'>
@@ -92,7 +92,7 @@ const applyQueue = (state: PendingUpgrade) => {
 
 const start = (tag: string) => {
   const pin = readPin()
-  if (vendorGitOutput(['status', '--porcelain']) !== '') {
+  if (vendorChanges() !== '') {
     fail('vendor/payload has uncommitted changes. Export or discard them first.')
   }
 

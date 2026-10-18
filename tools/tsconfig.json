@@ -1,0 +1,17 @@
+{
+  "extends": "../packages/typescript-config/base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "es2024"
+    ]
+  },
+  "include": [
+    "."
+  ]
+}

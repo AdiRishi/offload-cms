@@ -13,6 +13,7 @@ import {
   run,
   vendorDir,
   vendorGit,
+  vendorChanges,
   vendorGitOutput,
 } from '../lib.ts'
 
@@ -22,7 +23,7 @@ const pin = readPin()
 if (!existsSync(path.join(vendorDir, '.git'))) {
   mkdirSync(path.dirname(vendorDir), { recursive: true })
   run('git', ['clone', '--filter=blob:none', '--no-checkout', pin.repository, vendorDir])
-} else if (vendorGitOutput(['status', '--porcelain']) !== '' && !force) {
+} else if (vendorChanges() !== '' && !force) {
   fail('vendor/payload has uncommitted changes. Commit and `pnpm upstream:export` them, or rerun with --force.')
 }
 
@@ -40,6 +41,8 @@ vendorGit(['config', 'rerere.enabled', 'true'])
 vendorGit(['config', 'rerere.autoupdate', 'true'])
 vendorGit(['config', 'user.name', 'Offload'])
 vendorGit(['config', 'user.email', 'offload@localhost'])
+// Patch files carry no signatures, so signing the throwaway commits here adds nothing.
+vendorGit(['config', 'commit.gpgsign', 'false'])
 vendorGit(['checkout', '--force', '-B', 'offload', pin.commit])
 vendorGit(['clean', '-fdq', '--exclude=node_modules'])
 vendorGit(['tag', '--force', 'offload-base', pin.commit])
