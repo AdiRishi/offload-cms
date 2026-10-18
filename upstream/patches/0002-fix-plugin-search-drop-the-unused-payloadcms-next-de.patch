@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Mon, 19 Oct 2026 01:04:54 +1100
+Subject: [PATCH] fix(plugin-search): drop the unused @payloadcms/next
+ dependency
+
+plugin-search lists @payloadcms/next as a runtime dependency but never imports
+it. Installing the plugin in a TanStack Start site therefore installs all of
+Next.js 16 and a next peer requirement. Removing the dependency changes nothing
+at runtime.
+
+Offload-Patch: plugin-search-no-next
+Drop-When: the pinned release's plugin-search no longer depends on @payloadcms/next
+Tests: pnpm --filter @payloadcms/plugin-search build; e2e suite (search test) passes and apps/e2e has no next package installed
+---
+ packages/plugin-search/package.json | 1 -
+ pnpm-lock.yaml                      | 3 ---
+ 2 files changed, 4 deletions(-)
+
+diff --git a/packages/plugin-search/package.json b/packages/plugin-search/package.json
+index 2af357435..d2f377ce7 100644
+--- a/packages/plugin-search/package.json
++++ b/packages/plugin-search/package.json
+@@ -60,7 +60,6 @@
+     "test": "echo \"Error: no tests specified\""
+   },
+   "dependencies": {
+-    "@payloadcms/next": "workspace:*",
+     "@payloadcms/ui": "workspace:*"
+   },
+   "devDependencies": {
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 960487dfc..b9cf12fce 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -1296,9 +1296,6 @@ importers:
+ 
+   packages/plugin-search:
+     dependencies:
+-      '@payloadcms/next':
+-        specifier: workspace:*
+-        version: link:../next
+       '@payloadcms/ui':
+         specifier: workspace:*
+         version: link:../ui
