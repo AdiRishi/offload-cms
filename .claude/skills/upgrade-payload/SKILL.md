@@ -42,7 +42,7 @@ Done when the build and every `Tests` command pass.
 ## 4. Verify the site template
 
 1. Apply the site-facing breaking changes from step 1 to `packages/` and `templates/site`.
-2. Run `pnpm registry:start` (leave it running) and `pnpm release`.
+2. Run `pnpm registry` in the background and `pnpm release`.
 3. Run `pnpm use-version templates/site`.
 4. In `templates/site`, run `pnpm install`, `pnpm payload migrate:create` (it generates a migration only when the schema changed), `pnpm payload migrate`, `pnpm build`, then `pnpm preview` in the background, then `pnpm test:smoke`.
 

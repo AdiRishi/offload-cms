@@ -1,4 +1,6 @@
-# Offload CMS: Payload v4 on TanStack Start and Cloudflare
+# Assessment: Payload v4 on TanStack Start and Cloudflare
+
+The research that led to Offload, written before the repository existed. Paths and plans below describe the state at the time; the README describes the repository as it is.
 
 Assessment date: 2026-10-18. Upstream state: Payload `main` at `d5b01b40d`, latest release `v4.0.0-beta.2` (2026-10-16).
 
@@ -24,22 +26,22 @@ None of these blocks the direction. All three need ongoing engineering.
 
 Everything below ran in local workerd through `vite build && vite preview`, the same bundle `wrangler deploy` uploads. Nothing was deployed to Cloudflare. That needs your choice of account.
 
-| Capability | Result | Notes |
-| --- | --- | --- |
-| Frontend SSR route reading content through the Local API | Works | `src/app/_frontend/$slug.tsx`, a TanStack server function calling `payload.find` on D1 |
-| Admin: login, dashboard, create, edit, publish, blocks, Lexical, versions view | Works | Checked in a browser. The admin renders through TanStack Start RSC inside workerd. |
-| REST API, access control, first user, login, wrong password | Works locally | Production Workers rejects Payload's password hashing. See the PBKDF2 row in the fix table. |
-| Uploads to R2 and serving them back | Works | Byte-identical round trip. Width and height are read without sharp. |
-| GraphQL | Works after a fix | Reproduces upstream issue [#17771](https://github.com/payloadcms/payload/issues/17771). The root cause is different from the issue's diagnosis (see the fix table). |
-| Cron Trigger running Payload jobs | Works | `src/server.ts` exports TanStack's `fetch` and a `scheduled` handler that runs `payload.jobs.run()` |
-| D1 migrations | Works | Generated and applied by the Payload CLI in Node through Wrangler's platform proxy |
-| Worker size | 18.2 MB raw, 4.0 MB gzipped | Fits the paid plan's 10 MB compressed limit. Exceeds the free plan's 3 MB. |
-| Latency (local, M-series Mac) | About 130 ms cold, 5 to 17 ms warm | Expect a slower cold start on Workers hardware. |
-| `vite dev` inside workerd | Does not work | The RSC module runner can't load Payload's CommonJS dependencies in workerd. |
-| `vite dev` in Node against local D1 and R2 | Works | The PoC uses this mode. Dev therefore runs on a different runtime from production. |
-| Patched fork build, rename and publish | Works | Install 76 s, build of all 46 workspace packages 88 s, pack 39 s, publish of 43 packages 33 s. The PoC then installed the aliases and ran the patched code. |
+| Capability                                                                     | Result                             | Notes                                                                                                                                                               |
+| ------------------------------------------------------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend SSR route reading content through the Local API                       | Works                              | `src/app/_frontend/$slug.tsx`, a TanStack server function calling `payload.find` on D1                                                                              |
+| Admin: login, dashboard, create, edit, publish, blocks, Lexical, versions view | Works                              | Checked in a browser. The admin renders through TanStack Start RSC inside workerd.                                                                                  |
+| REST API, access control, first user, login, wrong password                    | Works locally                      | Production Workers rejects Payload's password hashing. See the PBKDF2 row in the fix table.                                                                         |
+| Uploads to R2 and serving them back                                            | Works                              | Byte-identical round trip. Width and height are read without sharp.                                                                                                 |
+| GraphQL                                                                        | Works after a fix                  | Reproduces upstream issue [#17771](https://github.com/payloadcms/payload/issues/17771). The root cause is different from the issue's diagnosis (see the fix table). |
+| Cron Trigger running Payload jobs                                              | Works                              | `src/server.ts` exports TanStack's `fetch` and a `scheduled` handler that runs `payload.jobs.run()`                                                                 |
+| D1 migrations                                                                  | Works                              | Generated and applied by the Payload CLI in Node through Wrangler's platform proxy                                                                                  |
+| Worker size                                                                    | 18.2 MB raw, 4.0 MB gzipped        | Fits the paid plan's 10 MB compressed limit. Exceeds the free plan's 3 MB.                                                                                          |
+| Latency (local, M-series Mac)                                                  | About 130 ms cold, 5 to 17 ms warm | Expect a slower cold start on Workers hardware.                                                                                                                     |
+| `vite dev` inside workerd                                                      | Does not work                      | The RSC module runner can't load Payload's CommonJS dependencies in workerd.                                                                                        |
+| `vite dev` in Node against local D1 and R2                                     | Works                              | The PoC uses this mode. Dev therefore runs on a different runtime from production.                                                                                  |
+| Patched fork build, rename and publish                                         | Works                              | Install 76 s, build of all 46 workspace packages 88 s, pack 39 s, publish of 43 packages 33 s. The PoC then installed the aliases and ran the patched code.         |
 
-The PoC is in [`poc-tanstack-workers`](poc-tanstack-workers). The patch now lives in [`upstream/patches`](../upstream/patches), and the release transform became [`tools/release`](../tools/release).
+The PoC grew into [`templates/site`](../templates/site) and [`packages/cloudflare`](../packages/cloudflare); the original is in git history. The patch now lives in [`upstream/patches`](../upstream/patches), and the release transform became [`tools/release`](../tools/release).
 
 ## Framework independence: TanStack Start
 
@@ -52,16 +54,16 @@ Payload v4 has a real framework adapter, and TanStack Start is a first-class tar
 
 Gaps that remain, in rough order of impact:
 
-| Gap | Impact | Fix |
-| --- | --- | --- |
-| The admin mount is fixed at `/admin`. `routes.admin` is unsupported on TanStack. | Low for your use | Live with it, or patch the adapter |
-| The GraphQL handler exists but the generated template doesn't route it | Low | One route file (in the PoC) |
-| `/api/og` (dynamic OG image) is Next-only, but default admin metadata points at it | Low | Set `defaultOGImageType` to static |
-| `forbidden()` and `unauthorized()` throw plain errors, which likely become 500s | Low | Small adapter patch |
-| No request-scoped cache for the admin context. Each loader and server function re-runs auth and i18n. | Medium (admin latency) | Adapter patch, upstreamable |
-| `plugin-search` has a runtime dependency on `@payloadcms/next`, which pulls a `next` peer | Low | One-line manifest patch |
-| Next-named env vars in shared code (`NEXT_BASE_PATH`, `NEXT_PHASE`, `isNextBuild`) | Low | Avoid base paths for now |
-| The admin requires RSC. On TanStack that means TanStack Start RSC and `@vitejs/plugin-rsc` 0.5 (pre-1.0), plus six Vite workaround plugins inside the adapter. | Medium (churn) | Pin versions and let upstream absorb it |
+| Gap                                                                                                                                                            | Impact                 | Fix                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------- |
+| The admin mount is fixed at `/admin`. `routes.admin` is unsupported on TanStack.                                                                               | Low for your use       | Live with it, or patch the adapter      |
+| The GraphQL handler exists but the generated template doesn't route it                                                                                         | Low                    | One route file (in the PoC)             |
+| `/api/og` (dynamic OG image) is Next-only, but default admin metadata points at it                                                                             | Low                    | Set `defaultOGImageType` to static      |
+| `forbidden()` and `unauthorized()` throw plain errors, which likely become 500s                                                                                | Low                    | Small adapter patch                     |
+| No request-scoped cache for the admin context. Each loader and server function re-runs auth and i18n.                                                          | Medium (admin latency) | Adapter patch, upstreamable             |
+| `plugin-search` has a runtime dependency on `@payloadcms/next`, which pulls a `next` peer                                                                      | Low                    | One-line manifest patch                 |
+| Next-named env vars in shared code (`NEXT_BASE_PATH`, `NEXT_PHASE`, `isNextBuild`)                                                                             | Low                    | Avoid base paths for now                |
+| The admin requires RSC. On TanStack that means TanStack Start RSC and `@vitejs/plugin-rsc` 0.5 (pre-1.0), plus six Vite workaround plugins inside the adapter. | Medium (churn)         | Pin versions and let upstream absorb it |
 
 The last row is the real cost. The adapter is 3.5 months old and has had 60 commits. A breaking change that moves RSC responses to React Flight is open (PR [#18787](https://github.com/payloadcms/payload/pull/18787)). Expect adapter-level breakage across betas. Your sites won't need changes for it, but the Offload Workers preset may.
 
@@ -69,18 +71,18 @@ The last row is the real cost. The adapter is 3.5 months old and has had 60 comm
 
 Each fix is listed with the place it should live long term. The PoC applies all of them from `vite.config.ts` and app code, with no source changes to Payload except the PBKDF2 patch.
 
-| # | Problem | PoC fix | Proper home | Effort |
-| --- | --- | --- | --- | --- |
-| 1 | `withPayload` externalizes Payload packages for Node's `node_modules`. The Cloudflare plugin rejects externals, and Workers have no `node_modules`. | Delete the externals for server environments | A `target: 'cloudflare'` option in the adapter, or the Offload preset | Small |
-| 2 | Cloudflare resolves with the `browser` condition, which maps `payload` to its client-safe `shared.js` | Drop `browser` from server-environment conditions | Add `workerd` export conditions to `payload` and `@payloadcms/tanstack-start` (core patch, upstreamable) | Small |
-| 3 | `payload/dist/index.js` calls `fileURLToPath(import.meta.url)` at module scope, and that is `undefined` in the Worker bundle | Build-time fallback | Compute `dirname` lazily in core (patch, upstreamable) | Small |
-| 4 | The adapter loads `@payloadcms/graphql` through `import(/* @vite-ignore */ variable)` so Node resolves it at runtime | Rewrite to literal imports | Adapter option for bundled targets | Small |
-| 5 | GraphQL queries with arguments fail with "Unexpected input type". Both the CommonJS and ESM builds of `graphql` end up in the bundle, so `instanceof` checks fail. | Resolve every server `graphql` import to the `.mjs` build | Offload preset | Small |
-| 6 | Importing `@cloudflare/vite-plugin` into the Vite process breaks Node-mode dev for Payload's CommonJS dependencies | Import it lazily, only for build and preview | Offload preset | Trivial |
-| 7 | `vite dev` inside workerd fails on CommonJS dependencies in the RSC module runner | Run dev in Node with `getPlatformProxy` bindings | Offload preset and template | Done |
-| 8 | Payload hashes passwords with 600,000 PBKDF2 iterations. Production Workers rejects more than 100,000 ([#18274](https://github.com/payloadcms/payload/issues/18274)). Local workerd does not, so only a deploy catches it. | Core patch from upstream PR [#18276](https://github.com/payloadcms/payload/pull/18276), verified working in the PoC | Core patch until upstream merges it | Small |
-| 9 | The GraphQL route is not wired in the TanStack template | Route file | Offload template | Trivial |
-| 10 | No Worker entry for Cron Triggers | Custom `src/server.ts` | Offload runtime package | Small |
+| #   | Problem                                                                                                                                                                                                                    | PoC fix                                                                                                             | Proper home                                                                                              | Effort  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------- |
+| 1   | `withPayload` externalizes Payload packages for Node's `node_modules`. The Cloudflare plugin rejects externals, and Workers have no `node_modules`.                                                                        | Delete the externals for server environments                                                                        | A `target: 'cloudflare'` option in the adapter, or the Offload preset                                    | Small   |
+| 2   | Cloudflare resolves with the `browser` condition, which maps `payload` to its client-safe `shared.js`                                                                                                                      | Drop `browser` from server-environment conditions                                                                   | Add `workerd` export conditions to `payload` and `@payloadcms/tanstack-start` (core patch, upstreamable) | Small   |
+| 3   | `payload/dist/index.js` calls `fileURLToPath(import.meta.url)` at module scope, and that is `undefined` in the Worker bundle                                                                                               | Build-time fallback                                                                                                 | Compute `dirname` lazily in core (patch, upstreamable)                                                   | Small   |
+| 4   | The adapter loads `@payloadcms/graphql` through `import(/* @vite-ignore */ variable)` so Node resolves it at runtime                                                                                                       | Rewrite to literal imports                                                                                          | Adapter option for bundled targets                                                                       | Small   |
+| 5   | GraphQL queries with arguments fail with "Unexpected input type". Both the CommonJS and ESM builds of `graphql` end up in the bundle, so `instanceof` checks fail.                                                         | Resolve every server `graphql` import to the `.mjs` build                                                           | Offload preset                                                                                           | Small   |
+| 6   | Importing `@cloudflare/vite-plugin` into the Vite process breaks Node-mode dev for Payload's CommonJS dependencies                                                                                                         | Import it lazily, only for build and preview                                                                        | Offload preset                                                                                           | Trivial |
+| 7   | `vite dev` inside workerd fails on CommonJS dependencies in the RSC module runner                                                                                                                                          | Run dev in Node with `getPlatformProxy` bindings                                                                    | Offload preset and template                                                                              | Done    |
+| 8   | Payload hashes passwords with 600,000 PBKDF2 iterations. Production Workers rejects more than 100,000 ([#18274](https://github.com/payloadcms/payload/issues/18274)). Local workerd does not, so only a deploy catches it. | Core patch from upstream PR [#18276](https://github.com/payloadcms/payload/pull/18276), verified working in the PoC | Core patch until upstream merges it                                                                      | Small   |
+| 9   | The GraphQL route is not wired in the TanStack template                                                                                                                                                                    | Route file                                                                                                          | Offload template                                                                                         | Trivial |
+| 10  | No Worker entry for Cron Triggers                                                                                                                                                                                          | Custom `src/server.ts`                                                                                              | Offload runtime package                                                                                  | Small   |
 
 Row 8 has a security trade-off. On Workers, new hashes use 100,000 iterations, below the current OWASP guidance of 600,000 for PBKDF2-SHA256. The patch embeds the iteration count in the hash, so verification still works for hashes created on either runtime. A hash created at 600,000 iterations still can't be verified on Workers, though, so don't seed users from the Node CLI. If that trade-off is unacceptable, the alternative is a custom auth strategy with its own hash function. That is a larger change, because hashing isn't an extension point today.
 
@@ -88,19 +90,19 @@ Row 8 has a security trade-off. On Workers, new hashes use 100,000 iterations, b
 
 Use the Cloudflare products that fit Payload, not all of them.
 
-| Product | Use it? | Reason |
-| --- | --- | --- |
-| Workers | Yes | One Worker per site serves the site, admin, API and cron |
-| D1 | Yes, with the caveats below | Official adapter, works with migrations and read replicas |
-| R2 | Yes | Official adapter using the binding, with range requests and multipart client uploads |
-| Cron Triggers | Yes | Runs Payload jobs and scheduled publishing |
-| Images | Yes, soon | Workers can't run sharp. An upstream PR adds a Cloudflare Images transformer ([#18647](https://github.com/payloadcms/payload/pull/18647), +2,690 lines, open). Carry it as an Offload package, not a core patch. |
-| Email Service, or Resend | Yes | Nodemailer needs TCP and won't work. Resend's adapter uses `fetch`. A Cloudflare email adapter is about 50 lines. |
-| KV | Not yet | Payload's KV store defaults to the database and nothing in core needs Workers KV. An upstream PR exists ([#14715](https://github.com/payloadcms/payload/pull/14715)). |
-| Durable Objects | Not yet | The only strong case is transactional SQLite (see D1 below) |
-| Queues | Not yet | Cron plus `payload.jobs.run()` covers content sites |
-| Stream | Not for Payload itself | Add it later as an Offload upload field or plugin if a site needs video |
-| Hyperdrive and Postgres | For commerce sites | Gives you real transactions, at the cost of a non-Cloudflare database |
+| Product                  | Use it?                     | Reason                                                                                                                                                                                                           |
+| ------------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workers                  | Yes                         | One Worker per site serves the site, admin, API and cron                                                                                                                                                         |
+| D1                       | Yes, with the caveats below | Official adapter, works with migrations and read replicas                                                                                                                                                        |
+| R2                       | Yes                         | Official adapter using the binding, with range requests and multipart client uploads                                                                                                                             |
+| Cron Triggers            | Yes                         | Runs Payload jobs and scheduled publishing                                                                                                                                                                       |
+| Images                   | Yes, soon                   | Workers can't run sharp. An upstream PR adds a Cloudflare Images transformer ([#18647](https://github.com/payloadcms/payload/pull/18647), +2,690 lines, open). Carry it as an Offload package, not a core patch. |
+| Email Service, or Resend | Yes                         | Nodemailer needs TCP and won't work. Resend's adapter uses `fetch`. A Cloudflare email adapter is about 50 lines.                                                                                                |
+| KV                       | Not yet                     | Payload's KV store defaults to the database and nothing in core needs Workers KV. An upstream PR exists ([#14715](https://github.com/payloadcms/payload/pull/14715)).                                            |
+| Durable Objects          | Not yet                     | The only strong case is transactional SQLite (see D1 below)                                                                                                                                                      |
+| Queues                   | Not yet                     | Cron plus `payload.jobs.run()` covers content sites                                                                                                                                                              |
+| Stream                   | Not for Payload itself      | Add it later as an Offload upload field or plugin if a site needs video                                                                                                                                          |
+| Hyperdrive and Postgres  | For commerce sites          | Gives you real transactions, at the cost of a non-Cloudflare database                                                                                                                                            |
 
 ### D1 atomicity
 

@@ -1,87 +1,107 @@
 # Offload CMS
 
-Offload is [Payload CMS](https://github.com/payloadcms/payload) v4, built to run websites on TanStack Start and Cloudflare Workers. It's a small, version-pinned set of patches on an upstream Payload release, plus packages for Cloudflare. Everything is published under `@arishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
+Offload is [Payload CMS](https://github.com/payloadcms/payload) v4 for websites built with TanStack Start and hosted on Cloudflare Workers. It consists of a pinned upstream Payload release, a small series of patches on top of it, and packages that run it on Workers. Everything is published under `@arishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
 
-Sites keep importing `payload` and `@payloadcms/*`. They install the Offload builds under those names with npm aliases:
+Sites keep importing `payload` and `@payloadcms/*`. They install the Offload builds under those names through npm aliases:
 
 ```json
 "payload": "npm:@arishi/offload-payload@4.0.0-beta.2-offload.0",
 "@payloadcms/ui": "npm:@arishi/offload-ui@4.0.0-beta.2-offload.0"
 ```
 
-## Layout
+## Getting started
 
-| Path | What it is |
-| --- | --- |
-| `upstream/payload.json` | The pinned Payload release, plus the Offload revision on top of it |
-| `upstream/patches/` | The patch series, one `git format-patch` file per change to Payload |
-| `upstream/PATCHES.md` | Ledger of the patches, generated from their commit messages |
-| `vendor/payload/` | Payload checked out at the pin with the patches applied. Generated and gitignored. |
-| `packages/cloudflare/` | `@arishi/offload-cloudflare`: Vite preset, bindings, Worker entry, GraphQL route |
-| `templates/site/` | A TanStack Start site on Workers with D1 and R2, installed from the registry like a real site |
-| `tools/` | Scripts behind the root `package.json` commands |
-| `docs/` | Design notes |
-| `research/` | The assessment that led here, and the original proof of concept |
-
-## Where a change goes
-
-1. **Site code**, if the Payload config or plugin API can express it: collections, hooks, endpoints, admin components.
-2. **A package in `packages/`**, if it's new and reusable: adapters, plugins, transformers, the Cloudflare preset.
-3. **A patch to Payload**, only for behaviour that has no extension point. Keep it small, and propose it upstream when it's general.
-
-## Changing Payload
+You need Node 24.15 (see `.node-version`) and pnpm through Corepack.
 
 ```bash
+pnpm install
 pnpm upstream:checkout
+pnpm check
 ```
 
-This clones Payload at the pinned commit into `vendor/payload` and applies `upstream/patches` on the `offload` branch.
+`pnpm upstream:checkout` clones Payload at the pinned commit into `vendor/payload` and applies the patches. `pnpm check` runs the linter, the format check and the type checks.
 
-Make the change in `vendor/payload` and commit it there. The commit message is the patch's documentation: an intent paragraph, then these trailers.
-
-```text
-Offload-Patch: short-stable-id
-Upstream: https://github.com/payloadcms/payload/pull/<n>
-Drop-When: <when upstream makes this patch unnecessary>
-Tests: <command that proves it works>
-```
-
-Then write the commits back to the repo:
+To run the site template, also start the local registry, publish a release, and follow [`templates/site/README.md`](templates/site/README.md):
 
 ```bash
-pnpm upstream:export
+pnpm registry
 ```
 
-This regenerates `upstream/patches` and `upstream/PATCHES.md`. Bump `revision` in `upstream/payload.json` before releasing the change.
-
-`pnpm upstream:status --against <tag>` shows each patch's upstream PR state and whether `<tag>` already contains it.
-
-## Releasing
-
-Releases go to a local registry until a real one is chosen. Start it and leave it running:
-
-```bash
-pnpm registry:start
-```
-
-Then, in another terminal:
+Leave that running, and in another terminal:
 
 ```bash
 pnpm release
 ```
 
-`pnpm release` builds `vendor/payload` and `packages/`. It then publishes every package as `@arishi/offload-<name>@<tag>-offload.<revision>`, with internal dependencies rewritten to aliases. A clean run takes about four minutes. Set `OFFLOAD_REGISTRY` and `OFFLOAD_REGISTRY_TOKEN` to publish somewhere else.
+## Layout
 
-To point a site at a release:
+| Path                    | Contents                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/cloudflare`   | `@arishi/offload-cloudflare`: the Vite preset, Cloudflare bindings, Worker entry and GraphQL route that run Payload on Workers |
+| `templates/site`        | A TanStack Start site on Workers with D1, R2 and a smoke suite. It installs Offload from the registry, like a real site.       |
+| `upstream/payload.json` | The pinned Payload release and the Offload revision on top of it                                                               |
+| `upstream/patches`      | The patch series: one `git format-patch` file per change to Payload                                                            |
+| `upstream/PATCHES.md`   | The patch ledger, generated from the patches' commit messages                                                                  |
+| `tools/upstream`        | Scripts that check out, export, report on and upgrade the patch series                                                         |
+| `tools/release`         | The release script, `use-version`, and the local registry config                                                               |
+| `tools/tsconfig`        | Shared TypeScript configuration for every workspace package                                                                    |
+| `docs`                  | Design notes and the original assessment                                                                                       |
+| `vendor/payload`        | Generated by `pnpm upstream:checkout`. Gitignored.                                                                             |
 
-```bash
-pnpm use-version <site-dir> [version]
+The workspace contains `packages/*` and `tools/*`. `templates/site` is a separate pnpm project, because it has to install Offload the way a site in its own repository does.
+
+## Commands
+
+| Command                                     | What it does                                                                      |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm check`                                | Lint, format check and type checks, through Turborepo                             |
+| `pnpm lint` / `pnpm lint:fix`               | oxlint with type-aware rules                                                      |
+| `pnpm format` / `pnpm format:fix`           | oxfmt check, or write                                                             |
+| `pnpm check-types`                          | `tsc` in every workspace package                                                  |
+| `pnpm build`                                | Build the publishable packages                                                    |
+| `pnpm upstream:checkout [--force]`          | Create `vendor/payload` from the pin and the patches                              |
+| `pnpm upstream:export`                      | Write the commits in `vendor/payload` back to `upstream/patches` and `PATCHES.md` |
+| `pnpm upstream:status [--against <tag>]`    | Show each patch's upstream PR state, and whether `<tag>` already contains it      |
+| `pnpm upstream:upgrade <tag> [--drop <id>]` | Move the patch series to a newer Payload release                                  |
+| `pnpm registry`                             | Run the local npm registry on port 4873                                           |
+| `pnpm release [--skip-build]`               | Build and publish every package at the pinned version                             |
+| `pnpm use-version <site-dir> [version]`     | Point a site's Offload dependencies at a release                                  |
+
+## Where a change goes
+
+1. **Site code** when Payload's config or plugin API can express it: collections, hooks, endpoints, admin components.
+2. **A package in `packages/`** when it's new and reusable: adapters, plugins, the Cloudflare preset.
+3. **A patch to Payload** only for behaviour with no extension point. Keep each patch small, and propose it upstream when it's general.
+
+## Changing Payload
+
+Edit `vendor/payload` and commit there. The commit message documents the patch: an intent paragraph explaining what breaks without it and how the patch fixes it, then these trailers.
+
+```text
+Offload-Patch: short-stable-id
+Upstream: https://github.com/payloadcms/payload/pull/<n>
+Drop-When: <the condition under which upstream makes this patch unnecessary>
+Tests: <commands that prove the patch works>
 ```
+
+Run `pnpm upstream:export`, then bump `revision` in `upstream/payload.json` before you release. Commits in `vendor/payload` skip upstream's git hooks and aren't signed, because the patch files keep only the diff and the message.
+
+## Releasing
+
+`pnpm release` builds `vendor/payload` and `packages/`, packs every package with pnpm, renames each to `@arishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to aliases, and publishes them. It refuses to run if `vendor/payload` doesn't match `upstream/`.
+
+It publishes to `http://localhost:4873` unless `OFFLOAD_REGISTRY` and `OFFLOAD_REGISTRY_TOKEN` are set.
 
 ## Upgrading Payload
 
-Ask an agent to upgrade Payload to a tag. The `upgrade-payload` skill in `.claude/skills` takes it through survey, replay, upstream tests, the template smoke suite and the report. The mechanical step is `pnpm upstream:upgrade <tag> [--drop <id>]`.
+Ask an agent to upgrade Payload to a tag. The `upgrade-payload` skill in `.claude/skills` takes it through survey, replay, upstream tests, the template's smoke suite and a report.
 
-## Running the site template
+## Editor
 
-See [`templates/site/README.md`](templates/site/README.md).
+Install the recommended oxc extension. `.vscode/settings.json` formats on save, applies lint fixes, and turns on type-aware lint rules.
+
+## Further reading
+
+- [`docs/assessment.md`](docs/assessment.md): why Payload v4, TanStack Start and Workers, and what the proof of concept found
+- [`docs/d1-atomicity.md`](docs/d1-atomicity.md): the plan for D1's missing transactions
+- [`upstream/PATCHES.md`](upstream/PATCHES.md): what Offload changes in Payload, and why
