@@ -39,7 +39,7 @@ Everything below ran in local workerd through `vite build && vite preview`, the 
 | `vite dev` in Node against local D1 and R2 | Works | The PoC uses this mode. Dev therefore runs on a different runtime from production. |
 | Patched fork build, rename and publish | Works | Install 76 s, build of all 46 workspace packages 88 s, pack 39 s, publish of 43 packages 33 s. The PoC then installed the aliases and ran the patched code. |
 
-The PoC is in [`poc-tanstack-workers`](poc-tanstack-workers). The patch and the release transform are in [`fork-prototype`](fork-prototype).
+The PoC is in [`poc-tanstack-workers`](poc-tanstack-workers). The patch now lives in [`upstream/patches`](../upstream/patches), and the release transform became [`tools/release`](../tools/release).
 
 ## Framework independence: TanStack Start
 
@@ -167,7 +167,7 @@ Other things a plugin can't do without core changes: add new field types (the `F
 
 ### Rebranding without renaming the source
 
-The prototype release transform ([`fork-prototype/republish.mjs`](fork-prototype/republish.mjs)) does the following:
+The release transform ([`tools/release/release.ts`](../tools/release/release.ts)) does the following:
 
 1. Takes the tarballs from Payload's own `pnpm pack`.
 2. Renames `payload` to `@offload/payload` and `@payloadcms/x` to `@offload/x`.

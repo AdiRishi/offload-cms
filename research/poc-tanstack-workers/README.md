@@ -25,4 +25,4 @@ pnpm preview
 | `src/server.ts` | Custom Worker entry: TanStack Start's `fetch` plus a `scheduled` handler that queues and runs a Payload job. |
 | `src/app/_payload/api.graphql.ts` | GraphQL route. The upstream template only routes REST. |
 
-On production Workers, password hashing fails until Payload caps PBKDF2 iterations. Local workerd does not enforce that limit. The fix is the patch in [`../fork-prototype/patches`](../fork-prototype/patches).
+On production Workers, password hashing fails until Payload caps PBKDF2 iterations. Local workerd does not enforce that limit. The fix is the patch in [`upstream/patches`](../../upstream/patches).
