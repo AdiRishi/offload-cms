@@ -1,7 +1,0 @@
-# Standalone workspace root, so the repo's root workspace doesn't absorb this PoC.
-autoInstallPeers: true
-strictPeerDependencies: false
-allowBuilds:
-  esbuild: true
-  sharp: true
-  workerd: true
