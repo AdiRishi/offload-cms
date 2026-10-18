@@ -33,10 +33,10 @@
     "**/.wrangler/**",
     "vendor/**",
     "upstream/patches/**",
-    "templates/*/src/migrations/**",
-    "templates/*/src/payload-types.ts",
-    "templates/*/src/routeTree.gen.ts",
-    "templates/*/src/app/_payload/importMap.js",
-    "templates/*/worker-configuration.d.ts"
+    "apps/*/src/migrations/**",
+    "apps/*/src/payload-types.ts",
+    "apps/*/src/routeTree.gen.ts",
+    "apps/*/src/app/_payload/importMap.js",
+    "apps/*/worker-configuration.d.ts"
   ]
 }

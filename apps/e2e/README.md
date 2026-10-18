@@ -1,54 +1,55 @@
-# Offload site template
+# Offload end-to-end tests
 
-A TanStack Start site with the Payload admin, running on Cloudflare Workers with D1 and R2. It installs Offload from the registry, the way a site in its own repository would. Copy this folder to start a new site.
+A Payload site on Cloudflare Workers that exists to be tested. It installs Offload from the registry the way a real site does, runs as a real Worker bundle in local workerd, and is driven by Playwright.
 
-## First run
+The suite tests what Offload changes or depends on, plus the main flows that prove Payload works on top of it. It doesn't re-test Payload's own features; Payload's test suite does that.
 
-Start the registry from the repo root (`pnpm registry`) and publish a release (`pnpm release`). Then:
+## Run it
 
-```bash
-cp .dev.vars.example .dev.vars
-pnpm install
-pnpm cf-typegen
-pnpm payload migrate
-pnpm build
-pnpm preview
-```
-
-`pnpm preview` runs the Worker bundle in local workerd at <http://localhost:4173>. Open `/admin` to create the first user. A published page with slug `about` renders at `/about`.
-
-## Development
-
-`pnpm dev` runs Vite in Node on port 3000. Payload's CommonJS dependencies don't load in workerd's dev module runner. `getBindings()` from `@arishi/offload-cloudflare` reaches the same local D1 and R2 state that `pnpm preview` uses, through Wrangler's platform proxy. Check behaviour in `pnpm preview` before deploying.
-
-After changing collections, run `pnpm payload migrate:create` and commit the migration.
-
-## Smoke test
-
-With `pnpm preview` running:
+From the repository root, with the local registry running (`pnpm registry`) and a release published (`pnpm release`):
 
 ```bash
-pnpm test:smoke
+pnpm test:e2e
 ```
 
-To test a deployed Worker, set `SMOKE_BASE_URL`, plus `SMOKE_EMAIL` and `SMOKE_PASSWORD` for an existing admin. The suite logs in, uploads to R2, publishes a page, checks it on the frontend and through GraphQL, fires the Cron Trigger (local only), and deletes what it created.
+To run against Postgres through Hyperdrive instead of D1 (needs Docker):
 
-## Deploying
+```bash
+pnpm test:e2e:postgres
+```
 
-1. Create the D1 database and R2 bucket, and put their names and the database ID in `wrangler.jsonc`.
-2. Set the secret with `pnpm wrangler secret put PAYLOAD_SECRET`.
-3. Run `pnpm payload migrate` against the remote database: set `CLOUDFLARE_ENV` and mark the D1 binding `"remote": true`.
-4. Run `pnpm deploy`.
+Each run starts from an empty database. `scripts/prepare.ts` resets local D1 and R2 state, or the Postgres schema. It then applies the migrations and builds the Worker for the selected database. Playwright serves the build with `vite preview`, and a setup step creates the first admin through the admin panel.
 
-Create the first user through the deployed site, not the Node CLI. On Workers, Offload hashes passwords with 100,000 PBKDF2 iterations, so Workers can't verify a hash the CLI creates at 600,000.
+To read the Worker's logs, start the server yourself and let the suite reuse it:
 
-## Files
+```bash
+node scripts/prepare.ts && pnpm preview
+```
 
-| File                    | Purpose                                                                                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `vite.config.ts`        | `offloadVite()` builds for workerd and runs dev in Node                                                         |
-| `src/payload.config.ts` | Payload config. Bindings come from `getBindings()`.                                                             |
-| `src/server.ts`         | Worker entry: TanStack Start for requests, Payload jobs on each Cron Trigger, which drives scheduled publishing |
-| `src/app/_payload/`     | Admin, REST and GraphQL routes                                                                                  |
-| `src/app/_frontend/`    | The website                                                                                                     |
-| `tests/smoke.test.ts`   | The smoke suite                                                                                                 |
+Then, in another terminal:
+
+```bash
+E2E_REUSE_SERVER=1 pnpm exec playwright test
+```
+
+## What the suite covers
+
+| File                     | Covers                                                                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/auth.setup.ts`    | Creating the first user through the admin, which hashes the password inside the Worker                                                                     |
+| `tests/admin.spec.ts`    | The admin's rendering, server functions and saves: drafting, publishing and translating a page, uploading to R2, and a document that uses every field type |
+| `tests/api.spec.ts`      | REST, GraphQL with arguments (which needs Offload's single-graphql fix), and access control                                                                |
+| `tests/workers.spec.ts`  | R2 byte ranges, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins                      |
+| `tests/frontend.spec.ts` | TanStack Start routes rendering Payload content through the Local API                                                                                      |
+
+## How the app is set up
+
+| File                                           | Purpose                                                                                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler.jsonc`                               | D1 and R2 by default. The `postgres` environment binds Hyperdrive to the Docker Postgres in `docker-compose.yml`.                       |
+| `src/payload.config.ts`                        | Picks the database adapter from whichever binding exists                                                                                |
+| `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, and again with `CLOUDFLARE_ENV=postgres`. |
+| `src/jobs.ts`                                  | A job task and workflow, and two endpoints that queue work for the Cron Trigger                                                         |
+| `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                 |
+
+The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and real sites should keep it that way.

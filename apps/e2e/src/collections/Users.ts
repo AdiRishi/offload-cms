@@ -1,14 +1,12 @@
 import type { CollectionConfig } from "payload";
 
+import { isStaff } from "../access";
+
 export const Users: CollectionConfig = {
   slug: "users",
-  admin: {
-    useAsTitle: "email",
-  },
+  admin: { useAsTitle: "email" },
   auth: true,
-  fields: [
-    // Email added by default
-    // Add more fields as needed
-  ],
+  access: { create: isStaff, delete: isStaff, read: isStaff, update: isStaff },
+  fields: [{ name: "name", type: "text" }],
   versions: false,
 };

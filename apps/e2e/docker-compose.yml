@@ -1,0 +1,16 @@
+# Postgres for the e2e suite's Hyperdrive environment (CLOUDFLARE_ENV=postgres).
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: offload
+      POSTGRES_PASSWORD: offload
+      POSTGRES_DB: offload_e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U offload -d offload_e2e"]
+      interval: 1s
+      retries: 30
+    ports:
+      - "54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
