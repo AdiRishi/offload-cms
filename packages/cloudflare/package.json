@@ -9,8 +9,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/bindings.d.ts",
-      "default": "./dist/bindings.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./routes": {
       "types": "./dist/routes.d.ts",
@@ -37,6 +37,7 @@
     "@tanstack/react-start": "1.169.3",
     "@tools/tsconfig": "workspace:*",
     "@types/node": "24.12.3",
+    "@types/pg": "8.20.0",
     "@vitejs/plugin-react": "6.0.3",
     "@vitejs/plugin-rsc": "0.5.38",
     "graphql": "16.11.0",

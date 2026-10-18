@@ -1,3 +1,5 @@
+import type { PoolConfig } from "pg";
+
 import { createRequire } from "node:module";
 import path from "node:path";
 
@@ -31,3 +33,20 @@ export const getBindings = async (): Promise<Cloudflare.Env> => {
   });
   return proxy.env;
 };
+
+/**
+ * Pool options for `postgresAdapter` behind Hyperdrive. Workers only allow
+ * reading the Hyperdrive binding inside a request, and Payload opens its pool
+ * there, so the connection string is read lazily. `maxUses: 1` gives every
+ * query a fresh connection; Hyperdrive does the pooling.
+ */
+export const hyperdrivePoolConfig = (
+  hyperdrive: Hyperdrive,
+  options: PoolConfig = {},
+): PoolConfig => ({
+  maxUses: 1,
+  ...options,
+  get connectionString() {
+    return hyperdrive.connectionString;
+  },
+});

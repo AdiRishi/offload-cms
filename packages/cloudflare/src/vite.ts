@@ -5,6 +5,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import rsc from "@vitejs/plugin-rsc";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import {
   type ConfigEnv,
   mergeConfig,
@@ -102,6 +103,20 @@ const singleGraphQLBuild = (): Plugin => ({
   },
 });
 
+/**
+ * `pg` loads `pg-pool` with `require()`, but the worker resolve conditions pick
+ * pg-pool's ESM wrapper, whose default export then fails `class extends Pool`.
+ */
+const pgPoolCommonJs = (): Plugin => ({
+  name: "offload:pg-pool-commonjs",
+  enforce: "pre",
+  applyToEnvironment: isServerEnvironment,
+  resolveId(id, importer) {
+    if (id !== "pg-pool" || importer === undefined) return null;
+    return createRequire(importer).resolve("pg-pool");
+  },
+});
+
 /** Workers have no node_modules, so the Node externals `withPayload` sets must go. */
 const bundleEverything = (config: UserConfig): UserConfig => {
   delete config.ssr?.external;
@@ -139,6 +154,7 @@ export const offloadVite =
           importMetaUrlFallback(),
           literalGraphQLImports(),
           singleGraphQLBuild(),
+          pgPoolCommonJs(),
           (await import("@cloudflare/vite-plugin")).cloudflare({
             ...cloudflareOptions,
             viteEnvironment: { name: "ssr", childEnvironments: ["rsc"] },
