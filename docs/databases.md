@@ -16,10 +16,10 @@ sqliteD1Adapter({ binding: env.D1, migrationDir: "...", push: false });
 
 ## Postgres through Hyperdrive
 
-Use Postgres for sites that need real transactions, such as anything that takes payments. Bind Hyperdrive in `wrangler.jsonc` and use the helper from `@arishi/offload-cloudflare`:
+Use Postgres for sites that need real transactions, such as anything that takes payments. Bind Hyperdrive in `wrangler.jsonc` and use the helper from `@adirishi/offload-cloudflare`:
 
 ```ts
-import { hyperdrivePoolConfig } from "@arishi/offload-cloudflare";
+import { hyperdrivePoolConfig } from "@adirishi/offload-cloudflare";
 
 postgresAdapter({ pool: hyperdrivePoolConfig(env.HYPERDRIVE), migrationDir: "...", push: false });
 ```

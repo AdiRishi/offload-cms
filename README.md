@@ -1,12 +1,12 @@
 # Offload CMS
 
-Offload is [Payload CMS](https://github.com/payloadcms/payload) v4 for websites built with TanStack Start and hosted on Cloudflare Workers, on D1 or on Postgres through Hyperdrive. It consists of a pinned upstream Payload release, a small series of patches on top of it, and packages that run it on Workers. Everything is published under `@arishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
+Offload is [Payload CMS](https://github.com/payloadcms/payload) v4 for websites built with TanStack Start and hosted on Cloudflare Workers, on D1 or on Postgres through Hyperdrive. It consists of a pinned upstream Payload release, a small series of patches on top of it, and packages that run it on Workers. Everything is published under `@adirishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
 
 Sites keep importing `payload` and `@payloadcms/*`. They install the Offload builds under those names through npm aliases:
 
 ```json
-"payload": "npm:@arishi/offload-payload@4.0.0-beta.2-offload.2",
-"@payloadcms/ui": "npm:@arishi/offload-ui@4.0.0-beta.2-offload.2"
+"payload": "npm:@adirishi/offload-payload@4.0.0-beta.2-offload.2",
+"@payloadcms/ui": "npm:@adirishi/offload-ui@4.0.0-beta.2-offload.2"
 ```
 
 ## Getting started
@@ -40,7 +40,7 @@ pnpm test:e2e
 
 | Path                    | Contents                                                                                                                                |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/cloudflare`   | `@arishi/offload-cloudflare`: the Vite preset, Cloudflare bindings, Worker entry and GraphQL route that run Payload on Workers          |
+| `packages/cloudflare`   | `@adirishi/offload-cloudflare`: the Vite preset, Cloudflare bindings, Worker entry and GraphQL route that run Payload on Workers        |
 | `apps/e2e`              | A Payload site on Workers that the Playwright suite drives, on D1 or Postgres. It installs Offload from the registry, like a real site. |
 | `upstream/payload.json` | The pinned Payload release and the Offload revision on top of it                                                                        |
 | `upstream/patches`      | The patch series: one `git format-patch` file per change to Payload                                                                     |
@@ -92,11 +92,11 @@ Run `pnpm upstream:export`, then bump `revision` in `upstream/payload.json` befo
 
 ## Releasing
 
-`pnpm release` builds `vendor/payload` and `packages/`, packs every package with pnpm, renames each to `@arishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to aliases, and publishes them. It refuses to run if `vendor/payload` doesn't match `upstream/`.
+`pnpm release` builds `vendor/payload` and `packages/`, packs every package with pnpm, renames each to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to aliases, and publishes them. It refuses to run if `vendor/payload` doesn't match `upstream/`.
 
 It publishes to `http://localhost:4873` unless `OFFLOAD_REGISTRY` and `OFFLOAD_REGISTRY_TOKEN` are set. Then point `apps/e2e` at the new version with `pnpm use-version apps/e2e`.
 
-Never publish a version number twice. If you reset the local registry and republish an old version, pnpm's metadata cache still holds the old tarball's details. Clear it with `pnpm cache delete "@arishi/*"` and delete the site's lockfile.
+Never publish a version number twice. If you reset the local registry and republish an old version, pnpm's metadata cache still holds the old tarball's details. Clear it with `pnpm cache delete "@adirishi/*"` and delete the site's lockfile.
 
 ## Upgrading Payload
 

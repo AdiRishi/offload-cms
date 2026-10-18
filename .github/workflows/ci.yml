@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, format and types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm check
+
+  e2e:
+    name: End-to-end (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [d1, postgres]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          vendor: "true"
+      - name: Start the local registry
+        run: |
+          pnpm registry > registry.log 2>&1 &
+          until curl -s -o /dev/null http://localhost:4873/-/ping; do sleep 1; done
+      - name: Release this commit to the local registry
+        run: pnpm release
+      - name: Install the e2e app
+        run: |
+          pnpm use-version apps/e2e
+          pnpm --dir apps/e2e install
+          pnpm --dir apps/e2e exec playwright install --with-deps chromium
+      - name: Run the suite
+        run: pnpm ${{ matrix.database == 'postgres' && 'test:e2e:postgres' || 'test:e2e' }}
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ matrix.database }}
+          path: apps/e2e/playwright-report
+          retention-days: 7

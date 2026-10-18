@@ -43,9 +43,9 @@ export const writePin = (pin: UpstreamPin) =>
 export const offloadVersion = (pin: UpstreamPin) =>
   `${pin.tag.replace(/^v/, "")}-offload.${pin.revision}`;
 
-/** Published name for an upstream package: `payload` → `@arishi/offload-payload`, `@payloadcms/ui` → `@arishi/offload-ui`. */
+/** Published name for an upstream package: `payload` → `@adirishi/offload-payload`, `@payloadcms/ui` → `@adirishi/offload-ui`. */
 export const offloadPackageName = (upstreamName: string) =>
-  `@arishi/offload-${upstreamName.replace(/^@payloadcms\//, "")}`;
+  `@adirishi/offload-${upstreamName.replace(/^@payloadcms\//, "")}`;
 
 export const run = (command: string, args: string[], options: ExecFileSyncOptions = {}) => {
   execFileSync(command, args, { stdio: "inherit", ...options });

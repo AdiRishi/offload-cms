@@ -1,8 +1,8 @@
 // Builds the patched Payload in vendor/payload and publishes every package as
-// @arishi/offload-<name>, followed by Offload's own packages in packages/.
+// @adirishi/offload-<name>, followed by Offload's own packages in packages/.
 //
 // Internal dependencies become npm aliases ("@payloadcms/ui":
-// "npm:@arishi/offload-ui@<version>"), so code keeps importing `payload` and
+// "npm:@adirishi/offload-ui@<version>"), so code keeps importing `payload` and
 // `@payloadcms/*` and sites install the Offload builds under those names.
 //
 // usage: pnpm release [--skip-build] [--registry <url>]
@@ -34,6 +34,46 @@ const skipBuild = process.argv.includes("--skip-build");
 
 const pin = readPin();
 const version = offloadVersion(pin);
+
+const npmrc = path.join(mkdtempSync(path.join(tmpdir(), "offload-npmrc-")), ".npmrc");
+const registryHost = registry.replace(/^https?:/, "");
+writeFileSync(
+  npmrc,
+  `${registryHost.endsWith("/") ? registryHost : `${registryHost}/`}:_authToken=${process.env.OFFLOAD_REGISTRY_TOKEN ?? "local-registry"}\n`,
+);
+
+// A version is published once. Releasing an unchanged pin is a no-op, so CI can run this on every push.
+const alreadyPublished = (() => {
+  try {
+    const name = offloadPackageName("payload");
+    return (
+      output("npm", [
+        "view",
+        `${name}@${version}`,
+        "version",
+        "--registry",
+        registry,
+        "--userconfig",
+        npmrc,
+      ]) === version
+    );
+  } catch {
+    return false;
+  }
+})();
+if (alreadyPublished) {
+  console.log(
+    `${version} is already published to ${registry}. Bump revision in upstream/payload.json to release changes.`,
+  );
+  process.exit(0);
+}
+
+// Published Payload packages point at this repository, which GitHub Packages uses to link them.
+const rootManifest: unknown = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+const repository =
+  typeof rootManifest === "object" && rootManifest !== null && "repository" in rootManifest
+    ? rootManifest.repository
+    : undefined;
 
 const patchFiles = readdirSync(path.join(repoRoot, "upstream", "patches")).filter((file) =>
   file.endsWith(".patch"),
@@ -112,6 +152,7 @@ const rewrite = ({ manifest, manifestPath }: Packed) => {
       ? { upstream: `${name}@${String(manifest.version)}` }
       : undefined,
     publishConfig: undefined,
+    repository: upstreamNames.has(name) ? repository : manifest.repository,
     // Consumers never install devDependencies, and ours name unpublished workspace packages.
     devDependencies: undefined,
   };
@@ -140,13 +181,6 @@ const rewrite = ({ manifest, manifestPath }: Packed) => {
   writeFileSync(manifestPath, `${JSON.stringify(rewritten, null, 2)}\n`);
   return String(rewritten.name);
 };
-
-const npmrc = path.join(packDir, ".npmrc");
-const registryHost = registry.replace(/^https?:/, "");
-writeFileSync(
-  npmrc,
-  `${registryHost.endsWith("/") ? registryHost : `${registryHost}/`}:_authToken=${process.env.OFFLOAD_REGISTRY_TOKEN ?? "local-registry"}\n`,
-);
 
 const published = [...upstreamPackages, ...ownPackages.map(pack)].map((packed) => {
   const name = rewrite(packed);

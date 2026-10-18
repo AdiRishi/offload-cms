@@ -1,29 +1,11 @@
-# A standalone workspace: this template is installed the way a site repo
-# installs Offload, from the registry, not from the monorepo's packages.
+# A standalone workspace: the e2e app installs Offload from the registry the way a
+# site repository does, not from the monorepo's packages.
 autoInstallPeers: true
 strictPeerDependencies: false
 allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+# Offload releases are always newer than pnpm's minimum release age.
 minimumReleaseAgeExclude:
-  - "@arishi/offload-cloudflare@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-db-d1-sqlite@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-drizzle@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-graphql@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-payload@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-plugin-cloud-storage@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-richtext-lexical@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-storage-r2@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-storage-s3@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-tanstack-start@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-translations@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-ui@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-transformer-cloudflare@4.0.0-beta.2-offload.1"
-  - "@arishi/offload-db-postgres@4.0.0-beta.2-offload.0 || 4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-next@4.0.0-beta.2-offload.1"
-  - "@arishi/offload-plugin-form-builder@4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-plugin-nested-docs@4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-plugin-redirects@4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-plugin-search@4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
-  - "@arishi/offload-plugin-seo@4.0.0-beta.2-offload.1 || 4.0.0-beta.2-offload.2"
+  - "@adirishi/*"

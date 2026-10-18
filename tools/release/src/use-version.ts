@@ -1,4 +1,4 @@
-// Points a site at an Offload release: sets every `@arishi/offload-*`
+// Points a site at an Offload release: sets every `@adirishi/offload-*`
 // dependency in its package.json, including npm aliases, to one version.
 //
 // usage: pnpm use-version <site-dir> [version]   (default: the pinned release)
@@ -7,7 +7,7 @@ import { fail, offloadVersion, readPin } from "@tools/upstream/lib";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-const offloadAlias = /^npm:(@arishi\/offload-[a-z0-9-]+)@/;
+const offloadAlias = /^npm:(@adirishi\/offload-[a-z0-9-]+)@/;
 
 const [siteDir, requested] = process.argv.slice(2);
 if (siteDir === undefined) fail("usage: pnpm use-version <site-dir> [version]");
@@ -27,7 +27,7 @@ else {
         const alias = offloadAlias.exec(range)?.[1];
         const next = alias
           ? `npm:${alias}@${version}`
-          : name.startsWith("@arishi/offload-")
+          : name.startsWith("@adirishi/offload-")
             ? version
             : range;
         if (next !== range) {

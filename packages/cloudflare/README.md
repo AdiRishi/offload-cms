@@ -1,14 +1,14 @@
-# @arishi/offload-cloudflare
+# @adirishi/offload-cloudflare
 
 Runs Offload (Payload v4 with TanStack Start) on Cloudflare Workers.
 
-| Export                                                           | What it does                                                                                                                                                               |
-| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@arishi/offload-cloudflare/vite` → `offloadVite()`              | The Vite config. `vite build` and `vite preview` target workerd; `vite dev` runs in Node.                                                                                  |
-| `@arishi/offload-cloudflare` → `getBindings()`                   | The Worker's bindings: from workerd at runtime, and from Wrangler's platform proxy in Node (dev and the Payload CLI). Call it with top-level await in `payload.config.ts`. |
-| `@arishi/offload-cloudflare` → `hyperdrivePoolConfig()`          | Pool options for `postgresAdapter` behind Hyperdrive                                                                                                                       |
-| `@arishi/offload-cloudflare/worker` → `createPayloadWorker()`    | The Worker entry: TanStack Start serves requests, and each Cron Trigger runs Payload's jobs, including scheduled publishing                                                |
-| `@arishi/offload-cloudflare/routes` → `payloadGraphQLHandlers()` | Handlers for a `/_payload/api/graphql` route                                                                                                                               |
+| Export                                                             | What it does                                                                                                                                                               |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@adirishi/offload-cloudflare/vite` → `offloadVite()`              | The Vite config. `vite build` and `vite preview` target workerd; `vite dev` runs in Node.                                                                                  |
+| `@adirishi/offload-cloudflare` → `getBindings()`                   | The Worker's bindings: from workerd at runtime, and from Wrangler's platform proxy in Node (dev and the Payload CLI). Call it with top-level await in `payload.config.ts`. |
+| `@adirishi/offload-cloudflare` → `hyperdrivePoolConfig()`          | Pool options for `postgresAdapter` behind Hyperdrive                                                                                                                       |
+| `@adirishi/offload-cloudflare/worker` → `createPayloadWorker()`    | The Worker entry: TanStack Start serves requests, and each Cron Trigger runs Payload's jobs, including scheduled publishing                                                |
+| `@adirishi/offload-cloudflare/routes` → `payloadGraphQLHandlers()` | Handlers for a `/_payload/api/graphql` route                                                                                                                               |
 
 ## What `offloadVite()` fixes
 

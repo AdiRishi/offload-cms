@@ -1,0 +1,25 @@
+name: Set up Offload
+description: Node, pnpm and workspace dependencies, and optionally the patched Payload checkout.
+inputs:
+  vendor:
+    description: Also check out vendor/payload and restore its Turborepo cache.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .node-version
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+    - if: inputs.vendor == 'true'
+      run: pnpm upstream:checkout
+      shell: bash
+    - if: inputs.vendor == 'true'
+      uses: actions/cache@v6
+      with:
+        path: vendor/payload/.turbo/cache
+        key: payload-turbo-${{ hashFiles('upstream/payload.json', 'upstream/patches/**') }}
+        restore-keys: payload-turbo-

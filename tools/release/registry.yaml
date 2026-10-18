@@ -1,11 +1,11 @@
 # Local npm registry for Offload releases. Run with `pnpm registry`.
-# @arishi packages are stored here; everything else is proxied from npmjs.
+# @adirishi packages are stored here; everything else is proxied from npmjs.
 storage: ./.registry-storage
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
 packages:
-  "@arishi/*":
+  "@adirishi/*":
     access: $all
     publish: $all
     unpublish: $all

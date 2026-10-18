@@ -1,0 +1,34 @@
+name: Publish
+
+# Publishes to GitHub Packages after CI passes on main. `pnpm release` exits early when
+# the pinned version is already published, so only a new `revision` publishes anything.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: ./.github/actions/setup
+        with:
+          vendor: "true"
+      - run: pnpm release
+        env:
+          OFFLOAD_REGISTRY: https://npm.pkg.github.com
+          OFFLOAD_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}

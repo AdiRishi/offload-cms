@@ -1,4 +1,4 @@
-import { offloadVite } from "@arishi/offload-cloudflare/vite";
+import { offloadVite } from "@adirishi/offload-cloudflare/vite";
 import path from "node:path";
 import { defineConfig } from "vite";
 

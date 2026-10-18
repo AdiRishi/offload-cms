@@ -1,8 +1,13 @@
 {
-  "name": "@arishi/offload-cloudflare",
+  "name": "@adirishi/offload-cloudflare",
   "version": "0.0.0",
   "description": "Run Offload (Payload v4 with TanStack Start) on Cloudflare Workers",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdiRishi/offload-cms.git",
+    "directory": "packages/cloudflare"
+  },
   "files": [
     "dist"
   ],

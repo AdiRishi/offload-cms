@@ -1,4 +1,4 @@
-import { getBindings, hyperdrivePoolConfig } from "@arishi/offload-cloudflare";
+import { getBindings, hyperdrivePoolConfig } from "@adirishi/offload-cloudflare";
 import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";

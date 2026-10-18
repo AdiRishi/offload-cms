@@ -1,4 +1,4 @@
-import { payloadGraphQLHandlers } from "@arishi/offload-cloudflare/routes";
+import { payloadGraphQLHandlers } from "@adirishi/offload-cloudflare/routes";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_payload/api/graphql")({
