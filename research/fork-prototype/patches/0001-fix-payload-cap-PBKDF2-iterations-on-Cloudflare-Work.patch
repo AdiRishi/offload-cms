@@ -1,0 +1,309 @@
+From 5f94da39ca12de971bafaab05d4f7578c62c5010 Mon Sep 17 00:00:00 2001
+From: Offload PoC <poc@offload.test>
+Date: Sun, 18 Oct 2026 20:22:26 +1100
+Subject: [PATCH] fix(payload): cap PBKDF2 iterations on Cloudflare Workers
+
+Offload-Patch: workers-pbkdf2-cap
+Upstream: https://github.com/payloadcms/payload/pull/18276
+Drop-When: upstream PR 18276 (or an equivalent) is in the pinned release
+---
+ .../strategies/local/authenticate.spec.ts     |  30 +++++
+ .../local/generatePasswordSaltHash.spec.ts    | 112 ++++++++++++++++++
+ .../local/generatePasswordSaltHash.ts         |  49 ++++++--
+ test/auth/int.spec.ts                         |   8 +-
+ 4 files changed, 187 insertions(+), 12 deletions(-)
+ create mode 100644 packages/payload/src/auth/strategies/local/generatePasswordSaltHash.spec.ts
+
+diff --git a/packages/payload/src/auth/strategies/local/authenticate.spec.ts b/packages/payload/src/auth/strategies/local/authenticate.spec.ts
+index 0bc121821..c6d644c07 100644
+--- a/packages/payload/src/auth/strategies/local/authenticate.spec.ts
++++ b/packages/payload/src/auth/strategies/local/authenticate.spec.ts
+@@ -14,6 +14,13 @@ const generateCurrentHashAndSalt = (password: string): { hash: string; salt: str
+   const salt = crypto.randomBytes(32).toString('hex')
+   const hash = crypto.pbkdf2Sync(password, salt, 600000, 32, 'sha256').toString('hex')
+ 
++  return { hash: `pbkdf2-sha256-v2-i600000-l32:${hash}`, salt }
++}
++
++const generateV1HashAndSalt = (password: string): { hash: string; salt: string } => {
++  const salt = crypto.randomBytes(32).toString('hex')
++  const hash = crypto.pbkdf2Sync(password, salt, 600000, 32, 'sha256').toString('hex')
++
+   return { hash: `pbkdf2-sha256-v1:${hash}`, salt }
+ }
+ 
+@@ -38,6 +45,29 @@ describe('authenticateLocalStrategy', () => {
+     expect(result).toEqual({ doc, shouldUpdatePasswordHash: false })
+   })
+ 
++  it('should return doc for a v1 password hash and flag it for migration', async () => {
++    const password = 'test-password'
++    const { hash, salt } = generateV1HashAndSalt(password)
++    const doc = { id: 1, hash, salt }
++
++    const result = await authenticateLocalStrategy({ doc, password })
++
++    expect(result).toEqual({ doc, shouldUpdatePasswordHash: true })
++  })
++
++  it('should authenticate a v2 hash created with fewer iterations on another runtime', async () => {
++    // Simulates a hash created on Cloudflare Workers (capped at 100000
++    // iterations) being verified in Node.js, where the default is 600000.
++    const password = 'test-password'
++    const salt = crypto.randomBytes(32).toString('hex')
++    const hashRaw = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256').toString('hex')
++    const doc = { id: 1, hash: `pbkdf2-sha256-v2-i100000-l32:${hashRaw}`, salt }
++
++    const result = await authenticateLocalStrategy({ doc, password })
++
++    expect(result).toEqual({ doc, shouldUpdatePasswordHash: false })
++  })
++
+   it('should return null when password is invalid', async () => {
+     const { hash, salt } = generateExistingHashAndSalt('correct-password')
+     const doc = { id: 1, hash, salt }
+diff --git a/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.spec.ts b/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.spec.ts
+new file mode 100644
+index 000000000..5c9a58dd2
+--- /dev/null
++++ b/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.spec.ts
+@@ -0,0 +1,112 @@
++import { afterEach, describe, expect, it, vi } from 'vitest'
++
++import type { SanitizedCollectionConfig } from '../../../collections/config/types.js'
++import type { PayloadRequest } from '../../../types/index.js'
++
++describe('generatePasswordSaltHash', () => {
++  afterEach(() => {
++    vi.unstubAllGlobals()
++    vi.resetModules()
++  })
++
++  it('should embed 600000 iterations in hashes generated in Node.js', async () => {
++    const { generatePasswordSaltHash, getPasswordHashParameters } = await import(
++      './generatePasswordSaltHash.js'
++    )
++
++    const { hash } = await generatePasswordSaltHash({
++      collection: { slug: 'users' } as SanitizedCollectionConfig,
++      isPasswordAuthenticated: true,
++      password: 'test-password',
++      req: {} as PayloadRequest,
++    })
++
++    expect(hash).toMatch(/^pbkdf2-sha256-v2-i600000-l32:[0-9a-f]{64}$/)
++    expect(getPasswordHashParameters(hash)).toMatchObject({ iterations: 600000, keyLength: 32 })
++  })
++
++  it('should cap embedded iterations at 100000 on Cloudflare Workers', async () => {
++    vi.stubGlobal('navigator', { userAgent: 'Cloudflare-Workers' })
++    const { generatePasswordSaltHash, getPasswordHashParameters } = await import(
++      './generatePasswordSaltHash.js'
++    )
++
++    const { hash } = await generatePasswordSaltHash({
++      collection: { slug: 'users' } as SanitizedCollectionConfig,
++      isPasswordAuthenticated: true,
++      password: 'test-password',
++      req: {} as PayloadRequest,
++    })
++
++    expect(hash).toMatch(/^pbkdf2-sha256-v2-i100000-l32:[0-9a-f]{64}$/)
++    expect(getPasswordHashParameters(hash)).toMatchObject({ iterations: 100000, keyLength: 32 })
++  })
++
++  it('should verify a Workers-created hash with its embedded parameters in Node.js', async () => {
++    vi.stubGlobal('navigator', { userAgent: 'Cloudflare-Workers' })
++    const workersModule = await import('./generatePasswordSaltHash.js')
++    const { hash } = await workersModule.generatePasswordSaltHash({
++      collection: { slug: 'users' } as SanitizedCollectionConfig,
++      isPasswordAuthenticated: true,
++      password: 'test-password',
++      req: {} as PayloadRequest,
++    })
++
++    // Back in Node.js: verification must use the parameters from the hash,
++    // not the runtime default.
++    vi.unstubAllGlobals()
++    vi.resetModules()
++    const { getPasswordHashParameters } = await import('./generatePasswordSaltHash.js')
++
++    expect(getPasswordHashParameters(hash)).toMatchObject({ iterations: 100000, keyLength: 32 })
++  })
++
++  it('should read iterations and key length from a v2 hash', async () => {
++    const { getPasswordHashParameters } = await import('./generatePasswordSaltHash.js')
++
++    expect(getPasswordHashParameters('pbkdf2-sha256-v2-i100000-l32:deadbeef')).toEqual({
++      hash: 'deadbeef',
++      iterations: 100000,
++      keyLength: 32,
++    })
++  })
++
++  it('should verify v1 hashes with the original 600000 iterations', async () => {
++    const { getPasswordHashParameters } = await import('./generatePasswordSaltHash.js')
++
++    expect(getPasswordHashParameters('pbkdf2-sha256-v1:deadbeef')).toEqual({
++      hash: 'deadbeef',
++      iterations: 600000,
++      keyLength: 32,
++    })
++  })
++
++  it('should fall back to legacy parameters for unprefixed hashes', async () => {
++    const { getPasswordHashParameters } = await import('./generatePasswordSaltHash.js')
++
++    expect(getPasswordHashParameters('deadbeef')).toEqual({
++      hash: 'deadbeef',
++      iterations: 25000,
++      keyLength: 512,
++    })
++  })
++
++  it('should fall back to legacy parameters for malformed v2 hashes', async () => {
++    const { getPasswordHashParameters } = await import('./generatePasswordSaltHash.js')
++
++    expect(getPasswordHashParameters('pbkdf2-sha256-v2-i100000-l32')).toEqual({
++      hash: 'pbkdf2-sha256-v2-i100000-l32',
++      iterations: 25000,
++      keyLength: 512,
++    })
++  })
++
++  it('should treat only v2 hashes as current so older hashes migrate on login', async () => {
++    const { isCurrentPasswordHash } = await import('./generatePasswordSaltHash.js')
++
++    expect(isCurrentPasswordHash('pbkdf2-sha256-v2-i100000-l32:deadbeef')).toBe(true)
++    expect(isCurrentPasswordHash('pbkdf2-sha256-v1:deadbeef')).toBe(false)
++    expect(isCurrentPasswordHash('deadbeef')).toBe(false)
++    expect(isCurrentPasswordHash(undefined)).toBe(false)
++  })
++})
+diff --git a/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.ts b/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.ts
+index 587a03b33..aba8783a7 100644
+--- a/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.ts
++++ b/packages/payload/src/auth/strategies/local/generatePasswordSaltHash.ts
+@@ -19,12 +19,35 @@ type Args = {
+   req: PayloadRequest
+ }
+ 
+-const currentPasswordHashPrefix = 'pbkdf2-sha256-v1:'
+-const currentPasswordHashIterations = 600000
++const defaultPasswordHashIterations = 600000
+ const currentPasswordHashKeyLength = 32
++
++// Hashes created before the parameters were embedded in the hash itself. They
++// were always generated with these parameters, so verification keeps using
++// them.
++const legacyV1PasswordHashPrefix = 'pbkdf2-sha256-v1:'
++const legacyV1PasswordHashIterations = 600000
++const legacyV1PasswordHashKeyLength = 32
++
+ const legacyPasswordHashIterations = 25000
+ const legacyPasswordHashKeyLength = 512
+ 
++// Cloudflare Workers rejects PBKDF2 iteration counts above 100,000, so cap
++// iterations when running in the Workers runtime. Everywhere else keeps the
++// stronger default.
++const cloudflareWorkersMaxPBKDF2Iterations = 100000
++const isCloudflareWorkersRuntime =
++  typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
++
++const currentPasswordHashIterations = isCloudflareWorkersRuntime
++  ? Math.min(defaultPasswordHashIterations, cloudflareWorkersMaxPBKDF2Iterations)
++  : defaultPasswordHashIterations
++
++// The parameters a hash was created with are embedded in the hash itself so
++// verification does not depend on which runtime created it:
++// pbkdf2-sha256-v2-i<iterations>-l<keyLength>:<hex>
++const currentPasswordHashRegex = /^pbkdf2-sha256-v2-i(\d+)-l(\d+):([0-9a-f]+)$/
++
+ export const generatePasswordSaltHash = async ({
+   collection,
+   isPasswordAuthenticated,
+@@ -62,17 +85,27 @@ export const generatePasswordSaltHash = async ({
+     password: passwordToSet,
+     salt,
+   })
+-  const hash = `${currentPasswordHashPrefix}${hashRaw.toString('hex')}`
++  const hash = `pbkdf2-sha256-v2-i${currentPasswordHashIterations}-l${currentPasswordHashKeyLength}:${hashRaw.toString('hex')}`
+ 
+   return { hash, salt }
+ }
+ 
+ export const getPasswordHashParameters = (hash: string): PasswordHashParameters => {
+-  if (isCurrentPasswordHash(hash)) {
++  const [, iterations, keyLength, storedHash] = currentPasswordHashRegex.exec(hash) ?? []
++
++  if (iterations && keyLength && storedHash) {
++    return {
++      hash: storedHash,
++      iterations: Number(iterations),
++      keyLength: Number(keyLength),
++    }
++  }
++
++  if (hash.startsWith(legacyV1PasswordHashPrefix)) {
+     return {
+-      hash: hash.slice(currentPasswordHashPrefix.length),
+-      iterations: currentPasswordHashIterations,
+-      keyLength: currentPasswordHashKeyLength,
++      hash: hash.slice(legacyV1PasswordHashPrefix.length),
++      iterations: legacyV1PasswordHashIterations,
++      keyLength: legacyV1PasswordHashKeyLength,
+     }
+   }
+ 
+@@ -84,7 +117,7 @@ export const getPasswordHashParameters = (hash: string): PasswordHashParameters
+ }
+ 
+ export const isCurrentPasswordHash = (hash: unknown): hash is string =>
+-  typeof hash === 'string' && hash.startsWith(currentPasswordHashPrefix)
++  typeof hash === 'string' && currentPasswordHashRegex.test(hash)
+ 
+ function randomBytes(): Promise<Buffer> {
+   return new Promise((resolve, reject) =>
+diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
+index b33c57b91..8d8e2664d 100644
+--- a/test/auth/int.spec.ts
++++ b/test/auth/int.spec.ts
+@@ -353,7 +353,7 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+         })
+ 
+         expect(updatedUser?.hash).not.toBe(existingHash)
+-        expect(updatedUser?.hash).toMatch(/^pbkdf2-sha256-v1:[a-f0-9]{64}$/)
++        expect(updatedUser?.hash).toMatch(/^pbkdf2-sha256-v2-i600000-l32:[a-f0-9]{64}$/)
+         expect(updatedUser?.salt).not.toBe(existingSalt)
+       })
+ 
+@@ -401,7 +401,7 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+             shouldChangePassword &&
+             args.collection === slug &&
+             typeof args.data.hash === 'string' &&
+-            args.data.hash.startsWith('pbkdf2-sha256-v1:')
++            args.data.hash.startsWith('pbkdf2-sha256-v2-')
+           ) {
+             shouldChangePassword = false
+             // Shares the login transaction so this write is not blocked by its row lock
+@@ -491,7 +491,7 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+               shouldChangePassword &&
+               args.collection === slug &&
+               typeof args.data.hash === 'string' &&
+-              args.data.hash.startsWith('pbkdf2-sha256-v1:') &&
++              args.data.hash.startsWith('pbkdf2-sha256-v2-') &&
+               'where' in args
+             ) {
+               shouldChangePassword = false
+@@ -585,7 +585,7 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+           },
+         })
+ 
+-        expect(updatedUser?.hash).toMatch(/^pbkdf2-sha256-v1:[a-f0-9]{64}$/)
++        expect(updatedUser?.hash).toMatch(/^pbkdf2-sha256-v2-i600000-l32:[a-f0-9]{64}$/)
+         expect(updatedUser?.salt).not.toBe(existingSalt)
+       })
+     })
+-- 
+2.50.1 (Apple Git-155)
+
