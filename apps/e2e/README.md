@@ -53,3 +53,13 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 | `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                 |
 
 The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and real sites should keep it that way.
+
+## Staging on Cloudflare
+
+Some behaviour only shows up on a real deployment, such as the Workers limit on password hashing that patch 0001 works around. The `staging` environment in `wrangler.jsonc` deploys this app to the "Adishwar Rishi (Personal)" account as `offload-e2e-staging`, with its own D1 database and R2 bucket.
+
+```bash
+pnpm deploy:staging
+```
+
+This applies migrations to the remote D1 database, builds for staging, and deploys. The staging admin's credentials are in `.staging-admin.json`, which is gitignored. `PAYLOAD_SECRET` is a Wrangler secret on the Worker.

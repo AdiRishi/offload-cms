@@ -92,11 +92,33 @@ Run `pnpm upstream:export`, then bump `revision` in `upstream/payload.json` befo
 
 ## Releasing
 
-`pnpm release` builds `vendor/payload` and `packages/`, packs every package with pnpm, renames each to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to aliases, and publishes them. It refuses to run if `vendor/payload` doesn't match `upstream/`.
+`pnpm release` builds `vendor/payload` and `packages/`, packs every package with pnpm, renames each to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to aliases, and publishes them. It refuses to run if `vendor/payload` doesn't match `upstream/`. If that version is already in the registry, it does nothing.
 
-It publishes to `http://localhost:4873` unless `OFFLOAD_REGISTRY` and `OFFLOAD_REGISTRY_TOKEN` are set. Then point `apps/e2e` at the new version with `pnpm use-version apps/e2e`.
+Releases go to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms). To publish one, bump `revision` in `upstream/payload.json` and push to `main`: the Publish workflow releases it once CI passes.
+
+Locally, `pnpm release` publishes to the registry that `pnpm registry` runs on `http://localhost:4873`. That's how you test a change before pushing it. Set `OFFLOAD_REGISTRY` and `OFFLOAD_REGISTRY_TOKEN` to publish anywhere else.
 
 Never publish a version number twice. If you reset the local registry and republish an old version, pnpm's metadata cache still holds the old tarball's details. Clear it with `pnpm cache delete "@adirishi/*"` and delete the site's lockfile.
+
+## Using Offload in a site
+
+GitHub Packages needs a token even for public packages. Create a GitHub token with the `read:packages` scope and add an `.npmrc` to the site:
+
+```ini
+@adirishi:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Then install Offload under the upstream names, as in the `dependencies` of [`apps/e2e/package.json`](apps/e2e/package.json), and set up the site like [`apps/e2e`](apps/e2e): `offloadVite()` in `vite.config.ts`, `getBindings()` in `payload.config.ts`, and `createPayloadWorker()` as the Worker entry. `pnpm use-version <site-dir>` moves a site to a new release.
+
+## Continuous integration
+
+Every push runs two GitHub Actions jobs:
+
+- `pnpm check`
+- the e2e suite on D1 and on Postgres, against a release of that commit to a throwaway registry inside the runner
+
+After CI passes on `main`, the Publish workflow releases to GitHub Packages.
 
 ## Upgrading Payload
 

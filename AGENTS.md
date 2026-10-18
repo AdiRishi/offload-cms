@@ -6,7 +6,7 @@ Offload is upstream Payload v4 plus the patch series in `upstream/patches`, publ
 - Put new behaviour in site code, or in a package in `packages/`, whenever Payload's config or plugin API can express it. A patch is for behaviour with no extension point.
 - Developer tooling lives in `tools/` as workspace packages that Node runs straight from TypeScript. Every workspace package extends a config from `@tools/tsconfig`.
 - `apps/e2e` installs Offload from the registry. Test a change to `packages/` or to a patch with `pnpm release`, `pnpm use-version apps/e2e`, then `pnpm test:e2e` and `pnpm test:e2e:postgres`. The suite covers what Offload changes and the main editor flows, not Payload's own features.
-- Finish with `pnpm check`, plus `pnpm format:fix` and `pnpm lint:fix` when it reports problems.
+- Finish with `pnpm check`, plus `pnpm format:fix` and `pnpm lint:fix` when it reports problems. CI runs `pnpm check` and the e2e suite on every push. Bumping `revision` in `upstream/payload.json` publishes a release to GitHub Packages once CI passes on `main`.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

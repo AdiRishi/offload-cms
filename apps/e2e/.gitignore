@@ -5,3 +5,6 @@
 
 # Resolved against whichever Offload registry is local, so it differs per machine
 pnpm-lock.yaml
+
+# Credentials for the staging admin, created on first deploy
+/.staging-admin.json

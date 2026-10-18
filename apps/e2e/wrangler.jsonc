@@ -10,6 +10,8 @@
   "env": {
     // Postgres through Hyperdrive. Select it with CLOUDFLARE_ENV=postgres.
     "postgres": {
+      // Unused here, but every environment binds D1 so the generated Env type requires it.
+      "d1_databases": [{ "binding": "D1", "database_name": "offload-e2e", "database_id": "local" }],
       "hyperdrive": [
         {
           "binding": "HYPERDRIVE",
@@ -18,6 +20,20 @@
         },
       ],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-e2e" }],
+    },
+    // A real deployment on Cloudflare, for behaviour that local workerd doesn't reproduce.
+    // Deploy with CLOUDFLARE_ENV=staging (see README).
+    "staging": {
+      "account_id": "34c911069f69b7cc1f38573958c3db45",
+      "d1_databases": [
+        {
+          "binding": "D1",
+          "database_name": "offload-staging",
+          "database_id": "03f3ab96-248a-4bab-bd0b-2eea2268da2b",
+          "remote": true,
+        },
+      ],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-staging", "remote": true }],
     },
   },
 }

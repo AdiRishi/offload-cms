@@ -6,12 +6,12 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "pnpm payload migrate && vite build && wrangler deploy",
     "payload": "payload",
     "cf-typegen": "wrangler types",
     "check-types": "tsc --noEmit",
     "e2e": "node scripts/prepare.ts && playwright test",
-    "e2e:postgres": "CLOUDFLARE_ENV=postgres pnpm e2e"
+    "e2e:postgres": "CLOUDFLARE_ENV=postgres pnpm e2e",
+    "deploy:staging": "CLOUDFLARE_ENV=staging pnpm payload migrate && CLOUDFLARE_ENV=staging pnpm build && wrangler deploy"
   },
   "dependencies": {
     "@adirishi/offload-cloudflare": "4.0.0-beta.2-offload.2",

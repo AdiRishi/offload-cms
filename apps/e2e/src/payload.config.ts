@@ -28,24 +28,21 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 const env = await getBindings();
 
 // The default Wrangler environment binds D1. CLOUDFLARE_ENV=postgres binds Hyperdrive instead.
+// Cloudflare's upload validation runs this module without bindings, so nothing here may
+// require one: the adapters only use them once the first request connects.
 // Migrations own the schema on both, so dev and production cannot drift.
-function databaseAdapter() {
-  if (env.HYPERDRIVE) {
-    return postgresAdapter({
-      migrationDir: path.resolve(dirname, "migrations/postgres"),
-      pool: hyperdrivePoolConfig(env.HYPERDRIVE),
-      push: false,
-    });
-  }
-  if (env.D1) {
-    return sqliteD1Adapter({
-      binding: env.D1,
-      migrationDir: path.resolve(dirname, "migrations/d1"),
-      push: false,
-    });
-  }
-  throw new Error("Bind D1, or Hyperdrive with CLOUDFLARE_ENV=postgres.");
-}
+const databaseAdapter = () =>
+  env.HYPERDRIVE
+    ? postgresAdapter({
+        migrationDir: path.resolve(dirname, "migrations/postgres"),
+        pool: hyperdrivePoolConfig(env.HYPERDRIVE),
+        push: false,
+      })
+    : sqliteD1Adapter({
+        binding: env.D1,
+        migrationDir: path.resolve(dirname, "migrations/d1"),
+        push: false,
+      });
 
 export default buildConfig({
   admin: {
