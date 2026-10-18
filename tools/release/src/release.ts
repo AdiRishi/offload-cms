@@ -21,6 +21,7 @@ import {
   vendorChanges,
   vendorGitOutput,
 } from "@tools/upstream/lib";
+import { execFile } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -32,6 +33,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 const registryArg = process.argv.indexOf("--registry");
 const registry =
@@ -119,7 +121,9 @@ if (
 }
 
 if (!skipBuild) {
-  run("pnpm", ["install", "--frozen-lockfile"], { cwd: vendorDir });
+  // Building needs no install scripts. Skipping them avoids compiling better-sqlite3 and
+  // downloading MongoDB for Payload's test suite.
+  run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], { cwd: vendorDir });
   run("pnpm", ["build:all"], { cwd: vendorDir });
   run("pnpm", ["--filter", "./packages/*", "build"], { cwd: repoRoot });
 }
@@ -149,14 +153,30 @@ const packDir = mkdtempSync(path.join(tmpdir(), "offload-release-"));
 
 type Packed = { directory: string; manifest: Record<string, unknown>; manifestPath: string };
 
-const pack = (packageDir: string): Packed => {
-  const tarball = output("pnpm", ["pack", "--pack-destination", packDir], { cwd: packageDir })
-    .split("\n")
-    .findLast((line) => line.endsWith(".tgz"));
+const execFileAsync = promisify(execFile);
+
+/** Runs `task` over `items` with at most `limit` in flight. Results keep the input order. */
+const mapConcurrent = async <T, R>(items: T[], limit: number, task: (item: T) => Promise<R>) => {
+  const results: R[] = [];
+  const entries = items.entries();
+  const worker = async () => {
+    // Each worker takes the next item from the shared iterator, so it awaits one at a time.
+    // oxlint-disable-next-line eslint/no-await-in-loop
+    for (const [index, item] of entries) results[index] = await task(item);
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+};
+
+const pack = async (packageDir: string): Promise<Packed> => {
+  const { stdout } = await execFileAsync("pnpm", ["pack", "--pack-destination", packDir], {
+    cwd: packageDir,
+  });
+  const tarball = stdout.split("\n").findLast((line) => line.endsWith(".tgz"));
   if (tarball === undefined) return fail(`pnpm pack produced no tarball for ${packageDir}`);
 
   const directory = mkdtempSync(path.join(packDir, "pkg-"));
-  run("tar", ["-xzf", path.resolve(packDir, tarball), "-C", directory]);
+  await execFileAsync("tar", ["-xzf", path.resolve(packDir, tarball), "-C", directory]);
   const manifestPath = path.join(directory, "package", "package.json");
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
@@ -165,7 +185,9 @@ const pack = (packageDir: string): Packed => {
   return { directory: path.join(directory, "package"), manifest: { ...manifest }, manifestPath };
 };
 
-const upstreamPackages = publishList.map(pack);
+const concurrency = 8;
+const upstreamPackages = await mapConcurrent(publishList, concurrency, pack);
+const ownPacked = await mapConcurrent(ownPackages, concurrency, pack);
 const upstreamNames = new Set(upstreamPackages.map(({ manifest }) => String(manifest.name)));
 
 const isDependencyMap = (value: unknown): value is Record<string, string> =>
@@ -229,20 +251,29 @@ const rewrite = ({ directory, manifest, manifestPath }: Packed) => {
   return String(rewritten.name);
 };
 
-const published = [...upstreamPackages, ...ownPackages.map(pack)].map((packed) => {
-  const name = rewrite(packed);
-  run("npm", [
-    "publish",
-    packed.directory,
-    "--registry",
-    registry,
-    "--tag",
-    "latest",
-    "--userconfig",
-    npmrc,
-  ]);
-  return name;
-});
+const published = await mapConcurrent(
+  [...upstreamPackages, ...ownPacked],
+  concurrency,
+  async (packed) => {
+    const name = rewrite(packed);
+    try {
+      await execFileAsync("npm", [
+        "publish",
+        packed.directory,
+        "--registry",
+        registry,
+        "--tag",
+        "latest",
+        "--userconfig",
+        npmrc,
+      ]);
+    } catch (error) {
+      fail(`Publishing ${name} failed:\n${error instanceof Error ? error.message : String(error)}`);
+    }
+    console.log(`+ ${name}@${version}`);
+    return name;
+  },
+);
 
 rmSync(packDir, { force: true, recursive: true });
 console.log(`\nPublished ${published.length} packages at ${version} to ${registry}:`);

@@ -18,6 +18,16 @@ runs:
       run: pnpm upstream:checkout
       shell: bash
     - if: inputs.vendor == 'true'
+      id: pnpm-store
+      run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+      shell: bash
+    # setup-node's cache is keyed on the root lockfile, so Payload's packages get their own.
+    - if: inputs.vendor == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: pnpm-store-payload-${{ runner.os }}-${{ hashFiles('vendor/payload/pnpm-lock.yaml') }}
+    - if: inputs.vendor == 'true'
       uses: actions/cache@v6
       with:
         path: vendor/payload/.turbo/cache

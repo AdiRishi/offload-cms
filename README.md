@@ -11,7 +11,7 @@ Sites keep importing `payload` and `@payloadcms/*`. They install the Offload bui
 
 ## Getting started
 
-You need Node 24.15 (see `.node-version`) and pnpm through Corepack.
+You need the current Node 24 LTS, Krypton (see `.node-version`), and pnpm through Corepack.
 
 ```bash
 pnpm install
