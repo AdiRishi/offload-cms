@@ -21,7 +21,15 @@ import {
   vendorChanges,
   vendorGitOutput,
 } from "@tools/upstream/lib";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -68,12 +76,35 @@ if (alreadyPublished) {
   process.exit(0);
 }
 
-// Published Payload packages point at this repository, which GitHub Packages uses to link them.
+// Offload's identity replaces Payload's on every package it republishes. The repository
+// link is also how GitHub Packages attaches the packages to this repo.
 const rootManifest: unknown = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-const repository =
-  typeof rootManifest === "object" && rootManifest !== null && "repository" in rootManifest
-    ? rootManifest.repository
+const rootField = (field: string) =>
+  typeof rootManifest === "object" && rootManifest !== null && field in rootManifest
+    ? Reflect.get(rootManifest, field)
     : undefined;
+const identity = {
+  bugs: rootField("bugs"),
+  homepage: rootField("homepage"),
+  repository: rootField("repository"),
+};
+const homepage = String(identity.homepage).replace(/#readme$/, "");
+
+const offloadReadme = ({ published, upstream }: { published: string; upstream: string }) =>
+  [
+    `# ${published}`,
+    "",
+    `Part of [Offload](${homepage}): [Payload CMS](https://payloadcms.com) v4 for TanStack Start sites on Cloudflare Workers.`,
+    "",
+    `This package is \`${upstream}\` with Offload's patches applied. Offload is not affiliated with Payload. Install it under the upstream name, so code and Payload's documentation keep working:`,
+    "",
+    "```json",
+    `"${upstream.slice(0, upstream.lastIndexOf("@"))}": "npm:${published}@${version}"`,
+    "```",
+    "",
+    "Payload is MIT-licensed by Payload CMS, LLC. See `LICENSE.md`.",
+    "",
+  ].join("\n");
 
 const patchFiles = readdirSync(path.join(repoRoot, "upstream", "patches")).filter((file) =>
   file.endsWith(".patch"),
@@ -142,20 +173,36 @@ const isDependencyMap = (value: unknown): value is Record<string, string> =>
   value !== null &&
   Object.values(value).every((range) => typeof range === "string");
 
-const rewrite = ({ manifest, manifestPath }: Packed) => {
+const rewrite = ({ directory, manifest, manifestPath }: Packed) => {
   const name = String(manifest.name);
+  const isUpstream = upstreamNames.has(name);
+  const upstream = `${name}@${String(manifest.version)}`;
+  const published = isUpstream ? offloadPackageName(name) : name;
   const rewritten: Record<string, unknown> = {
     ...manifest,
-    name: upstreamNames.has(name) ? offloadPackageName(name) : name,
+    ...(isUpstream && {
+      ...identity,
+      author: undefined,
+      description: `Offload build of ${upstream}. Payload CMS v4 for TanStack Start sites on Cloudflare Workers.`,
+      funding: undefined,
+      keywords: ["offload", "payload", "cms", "cloudflare-workers", "tanstack-start"],
+      maintainers: undefined,
+      offload: { upstream },
+    }),
+    name: published,
     version,
-    offload: upstreamNames.has(name)
-      ? { upstream: `${name}@${String(manifest.version)}` }
-      : undefined,
     publishConfig: undefined,
-    repository: upstreamNames.has(name) ? repository : manifest.repository,
     // Consumers never install devDependencies, and ours name unpublished workspace packages.
     devDependencies: undefined,
   };
+
+  if (isUpstream) {
+    writeFileSync(path.join(directory, "README.md"), offloadReadme({ published, upstream }));
+    // MIT requires Payload's notice in every copy; some packages don't ship it.
+    if (!existsSync(path.join(directory, "LICENSE.md"))) {
+      copyFileSync(path.join(vendorDir, "LICENSE.md"), path.join(directory, "LICENSE.md"));
+    }
+  }
 
   for (const field of ["dependencies", "optionalDependencies"]) {
     const dependencies = manifest[field];

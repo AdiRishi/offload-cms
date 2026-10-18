@@ -2,6 +2,10 @@
   "name": "offload-cms",
   "private": true,
   "description": "Payload CMS v4 for TanStack Start sites on Cloudflare Workers",
+  "homepage": "https://github.com/AdiRishi/offload-cms#readme",
+  "bugs": {
+    "url": "https://github.com/AdiRishi/offload-cms/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AdiRishi/offload-cms.git"
