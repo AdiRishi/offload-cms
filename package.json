@@ -1,30 +1,33 @@
 {
   "name": "offload-cms",
   "private": true,
+  "description": "Payload CMS v4 for TanStack Start sites on Cloudflare Workers",
   "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types && tsc -p tools/tsconfig.json",
-    "upstream:checkout": "node tools/upstream/checkout.ts",
-    "upstream:export": "node tools/upstream/export.ts",
-    "upstream:status": "node tools/upstream/status.ts",
-    "upstream:upgrade": "node tools/upstream/upgrade.ts",
-    "registry:start": "verdaccio --config tools/registry/config.yaml --listen 4873",
-    "release": "node tools/release/release.ts",
-    "use-version": "node tools/release/use-version.ts"
+    "check": "turbo run lint format check-types",
+    "check-types": "turbo run check-types",
+    "format": "oxfmt --check",
+    "format:fix": "oxfmt",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "registry": "pnpm --filter @tools/release registry",
+    "release": "node tools/release/src/release.ts",
+    "upstream:checkout": "node tools/upstream/src/checkout.ts",
+    "upstream:export": "node tools/upstream/src/export.ts",
+    "upstream:status": "node tools/upstream/src/status.ts",
+    "upstream:upgrade": "node tools/upstream/src/upgrade.ts",
+    "use-version": "node tools/release/src/use-version.ts"
   },
   "devDependencies": {
-    "@types/node": "24.12.3",
-    "prettier": "3.9.6",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
+    "oxlint-tsgolint": "7.0.2004",
     "turbo": "^2.11.9",
-    "typescript": "7.0.2",
-    "verdaccio": "6.10.5"
+    "typescript": "7.0.2"
   },
-  "packageManager": "pnpm@11.25.0",
   "engines": {
-    "node": ">=24"
-  }
+    "node": ">=24.15.0"
+  },
+  "packageManager": "pnpm@11.25.0"
 }

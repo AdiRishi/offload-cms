@@ -1,15 +1,15 @@
-# Local npm registry for Offload releases. Run with `pnpm registry:start`.
+# Local npm registry for Offload releases. Run with `pnpm registry`.
 # @arishi packages are stored here; everything else is proxied from npmjs.
-storage: ./storage
+storage: ./.registry-storage
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
 packages:
-  '@arishi/*':
+  "@arishi/*":
     access: $all
     publish: $all
     unpublish: $all
-  '**':
+  "**":
     access: $all
     proxy: npmjs
 max_body_size: 200mb

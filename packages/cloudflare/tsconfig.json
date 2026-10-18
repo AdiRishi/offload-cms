@@ -1,10 +1,8 @@
 {
-  "extends": "@repo/typescript-config/base.json",
+  "extends": "@tools/tsconfig/library.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "declarationMap": false,
-    "lib": ["es2024"],
     "types": ["node", "@cloudflare/workers-types"]
   },
   "include": ["src"]

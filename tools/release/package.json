@@ -1,0 +1,20 @@
+{
+  "name": "@tools/release",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Builds the patched Payload and publishes Offload packages",
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "registry": "verdaccio --config registry.yaml --listen 4873"
+  },
+  "dependencies": {
+    "@tools/upstream": "workspace:*"
+  },
+  "devDependencies": {
+    "@tools/tsconfig": "workspace:*",
+    "@types/node": "24.12.3",
+    "typescript": "7.0.2",
+    "verdaccio": "6.10.5"
+  }
+}

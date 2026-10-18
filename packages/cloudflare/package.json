@@ -3,35 +3,39 @@
   "version": "0.0.0",
   "description": "Run Offload (Payload v4 with TanStack Start) on Cloudflare Workers",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "type": "module",
-  "files": ["dist"],
   "exports": {
-    ".": { "types": "./dist/bindings.d.ts", "default": "./dist/bindings.js" },
-    "./routes": { "types": "./dist/routes.d.ts", "default": "./dist/routes.js" },
-    "./vite": { "types": "./dist/vite.d.ts", "default": "./dist/vite.js" },
-    "./worker": { "types": "./dist/worker.d.ts", "default": "./dist/worker.js" }
+    ".": {
+      "types": "./dist/bindings.d.ts",
+      "default": "./dist/bindings.js"
+    },
+    "./routes": {
+      "types": "./dist/routes.d.ts",
+      "default": "./dist/routes.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "default": "./dist/worker.js"
+    }
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.json",
     "check-types": "tsc -p tsconfig.json --noEmit"
   },
-  "peerDependencies": {
-    "@cloudflare/vite-plugin": "^1.64.0",
-    "@payloadcms/tanstack-start": "4.0.0-beta.2",
-    "@tanstack/react-start": "^1.169.1",
-    "@vitejs/plugin-react": "^6.0.0",
-    "@vitejs/plugin-rsc": "^0.5.21",
-    "payload": "4.0.0-beta.2",
-    "vite": "^8.0.0",
-    "wrangler": "^4.151.0"
-  },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.64.0",
     "@cloudflare/workers-types": "5.20261012.1",
     "@payloadcms/tanstack-start": "4.0.0-beta.2",
-    "@repo/typescript-config": "workspace:*",
     "@tanstack/react-router": "1.170.44",
     "@tanstack/react-start": "1.169.3",
+    "@tools/tsconfig": "workspace:*",
     "@types/node": "24.12.3",
     "@vitejs/plugin-react": "6.0.3",
     "@vitejs/plugin-rsc": "0.5.38",
@@ -42,5 +46,15 @@
     "typescript": "7.0.2",
     "vite": "8.3.4",
     "wrangler": "4.151.1"
+  },
+  "peerDependencies": {
+    "@cloudflare/vite-plugin": "^1.64.0",
+    "@payloadcms/tanstack-start": "4.0.0-beta.2",
+    "@tanstack/react-start": "^1.169.1",
+    "@vitejs/plugin-react": "^6.0.0",
+    "@vitejs/plugin-rsc": "^0.5.21",
+    "payload": "4.0.0-beta.2",
+    "vite": "^8.0.0",
+    "wrangler": "^4.151.0"
   }
 }

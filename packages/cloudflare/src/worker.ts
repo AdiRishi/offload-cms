@@ -1,15 +1,15 @@
-import type { Payload, SanitizedConfig } from 'payload'
+import type { Payload, SanitizedConfig } from "payload";
 
-type RunOptions = Omit<NonNullable<Parameters<Payload['jobs']['run']>[0]>, 'req'>
+type RunOptions = Omit<NonNullable<Parameters<Payload["jobs"]["run"]>[0]>, "req">;
 
 type PayloadWorkerArgs = {
   /** The default export of `@payload-config`. */
-  config: Promise<SanitizedConfig>
+  config: Promise<SanitizedConfig>;
   /** The TanStack Start handler from `@tanstack/react-start/server-entry`. */
-  handler: { fetch: (request: Request) => Promise<Response> | Response }
+  handler: { fetch: (request: Request) => Promise<Response> | Response };
   /** Options for each `payload.jobs.run()`. Defaults to all queues with access control bypassed. */
-  jobs?: RunOptions
-}
+  jobs?: RunOptions;
+};
 
 /**
  * The Worker's default export: TanStack Start serves requests, and every
@@ -19,13 +19,13 @@ export const createPayloadWorker = ({ config, handler, jobs }: PayloadWorkerArgs
   ({
     fetch: (request) => handler.fetch(request),
     scheduled: async (_controller, _env, ctx) => {
-      const { getPayload } = await import('payload')
-      const payload = await getPayload({ config: await config })
+      const { getPayload } = await import("payload");
+      const payload = await getPayload({ config: await config });
       ctx.waitUntil(
         (async () => {
-          await payload.jobs.handleSchedules({ allQueues: true })
-          await payload.jobs.run({ allQueues: true, overrideAccess: true, ...jobs })
+          await payload.jobs.handleSchedules({ allQueues: true });
+          await payload.jobs.run({ allQueues: true, overrideAccess: true, ...jobs });
         })(),
-      )
+      );
     },
-  }) satisfies ExportedHandler
+  }) satisfies ExportedHandler;
