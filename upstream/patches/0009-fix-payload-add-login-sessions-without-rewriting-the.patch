@@ -13,30 +13,34 @@ seven 500s with "UNIQUE constraint failed: users_sessions.id". On Postgres
 every login returns 200, but each one writes back the sessions it read, so
 the sessions of the other logins disappear and their tokens stop working.
 Logging out of one session, and the cleanup after a login fails, rewrite the
-array the same way.
+array the same way. Logging out of every session writes back the whole user
+it read, hash and salt included, so it undoes a password change that lands
+between its read and its write.
 
 Login now removes the expired sessions it read, by ID, then adds its session
 with $push, which the SQL adapters write as one insert. Logging out of one
 session and the cleanup after a failed login remove only that session.
-updateOne accepts { $remove: id | id[] } on a top-level array field: the SQL
-adapters delete those rows, in batches that stay within D1's 100 bound
-parameters, and MongoDB pulls them. Session expiry, logout from all sessions,
-refresh and password changes keep their behaviour. MongoDB with transactions
-still rejects concurrent writes to one user with a WriteConflict, as before.
+Logging out of every session writes only an empty sessions array. updateOne
+accepts { $remove: id | id[] } on a top-level array field: the SQL adapters
+delete those rows, in batches that stay within D1's 100 bound parameters,
+and MongoDB pulls them. Session expiry, refresh and password changes keep
+their behaviour here, and concurrent-session-refresh changes refresh with
+$remove. MongoDB with transactions still rejects concurrent writes to one
+user with a WriteConflict, as before.
 
 Offload-Patch: concurrent-login-sessions
 Upstream: https://github.com/payloadcms/payload/issues/16027
-Drop-When: the pinned release adds a login session without writing back the sessions array it read (issue 16027, PR 18150)
+Drop-When: the pinned release adds login sessions and logs out without writing back the user it read (issue 16027; PR 18150 covers login only), and concurrent-session-refresh no longer uses the $remove operator this patch adds
 Tests: pnpm exec vitest run --project unit packages/drizzle/src/upsertRow/removeArrayRows.spec.ts; PAYLOAD_DATABASE=sqlite pnpm test:int test/auth/int.spec.ts; e2e suite (concurrent logins test)
 ---
- .../db-mongodb/src/utilities/transform.ts     | 18 ++++
- packages/drizzle/src/upsertRow/index.ts       |  5 ++
- .../src/upsertRow/removeArrayRows.spec.ts     | 83 +++++++++++++++++++
- .../drizzle/src/upsertRow/removeArrayRows.ts  | 59 +++++++++++++
- .../payload/src/auth/operations/logout.ts     | 39 +++++----
- packages/payload/src/auth/sessions.ts         | 34 ++++++--
- test/auth/int.spec.ts                         | 75 +++++++++++++++++
- 7 files changed, 290 insertions(+), 23 deletions(-)
+ .../db-mongodb/src/utilities/transform.ts     |  18 +++
+ packages/drizzle/src/upsertRow/index.ts       |   5 +
+ .../src/upsertRow/removeArrayRows.spec.ts     |  83 +++++++++++
+ .../drizzle/src/upsertRow/removeArrayRows.ts  |  59 ++++++++
+ .../payload/src/auth/operations/logout.ts     |  43 +++---
+ packages/payload/src/auth/sessions.ts         |  34 ++++-
+ test/auth/int.spec.ts                         | 135 ++++++++++++++++++
+ 7 files changed, 352 insertions(+), 25 deletions(-)
  create mode 100644 packages/drizzle/src/upsertRow/removeArrayRows.spec.ts
  create mode 100644 packages/drizzle/src/upsertRow/removeArrayRows.ts
 
@@ -247,26 +251,29 @@ index 000000000..f2e659759
 +  return remainingData
 +}
 diff --git a/packages/payload/src/auth/operations/logout.ts b/packages/payload/src/auth/operations/logout.ts
-index 98f651026..22919d014 100644
+index 98f651026..939a1a5aa 100644
 --- a/packages/payload/src/auth/operations/logout.ts
 +++ b/packages/payload/src/auth/operations/logout.ts
-@@ -73,24 +73,31 @@ export const logoutOperation = async (incomingArgs: Arguments): Promise<boolean>
+@@ -72,25 +72,32 @@ export const logoutOperation = async (incomingArgs: Arguments): Promise<boolean>
+       }
  
        if (allSessions) {
-         userWithSessions.sessions = []
+-        userWithSessions.sessions = []
 -      } else {
 -        const sessionsAfterLogout = (userWithSessions?.sessions || []).filter(
 -          (s) => s.id !== req?.user?._sid,
 -        )
- 
+-
 -        userWithSessions.sessions = sessionsAfterLogout
-+        // Prevent updatedAt from being updated when only removing a session
-+        ;(userWithSessions as any).updatedAt = null
-+
++        // Writing back the user that this logout read would undo a concurrent password change
 +        await req.payload.db.updateOne({
 +          id: user.id,
 +          collection: collectionConfig.slug,
-+          data: userWithSessions,
++          data: {
++            sessions: [],
++            // Prevent updatedAt from being updated when only removing sessions
++            updatedAt: null,
++          },
 +          req,
 +          returning: false,
 +        })
@@ -365,10 +372,10 @@ index 6d3bcd324..5a1ddeb39 100644
        returning: false,
      })
 diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
-index 8d8e2664d..5b37f259f 100644
+index 8d8e2664d..fea74d59c 100644
 --- a/test/auth/int.spec.ts
 +++ b/test/auth/int.spec.ts
-@@ -3197,6 +3197,81 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+@@ -3197,6 +3197,141 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
        expect(user2.docs[0]?.sessions).toHaveLength(1)
      })
  
@@ -406,6 +413,66 @@ index 8d8e2664d..5b37f259f 100644
 +          .sort()
 +
 +        expect(storedSessionIDs).toEqual(issuedSessionIDs)
++      },
++    )
++
++    // MongoDB transactions reject concurrent writes to one document with a WriteConflict
++    test.options(
++      'should keep a password change made while logging out of every session',
++      { db: 'drizzle' },
++      async ({ payload, restClient }) => {
++        const newPassword = `${password}-changed`
++        const user = await payload.create({
++          collection: slug,
++          data: {
++            email: `logout-all-sessions-${Date.now()}@example.com`,
++            password,
++            roles: ['admin'],
++          },
++          overrideAccess: true,
++        })
++        const login = (withPassword: string) =>
++          payload.login({
++            collection: slug,
++            data: { email: user.email, password: withPassword },
++            overrideAccess: true,
++          })
++        const { token } = await login(password)
++
++        // Hold the logout at its write until the password changes, so that the logout has read
++        // the user before the change
++        let logoutReady!: () => void
++        let releaseLogout!: () => void
++        const logoutWaiting = new Promise<void>((resolve) => (logoutReady = resolve))
++        const logoutReleased = new Promise<void>((resolve) => (releaseLogout = resolve))
++        const updateOne = payload.db.updateOne.bind(payload.db)
++        const updateOneSpy = vitest
++          .spyOn(payload.db, 'updateOne')
++          .mockImplementation(async (args) => {
++            if (args.req?.url?.includes('/logout')) {
++              logoutReady()
++              await logoutReleased
++            }
++            return updateOne(args)
++          })
++
++        const logout = restClient.POST(`/${slug}/logout?allSessions=true`, {
++          headers: { Authorization: `JWT ${token}` },
++        })
++        await logoutWaiting
++        await payload.update({
++          id: user.id,
++          collection: slug,
++          data: { password: newPassword },
++          overrideAccess: true,
++        })
++        releaseLogout()
++        const logoutStatus = (await logout).status
++        updateOneSpy.mockRestore()
++
++        expect(logoutStatus).toBe(200)
++        await expect(login(newPassword)).resolves.toMatchObject({ user: { id: user.id } })
++        await expect(login(password)).rejects.toThrow()
 +      },
 +    )
 +

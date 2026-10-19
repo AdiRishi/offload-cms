@@ -1,0 +1,115 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "offload",
+  "homepage": "https://adirishi.github.io/offload-cms/customer-accounts",
+  "items": [
+    {
+      "name": "login-form",
+      "type": "registry:component",
+      "title": "Login form",
+      "description": "Logs a visitor in with an email and password, with a message for each failure and links to sign up and reset the password.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["@offload/form-fields"],
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls logIn from @/server/account.functions, which you write. It links to /sign-up and /forgot-password. It uses the shadcn components button, checkbox, field, input, spinner, and textarea, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/login-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/login-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "sign-up-form",
+      "type": "registry:component",
+      "title": "Sign-up form",
+      "description": "Creates an account with an email, a password, and a Turnstile check, then logs the visitor in or asks them to check their email.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["@offload/form-fields", "@offload/turnstile"],
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls signUp from @/server/account.functions, which you write. It links to /login. It uses the shadcn components button, checkbox, field, input, spinner, and textarea, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/sign-up-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/sign-up-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "forgot-password-form",
+      "type": "registry:component",
+      "title": "Forgot password form",
+      "description": "Sends a password reset link after a Turnstile check, with one confirmation whether or not the email has an account.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["@offload/form-fields", "@offload/turnstile"],
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls requestPasswordReset from @/server/account.functions, which you write. It links to /login. It uses the shadcn components button, checkbox, field, input, spinner, and textarea, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/forgot-password-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/forgot-password-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "reset-password-form",
+      "type": "registry:component",
+      "title": "Reset password form",
+      "description": "Sets a new password with the token from a reset email and logs the visitor in.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["@offload/form-fields"],
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls resetPassword from @/server/account.functions, which you write. It links to /forgot-password. It uses the shadcn components button, checkbox, field, input, spinner, and textarea, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/reset-password-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/reset-password-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "change-password-form",
+      "type": "registry:component",
+      "title": "Change password form",
+      "description": "Changes the logged-in account's password after checking the current one, and ends its other sessions.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["@offload/form-fields"],
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls changePassword from @/server/account.functions, which you write. Render it on a page behind the account guard. It uses the shadcn components button, checkbox, field, input, spinner, and textarea, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/change-password-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/change-password-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "verify-email-form",
+      "type": "registry:component",
+      "title": "Verify email form",
+      "description": "Verifies the email of a verification link when the visitor presses a button, so mail scanners that open links verify nothing.",
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls verifyEmail from @/server/account.functions, which you write. Render it on the /verify-email page with the link's token. It links to /login. It uses the shadcn components button and spinner, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/verify-email-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/verify-email-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "account-menu",
+      "type": "registry:component",
+      "title": "Account menu",
+      "description": "A header control with a log in link for visitors, and a menu with the account page and log out for a logged-in account.",
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The menu calls logOut from @/server/account.functions, which you write. It links to /login and /account. It uses the shadcn components button and dropdown-menu, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/account-menu.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/account-menu.tsx"
+        }
+      ]
+    }
+  ]
+}

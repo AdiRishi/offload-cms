@@ -24,13 +24,16 @@ const mapRanges = (
     Object.entries(dependencies).map(([name, current]) => [name, range(name, current)]),
   );
 
+// pnpm pack writes a workspace dependency on another Offload package as that package's 0.0.0.
+const isOffload = (name: string) => name.startsWith("@adirishi/offload-");
+
 /**
  * The manifest a package is published with. Every package takes the Offload
  * version. An upstream package also takes its Offload name and Offload's
  * identity. Dependencies on upstream packages become npm aliases
  * (`"@payloadcms/ui": "npm:@adirishi/offload-ui@<version>"`), so code keeps
  * importing the upstream names. Peers keep the names a site installs, so only
- * their version changes.
+ * their version changes. Dependencies on Offload's own packages take the same version.
  */
 export const releaseManifest = (
   manifest: PackageManifest,
@@ -38,8 +41,10 @@ export const releaseManifest = (
 ): PackageManifest => {
   const isUpstream = upstreamNames.has(manifest.name);
   const upstream = `${manifest.name}@${manifest.version}`;
-  const alias = (name: string, range: string) =>
-    upstreamNames.has(name) ? `npm:${offloadPackageName(name)}@${version}` : range;
+  const alias = (name: string, range: string) => {
+    if (upstreamNames.has(name)) return `npm:${offloadPackageName(name)}@${version}`;
+    return isOffload(name) ? version : range;
+  };
 
   return {
     ...manifest,
@@ -63,7 +68,7 @@ export const releaseManifest = (
     dependencies: mapRanges(manifest.dependencies, alias),
     optionalDependencies: mapRanges(manifest.optionalDependencies, alias),
     peerDependencies: mapRanges(manifest.peerDependencies, (name, range) =>
-      upstreamNames.has(name) ? version : range,
+      upstreamNames.has(name) || isOffload(name) ? version : range,
     ),
   };
 };

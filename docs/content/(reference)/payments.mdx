@@ -156,11 +156,13 @@ Each run does two things:
 
 The checkout UI installs from Offload's shadcn registry, from [`packages/payments/registry.json`](https://github.com/AdiRishi/offload-cms/blob/main/packages/payments/registry.json).
 
-| Item                 | Installs                                     | Registry dependencies                   | npm dependencies |
-| -------------------- | -------------------------------------------- | --------------------------------------- | ---------------- |
-| `razorpay-checkout`  | `components/payments/razorpay-checkout.tsx`  | `button`, `spinner`                     | `zod`            |
-| `mips-payment-zone`  | `components/payments/mips-payment-zone.tsx`  | `button`, `spinner`                     | `zod`            |
-| `mips-confirm-order` | `components/payments/mips-confirm-order.tsx` | `spinner`, `@offload/mips-payment-zone` | `zod`            |
+| Item                 | Installs                                     | Uses the shadcn components | Registry dependencies        | npm dependencies |
+| -------------------- | -------------------------------------------- | -------------------------- | ---------------------------- | ---------------- |
+| `razorpay-checkout`  | `components/payments/razorpay-checkout.tsx`  | `button`, `spinner`        | None                         | `zod`            |
+| `mips-payment-zone`  | `components/payments/mips-payment-zone.tsx`  | `button`, `spinner`        | None                         | `zod`            |
+| `mips-confirm-order` | `components/payments/mips-confirm-order.tsx` | `spinner`                  | `@offload/mips-payment-zone` | `zod`            |
+
+The items don't install the shadcn components they use, so `--overwrite` never replaces the site's copies. Add the ones the site lacks with `shadcn add`, without `--overwrite`.
 
 Each item's `meta` names the release of `@adirishi/offload-payments` it was built for. The components call the plugin's `usePayments()`, so they render inside `EcommerceProvider`.
 

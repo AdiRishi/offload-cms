@@ -1,5 +1,6 @@
 import type { DataFromCollectionSlug, Payload, RequiredDataFromCollectionSlug } from "payload";
 
+import { verifyTurnstile } from "@adirishi/offload-cloudflare";
 import { z } from "zod";
 
 import {
@@ -10,7 +11,6 @@ import {
   type SubmissionResult,
   submissionData,
 } from "./schema.ts";
-import { verifyTurnstile } from "./turnstile.ts";
 
 export type SaveFormSubmissionOptions = {
   /** The validated input of the site's server function. */

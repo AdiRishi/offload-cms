@@ -20,7 +20,7 @@ with both, which checks the variant's price and stock.
 
 Offload-Patch: ecommerce-initiate-variant-validation
 Drop-When: the pinned release validates variant items in the initiate endpoint and checks that each variant belongs to its item's product
-Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/payments.spec.ts, the tampered variant test)
+Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that refuse a tampered variant cart)
 ---
  .../src/endpoints/initiatePayment.spec.ts     | 108 ++++++++++++
  .../src/endpoints/initiatePayment.ts          | 156 ++++++++----------

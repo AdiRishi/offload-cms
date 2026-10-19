@@ -1,0 +1,522 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 04:51:53 +1100
+Subject: [PATCH] fix(payload): refresh a session without rewriting the
+ sessions array
+
+Refreshing a token while another request logs in or refreshes as the same
+user fails or loses sessions. Refresh reads the user with its sessions, then
+writes the whole user back with the new expiry of its session and without
+the expired sessions. The SQL adapters write an array by deleting all of its
+rows and inserting them again. D1 has no transactions, so refreshes that run
+at once interleave those statements and fail with "UNIQUE constraint failed:
+users_sessions.id". On D1 and Postgres, a session that a login adds after a
+refresh reads the user disappears when the refresh writes, and its token
+stops working. Between the delete and the insert, a request with the
+refreshing token finds no session. Refresh also writes back every other
+field it read, which can undo a concurrent edit to the user.
+
+Refresh now updates the expiry of its own session in place, then removes the
+expired sessions it read by ID with the $remove operator that
+concurrent-login-sessions adds. The session keeps its ID, and refresh writes
+no other row. updateOne accepts { $update: row | row[] } on a top-level
+array field, where each row has the ID of an existing row and the fields to
+set. The SQL adapters update the columns of each row with one statement, and
+MongoDB sets the fields through array filters. MongoDB with transactions
+still rejects concurrent writes to one user with a WriteConflict, as before.
+This patch requires concurrent-login-sessions, which adds $remove.
+
+Offload-Patch: concurrent-session-refresh
+Drop-When: the pinned release refreshes a session without writing back the sessions array it read
+Tests: pnpm exec vitest run --project unit packages/drizzle/src/upsertRow/updateArrayRows.spec.ts; PAYLOAD_DATABASE=sqlite pnpm test:int test/auth/int.spec.ts; e2e suite (sessions.spec.ts refresh test)
+---
+ packages/db-mongodb/src/updateOne.ts          |   9 +-
+ .../db-mongodb/src/utilities/transform.ts     |  35 +++++
+ packages/drizzle/src/upsertRow/index.ts       |   2 +
+ .../src/upsertRow/updateArrayRows.spec.ts     |  81 +++++++++++
+ .../drizzle/src/upsertRow/updateArrayRows.ts  |  67 +++++++++
+ .../payload/src/auth/operations/refresh.ts    |  27 +++-
+ test/auth/int.spec.ts                         | 130 ++++++++++++++++++
+ 7 files changed, 346 insertions(+), 5 deletions(-)
+ create mode 100644 packages/drizzle/src/upsertRow/updateArrayRows.spec.ts
+ create mode 100644 packages/drizzle/src/upsertRow/updateArrayRows.ts
+
+diff --git a/packages/db-mongodb/src/updateOne.ts b/packages/db-mongodb/src/updateOne.ts
+index f43c9a088..c319cacdd 100644
+--- a/packages/db-mongodb/src/updateOne.ts
++++ b/packages/db-mongodb/src/updateOne.ts
+@@ -44,13 +44,17 @@ export const updateOne: UpdateOne = async function updateOne(
+   const $push: Record<string, { $each: any[] } | any> = {}
+   const $addToSet: Record<string, { $each: any[] } | any> = {}
+   const $pull: Record<string, { $in: any[] } | any> = {}
++  const $set: Record<string, unknown> = {}
++  const arrayFilters: Record<string, unknown>[] = []
+ 
+   transform({
+     $addToSet,
+     $inc,
+     $pull,
+     $push,
++    $set,
+     adapter: this,
++    arrayFilters,
+     data,
+     fields,
+     operation: 'write',
+@@ -70,13 +74,14 @@ export const updateOne: UpdateOne = async function updateOne(
+   if (Object.keys($pull).length) {
+     updateOps.$pull = $pull
+   }
+-  if (Object.keys(updateOps).length) {
+-    updateOps.$set = updateData
++  if (Object.keys(updateOps).length || arrayFilters.length) {
++    updateOps.$set = { ...updateData, ...$set }
+     updateData = updateOps
+   }
+ 
+   const baseOptions = {
+     ...optionsArgs,
++    ...(arrayFilters.length ? { arrayFilters } : {}),
+     session: await getSession(this, req),
+     // Timestamps are manually added by the write transform
+     timestamps: false,
+diff --git a/packages/db-mongodb/src/utilities/transform.ts b/packages/db-mongodb/src/utilities/transform.ts
+index b733800a4..77096b882 100644
+--- a/packages/db-mongodb/src/utilities/transform.ts
++++ b/packages/db-mongodb/src/utilities/transform.ts
+@@ -285,8 +285,11 @@ type Args = {
+   $inc?: Record<string, number>
+   $pull?: Record<string, { $in: any[] } | any>
+   $push?: Record<string, { $each: any[] } | any>
++  $set?: Record<string, unknown>
+   /** instance of the adapter */
+   adapter: MongooseAdapter
++  /** collects the array filters that the positional paths in `$set` name */
++  arrayFilters?: Record<string, unknown>[]
+   /** data to transform, can be an array of documents or a single document */
+   data: Record<string, unknown> | Record<string, unknown>[]
+   /** fields accossiated with the data */
+@@ -499,7 +502,9 @@ export const transform = ({
+   $inc,
+   $pull,
+   $push,
++  $set,
+   adapter,
++  arrayFilters,
+   data,
+   fields,
+   globalSlug,
+@@ -518,7 +523,9 @@ export const transform = ({
+         $inc,
+         $pull,
+         $push,
++        $set,
+         adapter,
++        arrayFilters,
+         data: item,
+         fields,
+         globalSlug,
+@@ -679,6 +686,34 @@ export const transform = ({
+       }
+     }
+ 
++    // Handle $update operation for array fields: sets fields of the rows with the given IDs
++    if (
++      $set &&
++      arrayFilters &&
++      field.type === 'array' &&
++      operation === 'write' &&
++      field.name in ref &&
++      ref[field.name]
++    ) {
++      const value = ref[field.name]
++
++      if (value && typeof value === 'object' && '$update' in value) {
++        const rows = (Array.isArray(value.$update) ? value.$update : [value.$update]) as Record<
++          string,
++          unknown
++        >[]
++        for (const { id, ...row } of rows) {
++          const identifier = `row${arrayFilters.length}`
++          arrayFilters.push({ [`${identifier}.id`]: id })
++          for (const [key, rowValue] of Object.entries(row)) {
++            $set[`${parentPath}${field.name}.$[${identifier}].${key}`] = rowValue
++          }
++        }
++        delete ref[field.name]
++        clearEmptyContainer()
++      }
++    }
++
+     // Handle $push operation for relationship fields (converts to $addToSet)
+ 
+     // Handle $push operation for relationship fields (converts to $addToSet) - unified approach
+diff --git a/packages/drizzle/src/upsertRow/index.ts b/packages/drizzle/src/upsertRow/index.ts
+index f0b782797..f47bee49b 100644
+--- a/packages/drizzle/src/upsertRow/index.ts
++++ b/packages/drizzle/src/upsertRow/index.ts
+@@ -26,6 +26,7 @@ import { handleUpsertError } from './handleUpsertError.js'
+ import { insertArrays } from './insertArrays.js'
+ import { removeArrayRows } from './removeArrayRows.js'
+ import { shouldUseOptimizedUpsertRow } from './shouldUseOptimizedUpsertRow.js'
++import { updateArrayRows } from './updateArrayRows.js'
+ 
+ /**
+  * If `id` is provided, it will update the row with that ID.
+@@ -64,6 +65,7 @@ export const upsertRow = async <T extends Record<string, unknown> | TypeWithID>(
+ 
+   if (id) {
+     data = await removeArrayRows({ adapter, data, db, fields, parentID: id, tableName })
++    data = await updateArrayRows({ adapter, data, db, fields, parentID: id, tableName })
+   }
+ 
+   let insertedRow: Record<string, unknown> = { id }
+diff --git a/packages/drizzle/src/upsertRow/updateArrayRows.spec.ts b/packages/drizzle/src/upsertRow/updateArrayRows.spec.ts
+new file mode 100644
+index 000000000..79d5e95b3
+--- /dev/null
++++ b/packages/drizzle/src/upsertRow/updateArrayRows.spec.ts
+@@ -0,0 +1,81 @@
++import type { FlattenedField } from 'payload'
++
++import { createClient } from '@libsql/client'
++import { drizzle } from 'drizzle-orm/libsql'
++import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
++import { describe, expect, it } from 'vitest'
++
++import type { DrizzleAdapter } from '../types.js'
++
++import { updateArrayRows } from './updateArrayRows.js'
++
++const usersSessions = sqliteTable('users_sessions', {
++  id: text('id').primaryKey(),
++  _parentID: integer('_parent_id').notNull(),
++  createdAt: text('created_at'),
++  expiresAt: text('expires_at').notNull(),
++})
++
++const fields = [
++  { name: 'name', type: 'text' },
++  {
++    name: 'sessions',
++    type: 'array',
++    flattenedFields: [
++      { name: 'id', type: 'text' },
++      { name: 'createdAt', type: 'date' },
++      { name: 'expiresAt', type: 'date' },
++    ],
++  },
++] as unknown as FlattenedField[]
++
++const setup = async () => {
++  const client = createClient({ url: ':memory:' })
++  await client.execute(
++    'CREATE TABLE users_sessions (id TEXT PRIMARY KEY, _parent_id INTEGER, created_at TEXT, expires_at TEXT)',
++  )
++  const db = drizzle(client)
++  const adapter = {
++    tableNameMap: new Map([['users_sessions', 'users_sessions']]),
++    tables: { users_sessions: usersSessions },
++  } as unknown as DrizzleAdapter
++
++  return { adapter, db }
++}
++
++describe('updateArrayRows', () => {
++  it("sets the given columns of only the named rows of the parent's array", async () => {
++    const { adapter, db } = await setup()
++    const createdAt = '2026-01-01T00:00:00.000Z'
++    const expiresAt = '2026-01-01T02:00:00.000Z'
++    await db.insert(usersSessions).values([
++      { id: 'refreshed', _parentID: 1, createdAt, expiresAt },
++      { id: 'other', _parentID: 1, createdAt, expiresAt },
++      { id: 'other-users', _parentID: 2, createdAt, expiresAt },
++    ])
++
++    const remainingData = await updateArrayRows({
++      adapter,
++      data: {
++        name: 'Ada',
++        sessions: {
++          $update: [
++            { id: 'refreshed', expiresAt: new Date('2026-01-01T03:00:00.000Z') },
++            { id: 'other-users', expiresAt: new Date('2026-01-01T03:00:00.000Z') },
++          ],
++        },
++      },
++      db,
++      fields,
++      parentID: 1,
++      tableName: 'users',
++    })
++
++    expect(remainingData).toEqual({ name: 'Ada' })
++    expect(await db.select().from(usersSessions).orderBy(usersSessions.id)).toEqual([
++      { id: 'other', _parentID: 1, createdAt, expiresAt },
++      { id: 'other-users', _parentID: 2, createdAt, expiresAt },
++      { id: 'refreshed', _parentID: 1, createdAt, expiresAt: '2026-01-01T03:00:00.000Z' },
++    ])
++  })
++})
+diff --git a/packages/drizzle/src/upsertRow/updateArrayRows.ts b/packages/drizzle/src/upsertRow/updateArrayRows.ts
+new file mode 100644
+index 000000000..53470b796
+--- /dev/null
++++ b/packages/drizzle/src/upsertRow/updateArrayRows.ts
+@@ -0,0 +1,67 @@
++import type { LibSQLDatabase } from 'drizzle-orm/libsql'
++import type { FlattenedField } from 'payload'
++
++import { and, eq } from 'drizzle-orm'
++import toSnakeCase from 'to-snake-case'
++
++import type { DrizzleAdapter, DrizzleTransaction } from '../types.js'
++
++import { transformForWrite } from '../transform/write/index.js'
++
++type Args = {
++  adapter: DrizzleAdapter
++  data: Record<string, unknown>
++  db: DrizzleAdapter['drizzle'] | DrizzleTransaction
++  fields: FlattenedField[]
++  parentID: number | string
++  tableName: string
++}
++
++/**
++ * Updates the rows that `{ [arrayField]: { $update: row | row[] } }` names by `row.id` in
++ * top-level array fields, and returns the data without those operations. Each row sets only the
++ * columns of the array's own table, so nested arrays, blocks and localized fields are not written.
++ */
++export const updateArrayRows = async ({
++  adapter,
++  data,
++  db,
++  fields,
++  parentID,
++  tableName,
++}: Args): Promise<Record<string, unknown>> => {
++  const remainingData = { ...data }
++
++  for (const field of fields) {
++    const value = data[field.name]
++
++    if (field.type !== 'array' || typeof value !== 'object' || !value || !('$update' in value)) {
++      continue
++    }
++
++    const rows = (Array.isArray(value.$update) ? value.$update : [value.$update]) as Record<
++      string,
++      unknown
++    >[]
++    const arrayTableName = adapter.tableNameMap.get(`${tableName}_${toSnakeCase(field.name)}`)
++    const table = adapter.tables[arrayTableName]
++
++    for (const { id, ...rowData } of rows) {
++      const { row } = transformForWrite({
++        adapter,
++        data: rowData,
++        fields: field.flattenedFields,
++        tableName: arrayTableName,
++      })
++
++      await (db as LibSQLDatabase)
++        .update(table)
++        .set(row)
++        .where(and(eq(table._parentID, parentID), eq(table.id, id)))
++    }
++
++    delete remainingData[field.name]
++  }
++
++  return remainingData
++}
+diff --git a/packages/payload/src/auth/operations/refresh.ts b/packages/payload/src/auth/operations/refresh.ts
+index 7451edf64..28df8f7a5 100644
+--- a/packages/payload/src/auth/operations/refresh.ts
++++ b/packages/payload/src/auth/operations/refresh.ts
+@@ -96,19 +96,40 @@ export const refreshOperation = async (incomingArgs: Arguments): Promise<Result>
+       const now = new Date()
+       const tokenExpInMs = collectionConfig.auth.tokenExpiration * 1000
+       existingSession.expiresAt = new Date(now.getTime() + tokenExpInMs)
+-
++      const activeSessions = removeExpiredSessions(user.sessions)
++      const expiredSessionIDs = user.sessions
++        .filter((session) => !activeSessions.includes(session))
++        .map(({ id }) => id)
++
++      // Concurrent logins and refreshes read the same sessions. Writing back the array that this
++      // refresh read would drop the sessions that the others add, and the SQL adapters would
++      // delete this session before inserting it again. Update this session in place and remove
++      // only the expired sessions this refresh read.
+       await req.payload.db.updateOne({
+         id: user.id,
+         collection: collectionConfig.slug,
+         data: {
+-          ...user,
++          sessions: { $update: { id: sid, expiresAt: existingSession.expiresAt } },
+           // Prevent updatedAt from being updated when only refreshing a session
+-          sessions: removeExpiredSessions(user.sessions),
+           updatedAt: null,
+         },
+         req,
+         returning: false,
+       })
++
++      if (expiredSessionIDs.length) {
++        await req.payload.db.updateOne({
++          id: user.id,
++          collection: collectionConfig.slug,
++          data: {
++            sessions: { $remove: expiredSessionIDs },
++            // Prevent updatedAt from being updated when only removing sessions
++            updatedAt: null,
++          },
++          req,
++          returning: false,
++        })
++      }
+     }
+ 
+     user = await req.payload.db.findOne({
+diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
+index fea74d59c..2170ee60b 100644
+--- a/test/auth/int.spec.ts
++++ b/test/auth/int.spec.ts
+@@ -3332,6 +3332,136 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+       )
+     })
+ 
++    // MongoDB transactions reject concurrent writes to one document with a WriteConflict
++    test.options(
++      'should keep every session when refreshes race logins',
++      { db: 'drizzle' },
++      async ({ payload, restClient }) => {
++        const user = await payload.create({
++          collection: slug,
++          data: {
++            email: `concurrent-refreshes-${Date.now()}@example.com`,
++            password,
++            roles: ['admin'],
++          },
++          overrideAccess: true,
++        })
++        const login = async () => {
++          const { token } = await payload.login({
++            collection: slug,
++            data: { email: user.email, password },
++            overrideAccess: true,
++          })
++          return String(token)
++        }
++        const findSessions = async () => {
++          const storedUser = await payload.db.findOne<User>({
++            collection: slug,
++            where: { id: { equals: user.id } },
++          })
++          return storedUser?.sessions ?? []
++        }
++        const sessionID = (token: string) => jwtDecode<{ sid: string }>(token).sid
++        const authorization = (token: string) => ({ headers: { Authorization: `JWT ${token}` } })
++
++        const existingTokens = [await login(), await login(), await login()]
++        const sessionsBeforeRefresh = await findSessions()
++
++        // Hold every refresh at its first write until the logins finish, so that each refresh
++        // has read the sessions before the logins add theirs
++        let refreshesWaiting = 0
++        let refreshesReady!: () => void
++        let releaseRefreshes!: () => void
++        const allRefreshesWaiting = new Promise<void>((resolve) => (refreshesReady = resolve))
++        const refreshesReleased = new Promise<void>((resolve) => (releaseRefreshes = resolve))
++        const updateOne = payload.db.updateOne.bind(payload.db)
++        const updateOneSpy = vitest
++          .spyOn(payload.db, 'updateOne')
++          .mockImplementation(async (args) => {
++            if (args.req?.url?.endsWith('/refresh-token')) {
++              refreshesWaiting += 1
++              if (refreshesWaiting === existingTokens.length) {
++                refreshesReady()
++              }
++              await refreshesReleased
++            }
++            return updateOne(args)
++          })
++
++        const refreshes = Promise.all(
++          existingTokens.map((token) =>
++            restClient.POST(`/${slug}/refresh-token`, authorization(token)),
++          ),
++        )
++        await allRefreshesWaiting
++        const newTokens = await Promise.all(Array.from({ length: 6 }, login))
++        releaseRefreshes()
++        const refreshStatuses = (await refreshes).map(({ status }) => status)
++        updateOneSpy.mockRestore()
++
++        expect(refreshStatuses).toEqual(existingTokens.map(() => 200))
++        const sessionsAfterRefresh = await findSessions()
++        expect(sessionsAfterRefresh.map(({ id }) => id).sort()).toEqual(
++          [...existingTokens, ...newTokens].map(sessionID).sort(),
++        )
++
++        const expiryTime = (sessions: typeof sessionsBeforeRefresh, token: string) =>
++          new Date(sessions.find(({ id }) => id === sessionID(token))?.expiresAt ?? 0).getTime()
++        for (const token of existingTokens) {
++          expect(expiryTime(sessionsAfterRefresh, token)).toBeGreaterThan(
++            expiryTime(sessionsBeforeRefresh, token),
++          )
++        }
++      },
++    )
++
++    test('should remove only expired sessions when refreshing', async ({ payload, restClient }) => {
++      const otherSession = {
++        id: uuid(),
++        createdAt: new Date().toISOString(),
++        expiresAt: new Date(Date.now() + 60_000).toISOString(),
++      }
++      const expiredSession = {
++        id: uuid(),
++        createdAt: new Date(Date.now() - 60_000).toISOString(),
++        expiresAt: new Date(Date.now() - 5_000).toISOString(),
++      }
++      const user = await payload.create({
++        collection: slug,
++        data: {
++          email: `refresh-expired-sessions-${Date.now()}@example.com`,
++          password,
++          roles: ['admin'],
++        },
++        overrideAccess: true,
++      })
++      const { token } = await payload.login({
++        collection: slug,
++        data: { email: user.email, password },
++        overrideAccess: true,
++      })
++      await payload.db.updateOne({
++        id: user.id,
++        collection: slug,
++        data: { sessions: { $push: [otherSession, expiredSession] } },
++        returning: false,
++      })
++
++      const response = await restClient.POST(`/${slug}/refresh-token`, {
++        headers: { Authorization: `JWT ${token}` },
++      })
++
++      const storedUser = await payload.db.findOne<User>({
++        collection: slug,
++        where: { id: { equals: user.id } },
++      })
++
++      expect(response.status).toBe(200)
++      expect((storedUser?.sessions ?? []).map(({ id }) => id).sort()).toEqual(
++        [otherSession.id, jwtDecode<{ sid: string }>(String(token)).sid].sort(),
++      )
++    })
++
+     test('should not update updatedAt when creating a session', async ({ payload }) => {
+       // Create a user
+       const testUser = await payload.create({

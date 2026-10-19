@@ -1,32 +1,33 @@
-// Builds Offload's shadcn registry from the packages that ship registry items into public/r.
-// Each item's `meta` names the release of its package that it was built for, which `shadcn view`
-// shows.
+// Builds Offload's shadcn registry into public/r from the registry.json in each package. Each
+// item's `meta` names the release of the package that holds it, which `shadcn view` shows.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { globSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { version } from "./version.ts";
 
-type Registry = { items: ({ files: { path: string }[] } & Record<string, unknown>)[] };
+type Registry = { items: { meta?: Record<string, string>; files: { path: string }[] }[] };
 
-const packagesDir = path.resolve(import.meta.dirname, "../packages");
-const packages = [
-  { dir: "form-builder", name: "@adirishi/offload-form-builder" },
-  { dir: "payments", name: "@adirishi/offload-payments" },
-];
+const root = path.resolve(import.meta.dirname, "..");
 
-const items = packages.flatMap(({ dir, name }) => {
-  const registry: Registry = JSON.parse(
-    readFileSync(path.join(packagesDir, dir, "registry.json"), "utf8"),
-  );
-  return registry.items.map((item) => ({
-    ...item,
-    meta: { [name]: version },
-    files: item.files.map((file) => ({ ...file, path: path.join(dir, file.path) })),
-  }));
-});
+// One registry, so that public/r/registry.json lists every item. File paths become relative to
+// the repository.
+const items = globSync("packages/*/registry.json", { cwd: root })
+  .toSorted()
+  .flatMap((file) => {
+    const packageDir = path.dirname(file);
+    const { name }: { name: string } = JSON.parse(
+      readFileSync(path.join(root, packageDir, "package.json"), "utf8"),
+    );
+    const registry: Registry = JSON.parse(readFileSync(path.join(root, file), "utf8"));
+    for (const item of registry.items) {
+      item.meta = { [name]: version };
+      for (const source of item.files) source.path = path.posix.join(packageDir, source.path);
+    }
+    return registry.items;
+  });
 
 const stampedPath = path.join(
   mkdtempSync(path.join(tmpdir(), "offload-registry-")),
@@ -50,7 +51,7 @@ execFileSync(
     "build",
     stampedPath,
     "--cwd",
-    packagesDir,
+    root,
     "--output",
     path.resolve(import.meta.dirname, "public/r"),
   ],

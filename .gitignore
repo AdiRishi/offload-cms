@@ -27,5 +27,5 @@ worker-configuration.d.ts
 # drizzle-kit snapshots that payload migrate:create writes beside a migration
 e2e/src/migrations/**/*.json
 
-# The shadcn registry, built from packages/form-builder by the docs build
+# The shadcn registry, built from each packages/*/registry.json by the docs build
 /docs/public/r/

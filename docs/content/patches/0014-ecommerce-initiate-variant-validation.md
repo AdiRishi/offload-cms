@@ -21,5 +21,5 @@ with both, which checks the variant's price and stock.
 
 - **Patch:** `ecommerce-initiate-variant-validation`, committed as `fix(plugin-ecommerce): validate variant items before a payment starts`
 - **Upstream:** Not proposed
-- **Tests:** `pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/payments.spec.ts, the tampered variant test)`
-- **Diff:** [`upstream/patches/0013-fix-plugin-ecommerce-validate-variant-items-before-a.patch`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/patches/0013-fix-plugin-ecommerce-validate-variant-items-before-a.patch)
+- **Tests:** `pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that refuse a tampered variant cart)`
+- **Diff:** [`upstream/patches/0014-fix-plugin-ecommerce-validate-variant-items-before-a.patch`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/patches/0014-fix-plugin-ecommerce-validate-variant-items-before-a.patch)

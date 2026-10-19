@@ -22,7 +22,7 @@ unchanged.
 
 Offload-Patch: ecommerce-server-settlement
 Drop-When: the pinned release lets a payment adapter settle a transaction outside the confirm-order request
-Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/payments.spec.ts)
+Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/checkout.spec.ts, tests/settlement.spec.ts)
 ---
  docs/ecommerce/payments.mdx                   |  17 +
  .../src/endpoints/confirmOrder.ts             | 299 +------------

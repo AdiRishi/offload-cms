@@ -9,8 +9,7 @@
       "title": "Razorpay Checkout",
       "description": "A button that pays for the cart with Razorpay Standard Checkout, loaded on the first click, and confirms the order.",
       "dependencies": ["zod"],
-      "registryDependencies": ["button", "spinner"],
-      "docs": "Install @adirishi/offload-payments and @payloadcms/plugin-ecommerce at the versions in this item's meta, add razorpayAdapter() to the ecommerce plugin, and render the button inside EcommerceProvider with razorpayAdapterClient(). See https://adirishi.github.io/offload-cms/checkout",
+      "docs": "It uses the shadcn components button and spinner, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. Install @adirishi/offload-payments and @payloadcms/plugin-ecommerce at the versions in this item's meta, add razorpayAdapter() to the ecommerce plugin, and render the button inside EcommerceProvider with razorpayAdapterClient(). See https://adirishi.github.io/offload-cms/checkout",
       "files": [
         {
           "path": "registry/payments/razorpay-checkout.tsx",
@@ -25,8 +24,7 @@
       "title": "mIPS payment zone",
       "description": "A button that pays for the cart with mIPS and shows its payment zone, running the zone's script.",
       "dependencies": ["zod"],
-      "registryDependencies": ["button", "spinner"],
-      "docs": "Install @adirishi/offload-payments and @payloadcms/plugin-ecommerce at the versions in this item's meta, add mipsAdapter() to the ecommerce plugin, and render the payment zone inside EcommerceProvider with mipsAdapterClient(). Render mips-confirm-order on the page at the adapter's returnURL. See https://adirishi.github.io/offload-cms/checkout",
+      "docs": "It uses the shadcn components button and spinner, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. Install @adirishi/offload-payments and @payloadcms/plugin-ecommerce at the versions in this item's meta, add mipsAdapter() to the ecommerce plugin, and render the payment zone inside EcommerceProvider with mipsAdapterClient(). Render mips-confirm-order on the page at the adapter's returnURL. See https://adirishi.github.io/offload-cms/checkout",
       "files": [
         {
           "path": "registry/payments/mips-payment-zone.tsx",
@@ -41,8 +39,8 @@
       "title": "mIPS order confirmation",
       "description": "Confirms the order on the page that mIPS sends the customer back to after a payment.",
       "dependencies": ["zod"],
-      "registryDependencies": ["spinner", "@offload/mips-payment-zone"],
-      "docs": "Render it inside EcommerceProvider on the page at mipsAdapter()'s returnURL, with the reference from the page's query string. See https://adirishi.github.io/offload-cms/checkout",
+      "registryDependencies": ["@offload/mips-payment-zone"],
+      "docs": "It uses the shadcn component spinner, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. Render it inside EcommerceProvider on the page at mipsAdapter()'s returnURL, with the reference from the page's query string. See https://adirishi.github.io/offload-cms/checkout",
       "files": [
         {
           "path": "registry/payments/mips-confirm-order.tsx",

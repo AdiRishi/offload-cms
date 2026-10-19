@@ -32,6 +32,7 @@
     "test": "node --test"
   },
   "devDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
     "@repo/tsconfig": "workspace:*",
     "@types/node": "catalog:",
@@ -40,6 +41,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
     "payload": "4.0.0-beta.2",
     "zod": "^4.0.0"
   }

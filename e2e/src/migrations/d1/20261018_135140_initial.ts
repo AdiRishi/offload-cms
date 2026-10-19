@@ -37,14 +37,117 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`users_rels_order_idx\` ON \`users_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`users_rels_parent_idx\` ON \`users_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`users_rels_path_idx\` ON \`users_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`users_rels_users_id_idx\` ON \`users_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`users_rels_customers_id_idx\` ON \`users_rels\` (\`customers_id\`);`)
+  await db.run(sql`CREATE TABLE \`customers_sessions\` (
+  	\`_order\` integer NOT NULL,
+  	\`_parent_id\` integer NOT NULL,
+  	\`id\` text PRIMARY KEY NOT NULL,
+  	\`created_at\` text,
+  	\`expires_at\` text NOT NULL,
+  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`customers_sessions_order_idx\` ON \`customers_sessions\` (\`_order\`);`)
+  await db.run(sql`CREATE INDEX \`customers_sessions_parent_id_idx\` ON \`customers_sessions\` (\`_parent_id\`);`)
+  await db.run(sql`CREATE TABLE \`customers\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`name\` text,
+  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	\`email\` text NOT NULL,
+  	\`reset_password_token\` text,
+  	\`reset_password_expiration\` text,
+  	\`salt\` text,
+  	\`hash\` text,
+  	\`reset_password_requested_at\` text,
+  	\`_verified\` integer,
+  	\`_verificationtoken\` text
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`customers_updated_at_idx\` ON \`customers\` (\`updated_at\`);`)
+  await db.run(sql`CREATE INDEX \`customers_created_at_idx\` ON \`customers\` (\`created_at\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`customers_email_idx\` ON \`customers\` (\`email\`);`)
+  await db.run(sql`CREATE TABLE \`customers_rels\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`order\` integer,
+  	\`parent_id\` integer NOT NULL,
+  	\`path\` text NOT NULL,
+  	\`users_id\` integer,
+  	\`customers_id\` integer,
+  	FOREIGN KEY (\`parent_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`customers_rels_order_idx\` ON \`customers_rels\` (\`order\`);`)
+  await db.run(sql`CREATE INDEX \`customers_rels_parent_idx\` ON \`customers_rels\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`customers_rels_path_idx\` ON \`customers_rels\` (\`path\`);`)
+  await db.run(sql`CREATE INDEX \`customers_rels_users_id_idx\` ON \`customers_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`customers_rels_customers_id_idx\` ON \`customers_rels\` (\`customers_id\`);`)
+  await db.run(sql`CREATE TABLE \`_customers_v_version_sessions\` (
+  	\`_order\` integer NOT NULL,
+  	\`_parent_id\` integer NOT NULL,
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`_uuid\` text NOT NULL,
+  	\`created_at\` text,
+  	\`expires_at\` text NOT NULL,
+  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_customers_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`_customers_v_version_sessions_order_idx\` ON \`_customers_v_version_sessions\` (\`_order\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_version_sessions_parent_id_idx\` ON \`_customers_v_version_sessions\` (\`_parent_id\`);`)
+  await db.run(sql`CREATE TABLE \`_customers_v\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`parent_id\` integer,
+  	\`version_name\` text,
+  	\`version_updated_at\` text,
+  	\`version_created_at\` text,
+  	\`version_email\` text NOT NULL,
+  	\`version_reset_password_token\` text,
+  	\`version_reset_password_expiration\` text,
+  	\`version_salt\` text,
+  	\`version_hash\` text,
+  	\`version_reset_password_requested_at\` text,
+  	\`version__verified\` integer,
+  	\`version__verificationtoken\` text,
+  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	FOREIGN KEY (\`parent_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE set null
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`_customers_v_parent_idx\` ON \`_customers_v\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_version_version_updated_at_idx\` ON \`_customers_v\` (\`version_updated_at\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_version_version_created_at_idx\` ON \`_customers_v\` (\`version_created_at\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_version_version_email_idx\` ON \`_customers_v\` (\`version_email\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_created_at_idx\` ON \`_customers_v\` (\`created_at\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_updated_at_idx\` ON \`_customers_v\` (\`updated_at\`);`)
+  await db.run(sql`CREATE TABLE \`_customers_v_rels\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`order\` integer,
+  	\`parent_id\` integer NOT NULL,
+  	\`path\` text NOT NULL,
+  	\`users_id\` integer,
+  	\`customers_id\` integer,
+  	FOREIGN KEY (\`parent_id\`) REFERENCES \`_customers_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`_customers_v_rels_order_idx\` ON \`_customers_v_rels\` (\`order\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_rels_parent_idx\` ON \`_customers_v_rels\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_rels_path_idx\` ON \`_customers_v_rels\` (\`path\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_rels_users_id_idx\` ON \`_customers_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_customers_v_rels_customers_id_idx\` ON \`_customers_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`pages_blocks_quote\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -192,14 +295,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`pages_rels_order_idx\` ON \`pages_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_parent_idx\` ON \`pages_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_path_idx\` ON \`pages_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_users_id_idx\` ON \`pages_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`pages_rels_customers_id_idx\` ON \`pages_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_pages_v_blocks_quote\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -365,14 +471,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_pages_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_order_idx\` ON \`_pages_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_parent_idx\` ON \`_pages_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_path_idx\` ON \`_pages_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_users_id_idx\` ON \`_pages_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_pages_v_rels_customers_id_idx\` ON \`_pages_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`posts\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`slug\` text,
@@ -421,10 +530,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`categories_id\` integer,
   	\`tags_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`categories_id\`) REFERENCES \`categories\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`tags_id\`) REFERENCES \`tags\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`posts_rels_order_idx\` ON \`posts_rels\` (\`order\`);`)
@@ -433,6 +544,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`posts_rels_categories_id_idx\` ON \`posts_rels\` (\`categories_id\`);`)
   await db.run(sql`CREATE INDEX \`posts_rels_tags_id_idx\` ON \`posts_rels\` (\`tags_id\`);`)
   await db.run(sql`CREATE INDEX \`posts_rels_users_id_idx\` ON \`posts_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`posts_rels_customers_id_idx\` ON \`posts_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_posts_v\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`parent_id\` integer,
@@ -494,10 +606,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`categories_id\` integer,
   	\`tags_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_posts_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`categories_id\`) REFERENCES \`categories\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`tags_id\`) REFERENCES \`tags\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_posts_v_rels_order_idx\` ON \`_posts_v_rels\` (\`order\`);`)
@@ -506,6 +620,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_posts_v_rels_categories_id_idx\` ON \`_posts_v_rels\` (\`categories_id\`);`)
   await db.run(sql`CREATE INDEX \`_posts_v_rels_tags_id_idx\` ON \`_posts_v_rels\` (\`tags_id\`);`)
   await db.run(sql`CREATE INDEX \`_posts_v_rels_users_id_idx\` ON \`_posts_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_posts_v_rels_customers_id_idx\` ON \`_posts_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`categories\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`name\` text NOT NULL,
@@ -523,14 +638,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`categories\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`categories_rels_order_idx\` ON \`categories_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`categories_rels_parent_idx\` ON \`categories_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`categories_rels_path_idx\` ON \`categories_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`categories_rels_users_id_idx\` ON \`categories_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`categories_rels_customers_id_idx\` ON \`categories_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`media\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`alt\` text NOT NULL,
@@ -643,9 +761,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`path\` text NOT NULL,
   	\`tags_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`tags_id\`) REFERENCES \`tags\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`media_rels_order_idx\` ON \`media_rels\` (\`order\`);`)
@@ -653,6 +773,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`media_rels_path_idx\` ON \`media_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`media_rels_tags_id_idx\` ON \`media_rels\` (\`tags_id\`);`)
   await db.run(sql`CREATE INDEX \`media_rels_users_id_idx\` ON \`media_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`media_rels_customers_id_idx\` ON \`media_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_media_v\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`parent_id\` integer,
@@ -772,9 +893,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`path\` text NOT NULL,
   	\`tags_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_media_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`tags_id\`) REFERENCES \`tags\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_media_v_rels_order_idx\` ON \`_media_v_rels\` (\`order\`);`)
@@ -782,6 +905,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_media_v_rels_path_idx\` ON \`_media_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_rels_tags_id_idx\` ON \`_media_v_rels\` (\`tags_id\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_rels_users_id_idx\` ON \`_media_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_rels_customers_id_idx\` ON \`_media_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`field_types_select_many\` (
   	\`order\` integer NOT NULL,
   	\`parent_id\` integer NOT NULL,
@@ -926,11 +1050,13 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`pages_id\` integer,
   	\`posts_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`field_types\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`categories_id\`) REFERENCES \`categories\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`pages_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`posts_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`field_types_rels_order_idx\` ON \`field_types_rels\` (\`order\`);`)
@@ -940,6 +1066,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`field_types_rels_pages_id_idx\` ON \`field_types_rels\` (\`pages_id\`);`)
   await db.run(sql`CREATE INDEX \`field_types_rels_posts_id_idx\` ON \`field_types_rels\` (\`posts_id\`);`)
   await db.run(sql`CREATE INDEX \`field_types_rels_users_id_idx\` ON \`field_types_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`field_types_rels_customers_id_idx\` ON \`field_types_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`folders\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`_h_folders_id\` integer,
@@ -958,14 +1085,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`folders\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`folders_rels_order_idx\` ON \`folders_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`folders_rels_parent_idx\` ON \`folders_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`folders_rels_path_idx\` ON \`folders_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`folders_rels_users_id_idx\` ON \`folders_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`folders_rels_customers_id_idx\` ON \`folders_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_folders_v\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`parent_id\` integer,
@@ -991,14 +1121,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_folders_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_folders_v_rels_order_idx\` ON \`_folders_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_folders_v_rels_parent_idx\` ON \`_folders_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_folders_v_rels_path_idx\` ON \`_folders_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_folders_v_rels_users_id_idx\` ON \`_folders_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_folders_v_rels_customers_id_idx\` ON \`_folders_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`tags\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`_h_tags_id\` integer,
@@ -1017,14 +1150,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`tags\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`tags_rels_order_idx\` ON \`tags_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`tags_rels_parent_idx\` ON \`tags_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`tags_rels_path_idx\` ON \`tags_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`tags_rels_users_id_idx\` ON \`tags_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`tags_rels_customers_id_idx\` ON \`tags_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_tags_v\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`parent_id\` integer,
@@ -1050,14 +1186,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_tags_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_tags_v_rels_order_idx\` ON \`_tags_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_tags_v_rels_parent_idx\` ON \`_tags_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_tags_v_rels_path_idx\` ON \`_tags_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_tags_v_rels_users_id_idx\` ON \`_tags_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_tags_v_rels_customers_id_idx\` ON \`_tags_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`audit_logs\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`action\` text NOT NULL,
@@ -1076,14 +1215,82 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`audit_logs\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`audit_logs_rels_order_idx\` ON \`audit_logs_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`audit_logs_rels_parent_idx\` ON \`audit_logs_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`audit_logs_rels_path_idx\` ON \`audit_logs_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`audit_logs_rels_users_id_idx\` ON \`audit_logs_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`audit_logs_rels_customers_id_idx\` ON \`audit_logs_rels\` (\`customers_id\`);`)
+  await db.run(sql`CREATE TABLE \`bookings\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`title\` text NOT NULL,
+  	\`customer_id\` integer NOT NULL,
+  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	FOREIGN KEY (\`customer_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE set null
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`bookings_customer_idx\` ON \`bookings\` (\`customer_id\`);`)
+  await db.run(sql`CREATE INDEX \`bookings_updated_at_idx\` ON \`bookings\` (\`updated_at\`);`)
+  await db.run(sql`CREATE INDEX \`bookings_created_at_idx\` ON \`bookings\` (\`created_at\`);`)
+  await db.run(sql`CREATE TABLE \`bookings_rels\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`order\` integer,
+  	\`parent_id\` integer NOT NULL,
+  	\`path\` text NOT NULL,
+  	\`users_id\` integer,
+  	\`customers_id\` integer,
+  	FOREIGN KEY (\`parent_id\`) REFERENCES \`bookings\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`bookings_rels_order_idx\` ON \`bookings_rels\` (\`order\`);`)
+  await db.run(sql`CREATE INDEX \`bookings_rels_parent_idx\` ON \`bookings_rels\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`bookings_rels_path_idx\` ON \`bookings_rels\` (\`path\`);`)
+  await db.run(sql`CREATE INDEX \`bookings_rels_users_id_idx\` ON \`bookings_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`bookings_rels_customers_id_idx\` ON \`bookings_rels\` (\`customers_id\`);`)
+  await db.run(sql`CREATE TABLE \`_bookings_v\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`parent_id\` integer,
+  	\`version_title\` text NOT NULL,
+  	\`version_customer_id\` integer NOT NULL,
+  	\`version_updated_at\` text,
+  	\`version_created_at\` text,
+  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
+  	FOREIGN KEY (\`parent_id\`) REFERENCES \`bookings\`(\`id\`) ON UPDATE no action ON DELETE set null,
+  	FOREIGN KEY (\`version_customer_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE set null
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`_bookings_v_parent_idx\` ON \`_bookings_v\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_version_version_customer_idx\` ON \`_bookings_v\` (\`version_customer_id\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_version_version_updated_at_idx\` ON \`_bookings_v\` (\`version_updated_at\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_version_version_created_at_idx\` ON \`_bookings_v\` (\`version_created_at\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_created_at_idx\` ON \`_bookings_v\` (\`created_at\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_updated_at_idx\` ON \`_bookings_v\` (\`updated_at\`);`)
+  await db.run(sql`CREATE TABLE \`_bookings_v_rels\` (
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`order\` integer,
+  	\`parent_id\` integer NOT NULL,
+  	\`path\` text NOT NULL,
+  	\`users_id\` integer,
+  	\`customers_id\` integer,
+  	FOREIGN KEY (\`parent_id\`) REFERENCES \`_bookings_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`_bookings_v_rels_order_idx\` ON \`_bookings_v_rels\` (\`order\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_rels_parent_idx\` ON \`_bookings_v_rels\` (\`parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_rels_path_idx\` ON \`_bookings_v_rels\` (\`path\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_rels_users_id_idx\` ON \`_bookings_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_bookings_v_rels_customers_id_idx\` ON \`_bookings_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`redirects\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`from\` text NOT NULL,
@@ -1104,10 +1311,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`pages_id\` integer,
   	\`posts_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`redirects\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`pages_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`posts_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`redirects_rels_order_idx\` ON \`redirects_rels\` (\`order\`);`)
@@ -1116,6 +1325,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`redirects_rels_pages_id_idx\` ON \`redirects_rels\` (\`pages_id\`);`)
   await db.run(sql`CREATE INDEX \`redirects_rels_posts_id_idx\` ON \`redirects_rels\` (\`posts_id\`);`)
   await db.run(sql`CREATE INDEX \`redirects_rels_users_id_idx\` ON \`redirects_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`redirects_rels_customers_id_idx\` ON \`redirects_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_redirects_v\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`parent_id\` integer,
@@ -1143,10 +1353,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`pages_id\` integer,
   	\`posts_id\` integer,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_redirects_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`pages_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`posts_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_redirects_v_rels_order_idx\` ON \`_redirects_v_rels\` (\`order\`);`)
@@ -1155,6 +1367,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_redirects_v_rels_pages_id_idx\` ON \`_redirects_v_rels\` (\`pages_id\`);`)
   await db.run(sql`CREATE INDEX \`_redirects_v_rels_posts_id_idx\` ON \`_redirects_v_rels\` (\`posts_id\`);`)
   await db.run(sql`CREATE INDEX \`_redirects_v_rels_users_id_idx\` ON \`_redirects_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_redirects_v_rels_customers_id_idx\` ON \`_redirects_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`search\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`priority\` numeric,
@@ -1476,14 +1689,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`forms\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`forms_rels_order_idx\` ON \`forms_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`forms_rels_parent_idx\` ON \`forms_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`forms_rels_path_idx\` ON \`forms_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`forms_rels_users_id_idx\` ON \`forms_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`forms_rels_customers_id_idx\` ON \`forms_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_checkbox\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1791,14 +2007,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_forms_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_forms_v_rels_order_idx\` ON \`_forms_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_forms_v_rels_parent_idx\` ON \`_forms_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_forms_v_rels_path_idx\` ON \`_forms_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_forms_v_rels_users_id_idx\` ON \`_forms_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_forms_v_rels_customers_id_idx\` ON \`_forms_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`form_submissions_submission_data\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1827,14 +2046,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`form_submissions\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`form_submissions_rels_order_idx\` ON \`form_submissions_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`form_submissions_rels_parent_idx\` ON \`form_submissions_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`form_submissions_rels_path_idx\` ON \`form_submissions_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`form_submissions_rels_users_id_idx\` ON \`form_submissions_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`form_submissions_rels_customers_id_idx\` ON \`form_submissions_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_form_submissions_v_version_submission_data\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1871,619 +2093,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_form_submissions_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_form_submissions_v_rels_order_idx\` ON \`_form_submissions_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_form_submissions_v_rels_parent_idx\` ON \`_form_submissions_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_form_submissions_v_rels_path_idx\` ON \`_form_submissions_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_form_submissions_v_rels_users_id_idx\` ON \`_form_submissions_v_rels\` (\`users_id\`);`)
-  await db.run(sql`CREATE TABLE \`addresses\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`customer_id\` integer,
-  	\`title\` text,
-  	\`first_name\` text,
-  	\`last_name\` text,
-  	\`company\` text,
-  	\`address_line1\` text,
-  	\`address_line2\` text,
-  	\`city\` text,
-  	\`state\` text,
-  	\`postal_code\` text,
-  	\`country\` text NOT NULL,
-  	\`phone\` text,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`addresses_customer_idx\` ON \`addresses\` (\`customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`addresses_updated_at_idx\` ON \`addresses\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`addresses_created_at_idx\` ON \`addresses\` (\`created_at\`);`)
-  await db.run(sql`CREATE TABLE \`_addresses_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_customer_id\` integer,
-  	\`version_title\` text,
-  	\`version_first_name\` text,
-  	\`version_last_name\` text,
-  	\`version_company\` text,
-  	\`version_address_line1\` text,
-  	\`version_address_line2\` text,
-  	\`version_city\` text,
-  	\`version_state\` text,
-  	\`version_postal_code\` text,
-  	\`version_country\` text NOT NULL,
-  	\`version_phone\` text,
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`addresses\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_addresses_v_parent_idx\` ON \`_addresses_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_addresses_v_version_version_customer_idx\` ON \`_addresses_v\` (\`version_customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`_addresses_v_version_version_updated_at_idx\` ON \`_addresses_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_addresses_v_version_version_created_at_idx\` ON \`_addresses_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_addresses_v_created_at_idx\` ON \`_addresses_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_addresses_v_updated_at_idx\` ON \`_addresses_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE TABLE \`variants\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`title\` text,
-  	\`product_id\` integer,
-  	\`inventory\` numeric DEFAULT 0,
-  	\`price_in_m_u_r_enabled\` integer,
-  	\`price_in_m_u_r\` numeric,
-  	\`price_in_i_n_r_enabled\` integer,
-  	\`price_in_i_n_r\` numeric,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`deleted_at\` text,
-  	\`_status\` text DEFAULT 'draft',
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`variants_product_idx\` ON \`variants\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`variants_updated_at_idx\` ON \`variants\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`variants_created_at_idx\` ON \`variants\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`variants_deleted_at_idx\` ON \`variants\` (\`deleted_at\`);`)
-  await db.run(sql`CREATE INDEX \`variants__status_idx\` ON \`variants\` (\`_status\`);`)
-  await db.run(sql`CREATE TABLE \`variants_rels\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`order\` integer,
-  	\`parent_id\` integer NOT NULL,
-  	\`path\` text NOT NULL,
-  	\`variant_options_id\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variant_options_id\`) REFERENCES \`variant_options\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`variants_rels_order_idx\` ON \`variants_rels\` (\`order\`);`)
-  await db.run(sql`CREATE INDEX \`variants_rels_parent_idx\` ON \`variants_rels\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`variants_rels_path_idx\` ON \`variants_rels\` (\`path\`);`)
-  await db.run(sql`CREATE INDEX \`variants_rels_variant_options_id_idx\` ON \`variants_rels\` (\`variant_options_id\`);`)
-  await db.run(sql`CREATE TABLE \`_variants_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_title\` text,
-  	\`version_product_id\` integer,
-  	\`version_inventory\` numeric DEFAULT 0,
-  	\`version_price_in_m_u_r_enabled\` integer,
-  	\`version_price_in_m_u_r\` numeric,
-  	\`version_price_in_i_n_r_enabled\` integer,
-  	\`version_price_in_i_n_r\` numeric,
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`version_deleted_at\` text,
-  	\`version__status\` text DEFAULT 'draft',
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`published_locale\` text,
-  	\`latest\` integer,
-  	\`autosave\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_variants_v_parent_idx\` ON \`_variants_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_version_version_product_idx\` ON \`_variants_v\` (\`version_product_id\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_version_version_updated_at_idx\` ON \`_variants_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_version_version_created_at_idx\` ON \`_variants_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_version_version_deleted_at_idx\` ON \`_variants_v\` (\`version_deleted_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_version_version__status_idx\` ON \`_variants_v\` (\`version__status\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_created_at_idx\` ON \`_variants_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_updated_at_idx\` ON \`_variants_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_published_locale_idx\` ON \`_variants_v\` (\`published_locale\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_latest_idx\` ON \`_variants_v\` (\`latest\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_autosave_idx\` ON \`_variants_v\` (\`autosave\`);`)
-  await db.run(sql`CREATE TABLE \`_variants_v_rels\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`order\` integer,
-  	\`parent_id\` integer NOT NULL,
-  	\`path\` text NOT NULL,
-  	\`variant_options_id\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`_variants_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variant_options_id\`) REFERENCES \`variant_options\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_variants_v_rels_order_idx\` ON \`_variants_v_rels\` (\`order\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_rels_parent_idx\` ON \`_variants_v_rels\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_rels_path_idx\` ON \`_variants_v_rels\` (\`path\`);`)
-  await db.run(sql`CREATE INDEX \`_variants_v_rels_variant_options_id_idx\` ON \`_variants_v_rels\` (\`variant_options_id\`);`)
-  await db.run(sql`CREATE TABLE \`variant_types\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`label\` text NOT NULL,
-  	\`name\` text NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`deleted_at\` text
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`variant_types_updated_at_idx\` ON \`variant_types\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`variant_types_created_at_idx\` ON \`variant_types\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`variant_types_deleted_at_idx\` ON \`variant_types\` (\`deleted_at\`);`)
-  await db.run(sql`CREATE TABLE \`_variant_types_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_label\` text NOT NULL,
-  	\`version_name\` text NOT NULL,
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`version_deleted_at\` text,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`variant_types\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_variant_types_v_parent_idx\` ON \`_variant_types_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_types_v_version_version_updated_at_idx\` ON \`_variant_types_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_types_v_version_version_created_at_idx\` ON \`_variant_types_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_types_v_version_version_deleted_at_idx\` ON \`_variant_types_v\` (\`version_deleted_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_types_v_created_at_idx\` ON \`_variant_types_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_types_v_updated_at_idx\` ON \`_variant_types_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE TABLE \`variant_options\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`_variantoptions_options_order\` text,
-  	\`variant_type_id\` integer NOT NULL,
-  	\`label\` text NOT NULL,
-  	\`value\` text NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`deleted_at\` text,
-  	FOREIGN KEY (\`variant_type_id\`) REFERENCES \`variant_types\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`variant_options__variantoptions_options_order_idx\` ON \`variant_options\` (\`_variantoptions_options_order\`);`)
-  await db.run(sql`CREATE INDEX \`variant_options_variant_type_idx\` ON \`variant_options\` (\`variant_type_id\`);`)
-  await db.run(sql`CREATE INDEX \`variant_options_updated_at_idx\` ON \`variant_options\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`variant_options_created_at_idx\` ON \`variant_options\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`variant_options_deleted_at_idx\` ON \`variant_options\` (\`deleted_at\`);`)
-  await db.run(sql`CREATE TABLE \`_variant_options_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version__variantoptions_options_order\` text,
-  	\`version_variant_type_id\` integer NOT NULL,
-  	\`version_label\` text NOT NULL,
-  	\`version_value\` text NOT NULL,
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`version_deleted_at\` text,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`variant_options\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_variant_type_id\`) REFERENCES \`variant_types\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_parent_idx\` ON \`_variant_options_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_version_version__variantoptions_optio_idx\` ON \`_variant_options_v\` (\`version__variantoptions_options_order\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_version_version_variant_type_idx\` ON \`_variant_options_v\` (\`version_variant_type_id\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_version_version_updated_at_idx\` ON \`_variant_options_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_version_version_created_at_idx\` ON \`_variant_options_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_version_version_deleted_at_idx\` ON \`_variant_options_v\` (\`version_deleted_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_created_at_idx\` ON \`_variant_options_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_variant_options_v_updated_at_idx\` ON \`_variant_options_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE TABLE \`products\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`title\` text,
-  	\`inventory\` numeric DEFAULT 0,
-  	\`enable_variants\` integer,
-  	\`price_in_m_u_r_enabled\` integer,
-  	\`price_in_m_u_r\` numeric,
-  	\`price_in_i_n_r_enabled\` integer,
-  	\`price_in_i_n_r\` numeric,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`deleted_at\` text,
-  	\`_status\` text DEFAULT 'draft'
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`products_updated_at_idx\` ON \`products\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`products_created_at_idx\` ON \`products\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`products_deleted_at_idx\` ON \`products\` (\`deleted_at\`);`)
-  await db.run(sql`CREATE INDEX \`products__status_idx\` ON \`products\` (\`_status\`);`)
-  await db.run(sql`CREATE TABLE \`products_rels\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`order\` integer,
-  	\`parent_id\` integer NOT NULL,
-  	\`path\` text NOT NULL,
-  	\`variant_types_id\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variant_types_id\`) REFERENCES \`variant_types\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`products_rels_order_idx\` ON \`products_rels\` (\`order\`);`)
-  await db.run(sql`CREATE INDEX \`products_rels_parent_idx\` ON \`products_rels\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`products_rels_path_idx\` ON \`products_rels\` (\`path\`);`)
-  await db.run(sql`CREATE INDEX \`products_rels_variant_types_id_idx\` ON \`products_rels\` (\`variant_types_id\`);`)
-  await db.run(sql`CREATE TABLE \`_products_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_title\` text,
-  	\`version_inventory\` numeric DEFAULT 0,
-  	\`version_enable_variants\` integer,
-  	\`version_price_in_m_u_r_enabled\` integer,
-  	\`version_price_in_m_u_r\` numeric,
-  	\`version_price_in_i_n_r_enabled\` integer,
-  	\`version_price_in_i_n_r\` numeric,
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`version_deleted_at\` text,
-  	\`version__status\` text DEFAULT 'draft',
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`published_locale\` text,
-  	\`latest\` integer,
-  	\`autosave\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_products_v_parent_idx\` ON \`_products_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_version_version_updated_at_idx\` ON \`_products_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_version_version_created_at_idx\` ON \`_products_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_version_version_deleted_at_idx\` ON \`_products_v\` (\`version_deleted_at\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_version_version__status_idx\` ON \`_products_v\` (\`version__status\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_created_at_idx\` ON \`_products_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_updated_at_idx\` ON \`_products_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_published_locale_idx\` ON \`_products_v\` (\`published_locale\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_latest_idx\` ON \`_products_v\` (\`latest\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_autosave_idx\` ON \`_products_v\` (\`autosave\`);`)
-  await db.run(sql`CREATE TABLE \`_products_v_rels\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`order\` integer,
-  	\`parent_id\` integer NOT NULL,
-  	\`path\` text NOT NULL,
-  	\`variant_types_id\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`_products_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variant_types_id\`) REFERENCES \`variant_types\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_products_v_rels_order_idx\` ON \`_products_v_rels\` (\`order\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_rels_parent_idx\` ON \`_products_v_rels\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_rels_path_idx\` ON \`_products_v_rels\` (\`path\`);`)
-  await db.run(sql`CREATE INDEX \`_products_v_rels_variant_types_id_idx\` ON \`_products_v_rels\` (\`variant_types_id\`);`)
-  await db.run(sql`CREATE TABLE \`carts_items\` (
-  	\`_order\` integer NOT NULL,
-  	\`_parent_id\` integer NOT NULL,
-  	\`id\` text PRIMARY KEY NOT NULL,
-  	\`product_id\` integer,
-  	\`variant_id\` integer,
-  	\`quantity\` numeric DEFAULT 1 NOT NULL,
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`variant_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`carts\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`carts_items_order_idx\` ON \`carts_items\` (\`_order\`);`)
-  await db.run(sql`CREATE INDEX \`carts_items_parent_id_idx\` ON \`carts_items\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`carts_items_product_idx\` ON \`carts_items\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`carts_items_variant_idx\` ON \`carts_items\` (\`variant_id\`);`)
-  await db.run(sql`CREATE TABLE \`carts\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`secret\` text,
-  	\`customer_id\` integer,
-  	\`purchased_at\` text,
-  	\`subtotal\` numeric,
-  	\`currency\` text DEFAULT 'MUR',
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`carts_secret_idx\` ON \`carts\` (\`secret\`);`)
-  await db.run(sql`CREATE INDEX \`carts_customer_idx\` ON \`carts\` (\`customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`carts_updated_at_idx\` ON \`carts\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`carts_created_at_idx\` ON \`carts\` (\`created_at\`);`)
-  await db.run(sql`CREATE TABLE \`_carts_v_version_items\` (
-  	\`_order\` integer NOT NULL,
-  	\`_parent_id\` integer NOT NULL,
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`product_id\` integer,
-  	\`variant_id\` integer,
-  	\`quantity\` numeric DEFAULT 1 NOT NULL,
-  	\`_uuid\` text,
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`variant_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_carts_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_items_order_idx\` ON \`_carts_v_version_items\` (\`_order\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_items_parent_id_idx\` ON \`_carts_v_version_items\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_items_product_idx\` ON \`_carts_v_version_items\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_items_variant_idx\` ON \`_carts_v_version_items\` (\`variant_id\`);`)
-  await db.run(sql`CREATE TABLE \`_carts_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_secret\` text,
-  	\`version_customer_id\` integer,
-  	\`version_purchased_at\` text,
-  	\`version_subtotal\` numeric,
-  	\`version_currency\` text DEFAULT 'MUR',
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`carts\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_carts_v_parent_idx\` ON \`_carts_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_version_secret_idx\` ON \`_carts_v\` (\`version_secret\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_version_customer_idx\` ON \`_carts_v\` (\`version_customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_version_updated_at_idx\` ON \`_carts_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_version_version_created_at_idx\` ON \`_carts_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_created_at_idx\` ON \`_carts_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_carts_v_updated_at_idx\` ON \`_carts_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE TABLE \`orders_items\` (
-  	\`_order\` integer NOT NULL,
-  	\`_parent_id\` integer NOT NULL,
-  	\`id\` text PRIMARY KEY NOT NULL,
-  	\`product_id\` integer,
-  	\`variant_id\` integer,
-  	\`quantity\` numeric DEFAULT 1 NOT NULL,
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`variant_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`orders\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`orders_items_order_idx\` ON \`orders_items\` (\`_order\`);`)
-  await db.run(sql`CREATE INDEX \`orders_items_parent_id_idx\` ON \`orders_items\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`orders_items_product_idx\` ON \`orders_items\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`orders_items_variant_idx\` ON \`orders_items\` (\`variant_id\`);`)
-  await db.run(sql`CREATE TABLE \`orders\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`shipping_address_title\` text,
-  	\`shipping_address_first_name\` text,
-  	\`shipping_address_last_name\` text,
-  	\`shipping_address_company\` text,
-  	\`shipping_address_address_line1\` text,
-  	\`shipping_address_address_line2\` text,
-  	\`shipping_address_city\` text,
-  	\`shipping_address_state\` text,
-  	\`shipping_address_postal_code\` text,
-  	\`shipping_address_country\` text,
-  	\`shipping_address_phone\` text,
-  	\`customer_id\` integer,
-  	\`customer_email\` text,
-  	\`status\` text DEFAULT 'processing',
-  	\`amount\` numeric,
-  	\`currency\` text DEFAULT 'MUR',
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`orders_customer_idx\` ON \`orders\` (\`customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`orders_updated_at_idx\` ON \`orders\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`orders_created_at_idx\` ON \`orders\` (\`created_at\`);`)
-  await db.run(sql`CREATE TABLE \`orders_rels\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`order\` integer,
-  	\`parent_id\` integer NOT NULL,
-  	\`path\` text NOT NULL,
-  	\`transactions_id\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`orders\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`transactions_id\`) REFERENCES \`transactions\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`orders_rels_order_idx\` ON \`orders_rels\` (\`order\`);`)
-  await db.run(sql`CREATE INDEX \`orders_rels_parent_idx\` ON \`orders_rels\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`orders_rels_path_idx\` ON \`orders_rels\` (\`path\`);`)
-  await db.run(sql`CREATE INDEX \`orders_rels_transactions_id_idx\` ON \`orders_rels\` (\`transactions_id\`);`)
-  await db.run(sql`CREATE TABLE \`_orders_v_version_items\` (
-  	\`_order\` integer NOT NULL,
-  	\`_parent_id\` integer NOT NULL,
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`product_id\` integer,
-  	\`variant_id\` integer,
-  	\`quantity\` numeric DEFAULT 1 NOT NULL,
-  	\`_uuid\` text,
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`variant_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_orders_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_items_order_idx\` ON \`_orders_v_version_items\` (\`_order\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_items_parent_id_idx\` ON \`_orders_v_version_items\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_items_product_idx\` ON \`_orders_v_version_items\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_items_variant_idx\` ON \`_orders_v_version_items\` (\`variant_id\`);`)
-  await db.run(sql`CREATE TABLE \`_orders_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_shipping_address_title\` text,
-  	\`version_shipping_address_first_name\` text,
-  	\`version_shipping_address_last_name\` text,
-  	\`version_shipping_address_company\` text,
-  	\`version_shipping_address_address_line1\` text,
-  	\`version_shipping_address_address_line2\` text,
-  	\`version_shipping_address_city\` text,
-  	\`version_shipping_address_state\` text,
-  	\`version_shipping_address_postal_code\` text,
-  	\`version_shipping_address_country\` text,
-  	\`version_shipping_address_phone\` text,
-  	\`version_customer_id\` integer,
-  	\`version_customer_email\` text,
-  	\`version_status\` text DEFAULT 'processing',
-  	\`version_amount\` numeric,
-  	\`version_currency\` text DEFAULT 'MUR',
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`orders\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_orders_v_parent_idx\` ON \`_orders_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_version_customer_idx\` ON \`_orders_v\` (\`version_customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_version_updated_at_idx\` ON \`_orders_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_version_version_created_at_idx\` ON \`_orders_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_created_at_idx\` ON \`_orders_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_updated_at_idx\` ON \`_orders_v\` (\`updated_at\`);`)
-  await db.run(sql`CREATE TABLE \`_orders_v_rels\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`order\` integer,
-  	\`parent_id\` integer NOT NULL,
-  	\`path\` text NOT NULL,
-  	\`transactions_id\` integer,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`_orders_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`transactions_id\`) REFERENCES \`transactions\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_orders_v_rels_order_idx\` ON \`_orders_v_rels\` (\`order\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_rels_parent_idx\` ON \`_orders_v_rels\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_rels_path_idx\` ON \`_orders_v_rels\` (\`path\`);`)
-  await db.run(sql`CREATE INDEX \`_orders_v_rels_transactions_id_idx\` ON \`_orders_v_rels\` (\`transactions_id\`);`)
-  await db.run(sql`CREATE TABLE \`transactions_items\` (
-  	\`_order\` integer NOT NULL,
-  	\`_parent_id\` integer NOT NULL,
-  	\`id\` text PRIMARY KEY NOT NULL,
-  	\`product_id\` integer,
-  	\`variant_id\` integer,
-  	\`quantity\` numeric DEFAULT 1 NOT NULL,
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`variant_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`transactions\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`transactions_items_order_idx\` ON \`transactions_items\` (\`_order\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_items_parent_id_idx\` ON \`transactions_items\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_items_product_idx\` ON \`transactions_items\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_items_variant_idx\` ON \`transactions_items\` (\`variant_id\`);`)
-  await db.run(sql`CREATE TABLE \`transactions\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`payment_method\` text,
-  	\`razorpay_order_i_d\` text,
-  	\`razorpay_payment_i_d\` text,
-  	\`razorpay_last_event_i_d\` text,
-  	\`razorpay_shipping_address\` text,
-  	\`razorpay_last_error\` text,
-  	\`mips_reference\` text,
-  	\`mips_payment_method\` text,
-  	\`mips_shipping_address\` text,
-  	\`mips_last_error\` text,
-  	\`billing_address_title\` text,
-  	\`billing_address_first_name\` text,
-  	\`billing_address_last_name\` text,
-  	\`billing_address_company\` text,
-  	\`billing_address_address_line1\` text,
-  	\`billing_address_address_line2\` text,
-  	\`billing_address_city\` text,
-  	\`billing_address_state\` text,
-  	\`billing_address_postal_code\` text,
-  	\`billing_address_country\` text,
-  	\`billing_address_phone\` text,
-  	\`status\` text DEFAULT 'pending' NOT NULL,
-  	\`customer_id\` integer,
-  	\`customer_email\` text,
-  	\`order_id\` integer,
-  	\`cart_id\` integer,
-  	\`amount\` numeric,
-  	\`currency\` text DEFAULT 'MUR',
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`order_id\`) REFERENCES \`orders\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`cart_id\`) REFERENCES \`carts\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE UNIQUE INDEX \`transactions_razorpay_razorpay_order_i_d_idx\` ON \`transactions\` (\`razorpay_order_i_d\`);`)
-  await db.run(sql`CREATE UNIQUE INDEX \`transactions_mips_mips_reference_idx\` ON \`transactions\` (\`mips_reference\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_customer_idx\` ON \`transactions\` (\`customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_order_idx\` ON \`transactions\` (\`order_id\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_cart_idx\` ON \`transactions\` (\`cart_id\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_updated_at_idx\` ON \`transactions\` (\`updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`transactions_created_at_idx\` ON \`transactions\` (\`created_at\`);`)
-  await db.run(sql`CREATE TABLE \`_transactions_v_version_items\` (
-  	\`_order\` integer NOT NULL,
-  	\`_parent_id\` integer NOT NULL,
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`product_id\` integer,
-  	\`variant_id\` integer,
-  	\`quantity\` numeric DEFAULT 1 NOT NULL,
-  	\`_uuid\` text,
-  	FOREIGN KEY (\`product_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`variant_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_transactions_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_items_order_idx\` ON \`_transactions_v_version_items\` (\`_order\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_items_parent_id_idx\` ON \`_transactions_v_version_items\` (\`_parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_items_product_idx\` ON \`_transactions_v_version_items\` (\`product_id\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_items_variant_idx\` ON \`_transactions_v_version_items\` (\`variant_id\`);`)
-  await db.run(sql`CREATE TABLE \`_transactions_v\` (
-  	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`parent_id\` integer,
-  	\`version_payment_method\` text,
-  	\`version_razorpay_order_i_d\` text,
-  	\`version_razorpay_payment_i_d\` text,
-  	\`version_razorpay_last_event_i_d\` text,
-  	\`version_razorpay_shipping_address\` text,
-  	\`version_razorpay_last_error\` text,
-  	\`version_mips_reference\` text,
-  	\`version_mips_payment_method\` text,
-  	\`version_mips_shipping_address\` text,
-  	\`version_mips_last_error\` text,
-  	\`version_billing_address_title\` text,
-  	\`version_billing_address_first_name\` text,
-  	\`version_billing_address_last_name\` text,
-  	\`version_billing_address_company\` text,
-  	\`version_billing_address_address_line1\` text,
-  	\`version_billing_address_address_line2\` text,
-  	\`version_billing_address_city\` text,
-  	\`version_billing_address_state\` text,
-  	\`version_billing_address_postal_code\` text,
-  	\`version_billing_address_country\` text,
-  	\`version_billing_address_phone\` text,
-  	\`version_status\` text DEFAULT 'pending' NOT NULL,
-  	\`version_customer_id\` integer,
-  	\`version_customer_email\` text,
-  	\`version_order_id\` integer,
-  	\`version_cart_id\` integer,
-  	\`version_amount\` numeric,
-  	\`version_currency\` text DEFAULT 'MUR',
-  	\`version_updated_at\` text,
-  	\`version_created_at\` text,
-  	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
-  	FOREIGN KEY (\`parent_id\`) REFERENCES \`transactions\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_customer_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_order_id\`) REFERENCES \`orders\`(\`id\`) ON UPDATE no action ON DELETE set null,
-  	FOREIGN KEY (\`version_cart_id\`) REFERENCES \`carts\`(\`id\`) ON UPDATE no action ON DELETE set null
-  );
-  `)
-  await db.run(sql`CREATE INDEX \`_transactions_v_parent_idx\` ON \`_transactions_v\` (\`parent_id\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_razorpay_version_razorpay_order__idx\` ON \`_transactions_v\` (\`version_razorpay_order_i_d\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_mips_version_mips_reference_idx\` ON \`_transactions_v\` (\`version_mips_reference\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_version_customer_idx\` ON \`_transactions_v\` (\`version_customer_id\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_version_order_idx\` ON \`_transactions_v\` (\`version_order_id\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_version_cart_idx\` ON \`_transactions_v\` (\`version_cart_id\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_version_updated_at_idx\` ON \`_transactions_v\` (\`version_updated_at\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_version_version_created_at_idx\` ON \`_transactions_v\` (\`version_created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_created_at_idx\` ON \`_transactions_v\` (\`created_at\`);`)
-  await db.run(sql`CREATE INDEX \`_transactions_v_updated_at_idx\` ON \`_transactions_v\` (\`updated_at\`);`)
+  await db.run(sql`CREATE INDEX \`_form_submissions_v_rels_customers_id_idx\` ON \`_form_submissions_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`payload_kv\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`key\` text NOT NULL,
@@ -2556,6 +2176,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	\`pages_id\` integer,
   	\`posts_id\` integer,
   	\`categories_id\` integer,
@@ -2564,20 +2185,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`folders_id\` integer,
   	\`tags_id\` integer,
   	\`audit_logs_id\` integer,
+  	\`bookings_id\` integer,
   	\`redirects_id\` integer,
   	\`search_id\` integer,
   	\`forms_id\` integer,
   	\`form_submissions_id\` integer,
-  	\`addresses_id\` integer,
-  	\`variants_id\` integer,
-  	\`variant_types_id\` integer,
-  	\`variant_options_id\` integer,
-  	\`products_id\` integer,
-  	\`carts_id\` integer,
-  	\`orders_id\` integer,
-  	\`transactions_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`payload_locked_documents\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`pages_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`posts_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`categories_id\`) REFERENCES \`categories\`(\`id\`) ON UPDATE no action ON DELETE cascade,
@@ -2586,24 +2201,18 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`folders_id\`) REFERENCES \`folders\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`tags_id\`) REFERENCES \`tags\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`audit_logs_id\`) REFERENCES \`audit_logs\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`bookings_id\`) REFERENCES \`bookings\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`redirects_id\`) REFERENCES \`redirects\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`search_id\`) REFERENCES \`search\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`forms_id\`) REFERENCES \`forms\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`form_submissions_id\`) REFERENCES \`form_submissions\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`addresses_id\`) REFERENCES \`addresses\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variants_id\`) REFERENCES \`variants\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variant_types_id\`) REFERENCES \`variant_types\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`variant_options_id\`) REFERENCES \`variant_options\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`products_id\`) REFERENCES \`products\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`carts_id\`) REFERENCES \`carts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`orders_id\`) REFERENCES \`orders\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`transactions_id\`) REFERENCES \`transactions\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`form_submissions_id\`) REFERENCES \`form_submissions\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_order_idx\` ON \`payload_locked_documents_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_parent_idx\` ON \`payload_locked_documents_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_path_idx\` ON \`payload_locked_documents_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_users_id_idx\` ON \`payload_locked_documents_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_customers_id_idx\` ON \`payload_locked_documents_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_pages_id_idx\` ON \`payload_locked_documents_rels\` (\`pages_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_posts_id_idx\` ON \`payload_locked_documents_rels\` (\`posts_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_categories_id_idx\` ON \`payload_locked_documents_rels\` (\`categories_id\`);`)
@@ -2612,18 +2221,11 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_folders_id_idx\` ON \`payload_locked_documents_rels\` (\`folders_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_tags_id_idx\` ON \`payload_locked_documents_rels\` (\`tags_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_audit_logs_id_idx\` ON \`payload_locked_documents_rels\` (\`audit_logs_id\`);`)
+  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_bookings_id_idx\` ON \`payload_locked_documents_rels\` (\`bookings_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_redirects_id_idx\` ON \`payload_locked_documents_rels\` (\`redirects_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_search_id_idx\` ON \`payload_locked_documents_rels\` (\`search_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_forms_id_idx\` ON \`payload_locked_documents_rels\` (\`forms_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_form_submissions_id_idx\` ON \`payload_locked_documents_rels\` (\`form_submissions_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_addresses_id_idx\` ON \`payload_locked_documents_rels\` (\`addresses_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_variants_id_idx\` ON \`payload_locked_documents_rels\` (\`variants_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_variant_types_id_idx\` ON \`payload_locked_documents_rels\` (\`variant_types_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_variant_options_id_idx\` ON \`payload_locked_documents_rels\` (\`variant_options_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_products_id_idx\` ON \`payload_locked_documents_rels\` (\`products_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_carts_id_idx\` ON \`payload_locked_documents_rels\` (\`carts_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_orders_id_idx\` ON \`payload_locked_documents_rels\` (\`orders_id\`);`)
-  await db.run(sql`CREATE INDEX \`payload_locked_documents_rels_transactions_id_idx\` ON \`payload_locked_documents_rels\` (\`transactions_id\`);`)
   await db.run(sql`CREATE TABLE \`payload_preferences\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`key\` text,
@@ -2641,14 +2243,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`payload_preferences\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`payload_preferences_rels_order_idx\` ON \`payload_preferences_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`payload_preferences_rels_parent_idx\` ON \`payload_preferences_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_preferences_rels_path_idx\` ON \`payload_preferences_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`payload_preferences_rels_users_id_idx\` ON \`payload_preferences_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`payload_preferences_rels_customers_id_idx\` ON \`payload_preferences_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`payload_migrations\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`name\` text,
@@ -2677,14 +2282,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` text NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`payload_llm_instructions\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`payload_llm_instructions_rels_order_idx\` ON \`payload_llm_instructions_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`payload_llm_instructions_rels_parent_idx\` ON \`payload_llm_instructions_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`payload_llm_instructions_rels_path_idx\` ON \`payload_llm_instructions_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`payload_llm_instructions_rels_users_id_idx\` ON \`payload_llm_instructions_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`payload_llm_instructions_rels_customers_id_idx\` ON \`payload_llm_instructions_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`site_settings_footer_links\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -2718,14 +2326,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`site_settings\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`site_settings_rels_order_idx\` ON \`site_settings_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`site_settings_rels_parent_idx\` ON \`site_settings_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`site_settings_rels_path_idx\` ON \`site_settings_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`site_settings_rels_users_id_idx\` ON \`site_settings_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`site_settings_rels_customers_id_idx\` ON \`site_settings_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_site_settings_v_version_footer_links\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -2764,14 +2375,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_site_settings_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_site_settings_v_rels_order_idx\` ON \`_site_settings_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_site_settings_v_rels_parent_idx\` ON \`_site_settings_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_site_settings_v_rels_path_idx\` ON \`_site_settings_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_site_settings_v_rels_users_id_idx\` ON \`_site_settings_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_site_settings_v_rels_customers_id_idx\` ON \`_site_settings_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`header_navigation\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -2799,14 +2413,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`header\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`header_rels_order_idx\` ON \`header_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`header_rels_parent_idx\` ON \`header_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`header_rels_path_idx\` ON \`header_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`header_rels_users_id_idx\` ON \`header_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`header_rels_customers_id_idx\` ON \`header_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_header_v_version_navigation\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -2843,14 +2460,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
   	\`users_id\` integer,
+  	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_header_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
-  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
   await db.run(sql`CREATE INDEX \`_header_v_rels_order_idx\` ON \`_header_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_header_v_rels_parent_idx\` ON \`_header_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_header_v_rels_path_idx\` ON \`_header_v_rels\` (\`path\`);`)
   await db.run(sql`CREATE INDEX \`_header_v_rels_users_id_idx\` ON \`_header_v_rels\` (\`users_id\`);`)
+  await db.run(sql`CREATE INDEX \`_header_v_rels_customers_id_idx\` ON \`_header_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`payload_jobs_stats\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`stats\` text,
@@ -2863,6 +2483,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
   await db.run(sql`DROP TABLE \`users_sessions\`;`)
   await db.run(sql`DROP TABLE \`users_rels\`;`)
+  await db.run(sql`DROP TABLE \`customers_rels\`;`)
+  await db.run(sql`DROP TABLE \`_customers_v_rels\`;`)
   await db.run(sql`DROP TABLE \`pages_rels\`;`)
   await db.run(sql`DROP TABLE \`_pages_v_rels\`;`)
   await db.run(sql`DROP TABLE \`posts_locales\`;`)
@@ -2884,26 +2506,12 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   await db.run(sql`DROP TABLE \`tags_rels\`;`)
   await db.run(sql`DROP TABLE \`_tags_v_rels\`;`)
   await db.run(sql`DROP TABLE \`audit_logs_rels\`;`)
+  await db.run(sql`DROP TABLE \`bookings_rels\`;`)
+  await db.run(sql`DROP TABLE \`_bookings_v_rels\`;`)
   await db.run(sql`DROP TABLE \`forms_rels\`;`)
   await db.run(sql`DROP TABLE \`_forms_v_rels\`;`)
   await db.run(sql`DROP TABLE \`form_submissions_rels\`;`)
   await db.run(sql`DROP TABLE \`_form_submissions_v_rels\`;`)
-  await db.run(sql`DROP TABLE \`_addresses_v\`;`)
-  await db.run(sql`DROP TABLE \`addresses\`;`)
-  await db.run(sql`DROP TABLE \`carts_items\`;`)
-  await db.run(sql`DROP TABLE \`_carts_v_version_items\`;`)
-  await db.run(sql`DROP TABLE \`_carts_v\`;`)
-  await db.run(sql`DROP TABLE \`orders_rels\`;`)
-  await db.run(sql`DROP TABLE \`_orders_v_rels\`;`)
-  await db.run(sql`DROP TABLE \`transactions_items\`;`)
-  await db.run(sql`DROP TABLE \`_transactions_v_version_items\`;`)
-  await db.run(sql`DROP TABLE \`_transactions_v\`;`)
-  await db.run(sql`DROP TABLE \`transactions\`;`)
-  await db.run(sql`DROP TABLE \`carts\`;`)
-  await db.run(sql`DROP TABLE \`orders_items\`;`)
-  await db.run(sql`DROP TABLE \`_orders_v_version_items\`;`)
-  await db.run(sql`DROP TABLE \`_orders_v\`;`)
-  await db.run(sql`DROP TABLE \`orders\`;`)
   await db.run(sql`DROP TABLE \`payload_preferences_rels\`;`)
   await db.run(sql`DROP TABLE \`payload_llm_instructions_rels\`;`)
   await db.run(sql`DROP TABLE \`site_settings_rels\`;`)
@@ -2911,6 +2519,12 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   await db.run(sql`DROP TABLE \`header_rels\`;`)
   await db.run(sql`DROP TABLE \`_header_v_rels\`;`)
   await db.run(sql`DROP TABLE \`users\`;`)
+  await db.run(sql`DROP TABLE \`customers_sessions\`;`)
+  await db.run(sql`DROP TABLE \`_customers_v_version_sessions\`;`)
+  await db.run(sql`DROP TABLE \`_customers_v\`;`)
+  await db.run(sql`DROP TABLE \`_bookings_v\`;`)
+  await db.run(sql`DROP TABLE \`bookings\`;`)
+  await db.run(sql`DROP TABLE \`customers\`;`)
   await db.run(sql`DROP TABLE \`pages_blocks_quote_locales\`;`)
   await db.run(sql`DROP TABLE \`pages_blocks_quote\`;`)
   await db.run(sql`DROP TABLE \`pages_blocks_cta\`;`)
@@ -3010,18 +2624,6 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   await db.run(sql`DROP TABLE \`_form_submissions_v\`;`)
   await db.run(sql`DROP TABLE \`form_submissions\`;`)
   await db.run(sql`DROP TABLE \`forms\`;`)
-  await db.run(sql`DROP TABLE \`variants_rels\`;`)
-  await db.run(sql`DROP TABLE \`_variants_v_rels\`;`)
-  await db.run(sql`DROP TABLE \`_variants_v\`;`)
-  await db.run(sql`DROP TABLE \`variants\`;`)
-  await db.run(sql`DROP TABLE \`_variant_types_v\`;`)
-  await db.run(sql`DROP TABLE \`_variant_options_v\`;`)
-  await db.run(sql`DROP TABLE \`variant_options\`;`)
-  await db.run(sql`DROP TABLE \`products_rels\`;`)
-  await db.run(sql`DROP TABLE \`_products_v_rels\`;`)
-  await db.run(sql`DROP TABLE \`variant_types\`;`)
-  await db.run(sql`DROP TABLE \`_products_v\`;`)
-  await db.run(sql`DROP TABLE \`products\`;`)
   await db.run(sql`DROP TABLE \`payload_kv\`;`)
   await db.run(sql`DROP TABLE \`payload_jobs_log\`;`)
   await db.run(sql`DROP TABLE \`payload_jobs\`;`)

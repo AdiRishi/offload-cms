@@ -23,5 +23,5 @@ unchanged.
 
 - **Patch:** `ecommerce-server-settlement`, committed as `feat(plugin-ecommerce): export order settlement for server-side confirmation`
 - **Upstream:** Not proposed
-- **Tests:** `pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/payments.spec.ts)`
-- **Diff:** [`upstream/patches/0012-feat-plugin-ecommerce-export-order-settlement-for-se.patch`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/patches/0012-feat-plugin-ecommerce-export-order-settlement-for-se.patch)
+- **Tests:** `pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/checkout.spec.ts, tests/settlement.spec.ts)`
+- **Diff:** [`upstream/patches/0013-feat-plugin-ecommerce-export-order-settlement-for-se.patch`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/patches/0013-feat-plugin-ecommerce-export-order-settlement-for-se.patch)

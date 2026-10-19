@@ -16,6 +16,7 @@
     "verdaccio": "catalog:"
   },
   "devDependencies": {
+    "@adirishi/offload-accounts": "workspace:*",
     "@adirishi/offload-cloudflare": "workspace:*",
     "@adirishi/offload-email-cloudflare": "workspace:*",
     "@adirishi/offload-form-builder": "workspace:*",

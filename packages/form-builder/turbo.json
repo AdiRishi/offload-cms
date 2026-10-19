@@ -2,8 +2,8 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    "test": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/e2e/src/components/form-builder/**"]
+    "typecheck": {
+      "dependsOn": ["$TURBO_EXTENDS$", "^build"]
     }
   }
 }
