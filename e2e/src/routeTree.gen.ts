@@ -13,11 +13,15 @@ import { Route as FrontendRouteImport } from './app/_frontend'
 import { Route as PayloadRouteImport } from './app/_payload'
 import { Route as FrontendIndexRouteImport } from './app/_frontend/index'
 import { Route as FrontendSlugRouteImport } from './app/_frontend/$slug'
+import { Route as FrontendShopRouteImport } from './app/_frontend/_shop'
 import { Route as FrontendPostsSlugRouteImport } from './app/_frontend/posts.$slug'
 import { Route as PayloadAdminIndexRouteImport } from './app/_payload/admin.index'
 import { Route as PayloadAdminSplatRouteImport } from './app/_payload/admin.$'
 import { Route as PayloadApiSplatRouteImport } from './app/_payload/api.$'
 import { Route as PayloadApiGraphqlRouteImport } from './app/_payload/api.graphql'
+import { Route as FrontendShopCheckoutIndexRouteImport } from './app/_frontend/_shop/checkout.index'
+import { Route as FrontendShopCheckoutMipsReturnRouteImport } from './app/_frontend/_shop/checkout.mips-return'
+import { Route as FrontendShopProductsProductIDRouteImport } from './app/_frontend/_shop/products.$productID'
 
 const FrontendRoute = FrontendRouteImport.update({
   id: '/_frontend',
@@ -35,6 +39,10 @@ const FrontendIndexRoute = FrontendIndexRouteImport.update({
 const FrontendSlugRoute = FrontendSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
+  getParentRoute: () => FrontendRoute,
+} as any)
+const FrontendShopRoute = FrontendShopRouteImport.update({
+  id: '/_shop',
   getParentRoute: () => FrontendRoute,
 } as any)
 const FrontendPostsSlugRoute = FrontendPostsSlugRouteImport.update({
@@ -62,6 +70,24 @@ const PayloadApiGraphqlRoute = PayloadApiGraphqlRouteImport.update({
   path: '/api/graphql',
   getParentRoute: () => PayloadRoute,
 } as any)
+const FrontendShopCheckoutIndexRoute =
+  FrontendShopCheckoutIndexRouteImport.update({
+    id: '/checkout/',
+    path: '/checkout/',
+    getParentRoute: () => FrontendShopRoute,
+  } as any)
+const FrontendShopCheckoutMipsReturnRoute =
+  FrontendShopCheckoutMipsReturnRouteImport.update({
+    id: '/checkout/mips-return',
+    path: '/checkout/mips-return',
+    getParentRoute: () => FrontendShopRoute,
+  } as any)
+const FrontendShopProductsProductIDRoute =
+  FrontendShopProductsProductIDRouteImport.update({
+    id: '/products/$productID',
+    path: '/products/$productID',
+    getParentRoute: () => FrontendShopRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof FrontendIndexRoute
@@ -71,6 +97,9 @@ export interface FileRoutesByFullPath {
   '/api/$': typeof PayloadApiSplatRoute
   '/api/graphql': typeof PayloadApiGraphqlRoute
   '/admin/': typeof PayloadAdminIndexRoute
+  '/checkout/mips-return': typeof FrontendShopCheckoutMipsReturnRoute
+  '/products/$productID': typeof FrontendShopProductsProductIDRoute
+  '/checkout/': typeof FrontendShopCheckoutIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof FrontendIndexRoute
@@ -80,18 +109,25 @@ export interface FileRoutesByTo {
   '/api/$': typeof PayloadApiSplatRoute
   '/api/graphql': typeof PayloadApiGraphqlRoute
   '/admin': typeof PayloadAdminIndexRoute
+  '/checkout/mips-return': typeof FrontendShopCheckoutMipsReturnRoute
+  '/products/$productID': typeof FrontendShopProductsProductIDRoute
+  '/checkout': typeof FrontendShopCheckoutIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_frontend': typeof FrontendRouteWithChildren
   '/_payload': typeof PayloadRouteWithChildren
   '/_frontend/$slug': typeof FrontendSlugRoute
+  '/_frontend/_shop': typeof FrontendShopRouteWithChildren
   '/_frontend/': typeof FrontendIndexRoute
   '/_frontend/posts/$slug': typeof FrontendPostsSlugRoute
   '/_payload/admin/$': typeof PayloadAdminSplatRoute
   '/_payload/api/$': typeof PayloadApiSplatRoute
   '/_payload/api/graphql': typeof PayloadApiGraphqlRoute
   '/_payload/admin/': typeof PayloadAdminIndexRoute
+  '/_frontend/_shop/checkout/mips-return': typeof FrontendShopCheckoutMipsReturnRoute
+  '/_frontend/_shop/products/$productID': typeof FrontendShopProductsProductIDRoute
+  '/_frontend/_shop/checkout/': typeof FrontendShopCheckoutIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -103,6 +139,9 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/graphql'
     | '/admin/'
+    | '/checkout/mips-return'
+    | '/products/$productID'
+    | '/checkout/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -112,17 +151,24 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/graphql'
     | '/admin'
+    | '/checkout/mips-return'
+    | '/products/$productID'
+    | '/checkout'
   id:
     | '__root__'
     | '/_frontend'
     | '/_payload'
     | '/_frontend/$slug'
+    | '/_frontend/_shop'
     | '/_frontend/'
     | '/_frontend/posts/$slug'
     | '/_payload/admin/$'
     | '/_payload/api/$'
     | '/_payload/api/graphql'
     | '/_payload/admin/'
+    | '/_frontend/_shop/checkout/mips-return'
+    | '/_frontend/_shop/products/$productID'
+    | '/_frontend/_shop/checkout/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -160,6 +206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FrontendSlugRouteImport
       parentRoute: typeof FrontendRoute
     }
+    '/_frontend/_shop': {
+      id: '/_frontend/_shop'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof FrontendShopRouteImport
+      parentRoute: typeof FrontendRoute
+    }
     '/_frontend/posts/$slug': {
       id: '/_frontend/posts/$slug'
       path: '/posts/$slug'
@@ -195,17 +248,56 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayloadApiGraphqlRouteImport
       parentRoute: typeof PayloadRoute
     }
+    '/_frontend/_shop/checkout/': {
+      id: '/_frontend/_shop/checkout/'
+      path: '/checkout'
+      fullPath: '/checkout/'
+      preLoaderRoute: typeof FrontendShopCheckoutIndexRouteImport
+      parentRoute: typeof FrontendShopRoute
+    }
+    '/_frontend/_shop/checkout/mips-return': {
+      id: '/_frontend/_shop/checkout/mips-return'
+      path: '/checkout/mips-return'
+      fullPath: '/checkout/mips-return'
+      preLoaderRoute: typeof FrontendShopCheckoutMipsReturnRouteImport
+      parentRoute: typeof FrontendShopRoute
+    }
+    '/_frontend/_shop/products/$productID': {
+      id: '/_frontend/_shop/products/$productID'
+      path: '/products/$productID'
+      fullPath: '/products/$productID'
+      preLoaderRoute: typeof FrontendShopProductsProductIDRouteImport
+      parentRoute: typeof FrontendShopRoute
+    }
   }
 }
 
+interface FrontendShopRouteChildren {
+  FrontendShopCheckoutMipsReturnRoute: typeof FrontendShopCheckoutMipsReturnRoute
+  FrontendShopProductsProductIDRoute: typeof FrontendShopProductsProductIDRoute
+  FrontendShopCheckoutIndexRoute: typeof FrontendShopCheckoutIndexRoute
+}
+
+const FrontendShopRouteChildren: FrontendShopRouteChildren = {
+  FrontendShopCheckoutMipsReturnRoute: FrontendShopCheckoutMipsReturnRoute,
+  FrontendShopProductsProductIDRoute: FrontendShopProductsProductIDRoute,
+  FrontendShopCheckoutIndexRoute: FrontendShopCheckoutIndexRoute,
+}
+
+const FrontendShopRouteWithChildren = FrontendShopRoute._addFileChildren(
+  FrontendShopRouteChildren,
+)
+
 interface FrontendRouteChildren {
   FrontendSlugRoute: typeof FrontendSlugRoute
+  FrontendShopRoute: typeof FrontendShopRouteWithChildren
   FrontendIndexRoute: typeof FrontendIndexRoute
   FrontendPostsSlugRoute: typeof FrontendPostsSlugRoute
 }
 
 const FrontendRouteChildren: FrontendRouteChildren = {
   FrontendSlugRoute: FrontendSlugRoute,
+  FrontendShopRoute: FrontendShopRouteWithChildren,
   FrontendIndexRoute: FrontendIndexRoute,
   FrontendPostsSlugRoute: FrontendPostsSlugRoute,
 }

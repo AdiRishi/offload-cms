@@ -1,3 +1,17 @@
 PAYLOAD_SECRET=change-me-to-a-long-random-string
 # Cloudflare's Turnstile testing secret: every token passes.
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# The Razorpay and mIPS stubs in stubs/, which Playwright starts. They read these values too.
+RAZORPAY_API_URL=http://localhost:4890
+RAZORPAY_KEY_ID=rzp_test_OffloadE2eKey
+RAZORPAY_KEY_SECRET=offload-e2e-razorpay-key-secret
+RAZORPAY_WEBHOOK_SECRET=offload-e2e-razorpay-webhook-secret
+MIPS_API_URL=http://localhost:4891/api
+MIPS_USERNAME=offload-e2e
+MIPS_PASSWORD=offload-e2e-basic-password
+MIPS_MERCHANT_ID=OffloadE2eMerchant00000000000001
+MIPS_ENTITY_ID=OffloadE2eEntity0000000000000001
+MIPS_OPERATOR_ID=OffloadE2eOperator00000000000001
+MIPS_OPERATOR_PASSWORD=OffloadE2eOperatorPassword000001
+MIPS_SALT=offload-e2e-mips-salt
+MIPS_CIPHER_KEY=offload-e2e-mips-cipher-key

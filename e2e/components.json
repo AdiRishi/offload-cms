@@ -22,6 +22,6 @@
   "menuColor": "default",
   "menuAccent": "subtle",
   "registries": {
-    "@offload": "http://localhost:4891/r/{name}.json"
+    "@offload": "http://localhost:4880/r/{name}.json"
   }
 }
