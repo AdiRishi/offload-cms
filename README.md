@@ -57,10 +57,9 @@ These steps add Offload to an existing TanStack Start site. [Getting started](ht
    ```ts
    // src/server.ts
    import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
-   import config from "@payload-config";
    import handler from "@tanstack/react-start/server-entry";
 
-   export default createPayloadWorker({ config, handler });
+   export default createPayloadWorker({ handler });
    ```
 
 Coding agents get a skill with the package. Add this line to the site's `AGENTS.md`:

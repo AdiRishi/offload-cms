@@ -1,14 +1,14 @@
 ---
 title: "@adirishi/offload-cloudflare"
-description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Worker entry, and the GraphQL route.
+description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Worker entry, and the API routes.
 ---
 
-| Entry point                           | Exports                                   |
-| ------------------------------------- | ----------------------------------------- |
-| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`     |
-| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()` |
-| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                   |
-| `@adirishi/offload-cloudflare/routes` | `payloadGraphQLHandlers()`                |
+| Entry point                           | Exports                                            |
+| ------------------------------------- | -------------------------------------------------- |
+| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`              |
+| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()`          |
+| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                            |
+| `@adirishi/offload-cloudflare/routes` | `payloadApiHandlers()`, `payloadGraphQLHandlers()` |
 
 The package also ships the agent skill `skills/offload/SKILL.md`. [Getting started](/getting-started#set-up-your-coding-agent) shows how a site points its agent at it.
 
@@ -85,7 +85,6 @@ Returns the `pool` option for `postgresAdapter()`. The returned config reads `hy
 
 ```ts
 createPayloadWorker(args: {
-  config: Promise<SanitizedConfig>;
   handler: { fetch: (request: Request) => Response | Promise<Response> };
   jobs?: RunOptions;
 }): ExportedHandler
@@ -95,16 +94,40 @@ Returns the Worker's default export.
 
 | Argument  | Description                                                                                                    |
 | --------- | -------------------------------------------------------------------------------------------------------------- |
-| `config`  | The default export of `@payload-config`.                                                                       |
 | `handler` | The default export of `@tanstack/react-start/server-entry`. It serves every request.                           |
 | `jobs`    | Options for `payload.jobs.run()`, except `req`. The defaults are `allQueues: true` and `overrideAccess: true`. |
 
 On each Cron Trigger, the Worker queues Payload's scheduled jobs with `payload.jobs.handleSchedules()`, then runs the due jobs with `payload.jobs.run()`. Scheduled publishing runs this way.
 
+## Where Payload runs
+
+TanStack Start builds the Worker as two environments. The RSC environment runs server functions and renders the admin. The SSR environment runs the Worker entry and server routes, and renders HTML. Code in either one that imports `@payload-config` or `payload` bundles its own copy of Payload. In the `e2e` site, the second copy added 1,117 KiB to the compressed Worker.
+
+The Worker entry and the API route handlers below load Payload from the RSC environment with `import.meta.viteRsc.import()` from `@vitejs/plugin-rsc`, so the Worker bundles one copy. A server route of your own that imports `payload` or `@payload-config` brings the second copy back. Read content in a `createServerFn()` handler instead. It runs in the RSC environment, also when a route loader or a server route calls it.
+
+## payloadApiHandlers()
+
+```ts
+payloadApiHandlers(): { DELETE; GET; OPTIONS; PATCH; POST; PUT }
+```
+
+Returns the server handlers for the REST route at `/_payload/api/$`. Use it in place of `payloadApiHandlers()` from `@payloadcms/tanstack-start/server`, which Payload's TanStack Start template uses and which imports Payload into the SSR environment.
+
+```ts src/app/_payload/api.$.ts
+import { payloadApiHandlers } from "@adirishi/offload-cloudflare/routes";
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/_payload/api/$")({
+  server: {
+    handlers: payloadApiHandlers(),
+  },
+});
+```
+
 ## payloadGraphQLHandlers()
 
 ```ts
-payloadGraphQLHandlers(args: { getConfig: () => Promise<SanitizedConfig> }): { POST }
+payloadGraphQLHandlers(): { POST }
 ```
 
 Returns the server handlers for a TanStack Start route at `/_payload/api/graphql`. Payload's TanStack Start template routes only REST.
@@ -115,9 +138,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_payload/api/graphql")({
   server: {
-    handlers: payloadGraphQLHandlers({
-      getConfig: async () => (await import("@payload-config")).default,
-    }),
+    handlers: payloadGraphQLHandlers(),
   },
 });
 ```

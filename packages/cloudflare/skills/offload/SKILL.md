@@ -59,15 +59,17 @@ const getPost = createServerFn({ method: "GET" })
 
 - D1: `sqliteD1Adapter({ binding: env.D1, push: false, migrationDir })`
 - Postgres: `postgresAdapter({ pool: hyperdrivePoolConfig(env.HYPERDRIVE), push: false, migrationDir })`
-- R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`. Renaming a stored file and restoring an upload version copy objects, which the binding can't do. They need `copyFile: createS3CopyFile({ accessKeyId, accountId, bucket, secretAccessKey })` from `@payloadcms/storage-r2/copy-file`, which adds the AWS SDK (about 390 KiB compressed) to the Worker.
+- R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`. Renaming a stored file and restoring an upload version copy objects, which the binding can't do. They need `copyFile: createS3CopyFile({ accessKeyId, accountId, bucket, secretAccessKey })` from `@payloadcms/storage-r2/copy-file`, which adds the AWS SDK (about 200 KiB compressed) to the Worker.
 - Email Service: `email: cloudflareEmailAdapter({ binding: env.EMAIL, defaultFromAddress, defaultFromName })` from `@adirishi/offload-email-cloudflare`, with `"send_email": [{ "name": "EMAIL" }]`. The `from` domain must be onboarded to Email Sending.
 - Cloudflare Images: `upload: { transformers: [cloudflareTransformer({ transport: { mode: "binding", binding: () => env.IMAGES }, collections })] }` from `@payloadcms/transformer-cloudflare`, with `"images": { "binding": "IMAGES" }`. Pass the binding as a function, because Cloudflare's upload check loads the config without bindings and the transformer throws on an undefined one. `collections` sets upload `variants`, `crop`, and `focalPoint`, and `dynamic` enables `?width=` resizing.
 
 **Seed with `payload run`.** `pnpm payload run src/seed.ts` runs a script in Node against the Wrangler environment that `CLOUDFLARE_ENV` selects, through `getBindings()`. Pass `overrideAccess: true` to the Local API, don't create users, and stop any dev server or preview on the same environment first. To seed a deployed environment, give it `"remote": true` on D1, R2, and the Images binding.
 
-**Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ config, handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
+**Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
 
-**GraphQL needs a route.** `src/app/_payload/api.graphql.ts` serves it with `payloadGraphQLHandlers()` from `@adirishi/offload-cloudflare/routes`.
+**API routes come from Offload.** `src/app/_payload/api.$.ts` serves REST with `payloadApiHandlers()` and `src/app/_payload/api.graphql.ts` serves GraphQL with `payloadGraphQLHandlers()`, both from `@adirishi/offload-cloudflare/routes`. Don't use `payloadApiHandlers` from `@payloadcms/tanstack-start/server`.
+
+**Read Payload in server functions, not server routes.** Server functions run in the RSC environment, which holds the Worker's copy of Payload. Server routes and `src/server.ts` run in the SSR environment, and importing `payload` or `@payload-config` there bundles a second copy, about 1.1 MB compressed. A server route can call a server function instead.
 
 **Workers runtime limits:**
 

@@ -162,7 +162,7 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     Payload's TanStack Start adapter keeps the site's routes in `src/app`. Copy these files from `e2e`:
 
     - `src/router.tsx` and `src/app/__root.tsx`, which pass Payload's search-param handling and root wrapper to TanStack Router
-    - `src/app/_payload.tsx` and the `src/app/_payload/` directory, which hold the admin, REST, and server-function routes from Payload's TanStack Start template, plus `api.graphql.ts` for GraphQL
+    - `src/app/_payload.tsx` and the `src/app/_payload/` directory, which hold the admin, REST, and server-function routes from Payload's TanStack Start template, plus `api.graphql.ts` for GraphQL. The REST and GraphQL routes use Offload's handlers, which keep the Worker to [one copy of Payload](/cloudflare#where-payload-runs).
 
     Then run `pnpm payload generate:importmap` to rebuild `src/app/_payload/importMap.js` for your config. Your own pages go next to `_payload`, as `e2e` does in `src/app/_frontend`.
 
@@ -172,10 +172,9 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
     ```ts src/server.ts
     import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
-    import config from "@payload-config";
     import handler from "@tanstack/react-start/server-entry";
 
-    export default createPayloadWorker({ config, handler });
+    export default createPayloadWorker({ handler });
     ```
 
   </Step>
