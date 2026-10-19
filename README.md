@@ -16,7 +16,7 @@ Your code doesn't change. A site installs Offload under the upstream package nam
 ## What you get
 
 - **Upstream Payload with a short patch list.** Offload is a pinned Payload release plus a few patches. Each patch says what breaks without it and when it can be dropped, so the list shrinks as upstream merges fixes. [See the patches](https://adirishi.github.io/offload-cms/patches).
-- **One package for the Workers setup.** `@adirishi/offload-cloudflare` has the Vite preset, the bindings helper, and the Worker entry that runs Payload's jobs on a Cron Trigger.
+- **Packages for the Workers setup.** `@adirishi/offload-cloudflare` has the Vite preset, the bindings helper, and the Worker entry that runs Payload's jobs on a Cron Trigger. `@adirishi/offload-email-cloudflare` sends Payload's email through Cloudflare Email Service, and a backport of Payload's Cloudflare Images transformer generates image variants.
 - **A real site under test.** Every push publishes the packages to a throwaway registry, installs them in a Payload site, and runs a Playwright suite against its Worker build, once on D1 and once on Postgres.
 - **Signed packages.** Every published tarball has a build provenance attestation that `gh attestation verify` checks.
 

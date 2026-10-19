@@ -1,13 +1,13 @@
 ---
 title: How Offload works
-description: Why Offload is a pinned Payload release with a few patches and one package, and why sites install it under Payload's own names.
+description: Why Offload is a pinned Payload release with a few patches and a few packages, and why sites install it under Payload's own names.
 ---
 
 Offload has three parts:
 
 - **A pinned Payload release.** [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json) names the Payload tag and commit that Offload builds on.
 - **A patch series.** [`upstream/patches`](https://github.com/AdiRishi/offload-cms/tree/main/upstream/patches) holds one `git format-patch` file per change to Payload. The [patch pages](/patches) list them.
-- **Offload's own packages.** Today that is [`@adirishi/offload-cloudflare`](/cloudflare), which has the Workers setup.
+- **Offload's own packages.** [`@adirishi/offload-cloudflare`](/cloudflare) has the Workers setup, and [`@adirishi/offload-email-cloudflare`](/email) sends Payload's email through Cloudflare Email Service.
 
 A release builds Payload with the patches applied, packs every package that Payload publishes, and renames each one to `@adirishi/offload-<name>`. All packages share one version, `<Payload version>-offload.<n>`, because Payload checks that its packages share a version. `<n>` counts Offload's releases on that Payload tag, starting at 0.
 
