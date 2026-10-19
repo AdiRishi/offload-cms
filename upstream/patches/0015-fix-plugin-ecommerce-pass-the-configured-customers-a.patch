@@ -1,0 +1,113 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 07:13:55 +1100
+Subject: [PATCH] fix(plugin-ecommerce): pass the configured customers and
+ carts slugs to the payment endpoints
+
+A site whose customers log in through their own collection gets the wrong
+owner on every transaction. The plugin builds the initiate and confirm-order
+handlers without `customersSlug`, so adapters receive the default `users`
+whatever `customers.slug` says. An adapter that attaches `req.user` only when
+it belongs to the customers collection treats a real customer as a guest and
+an admin user as the customer. Initiate also loses the carts slug from
+`slugMap`, so it looks up the cart in `carts`.
+
+The plugin now passes `collectionSlugMap.customers` to both handlers and
+`collectionSlugMap.carts` to initiate, as it already does for the other
+slugs.
+
+Offload-Patch: ecommerce-adapter-customers-slug
+Drop-When: the pinned release passes customersSlug and cartsSlug from the plugin config to the initiate and confirm-order handlers
+Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/index.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that a logged-in customer owns a checkout and an admin user never does)
+---
+ packages/plugin-ecommerce/src/index.spec.ts | 58 +++++++++++++++++++++
+ packages/plugin-ecommerce/src/index.ts      |  3 ++
+ 2 files changed, 61 insertions(+)
+ create mode 100644 packages/plugin-ecommerce/src/index.spec.ts
+
+diff --git a/packages/plugin-ecommerce/src/index.spec.ts b/packages/plugin-ecommerce/src/index.spec.ts
+new file mode 100644
+index 000000000..4803304aa
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/index.spec.ts
+@@ -0,0 +1,58 @@
++import type { Config, Endpoint, PayloadRequest } from 'payload'
++
++import { describe, expect, it, vi } from 'vitest'
++
++import type { PaymentAdapter } from './types/index.js'
++
++import { ecommercePlugin } from './index.js'
++
++const adapter = (): PaymentAdapter => ({
++  name: 'test',
++  confirmOrder: vi.fn(async () => ({ message: 'ok', orderID: 1, transactionID: 1 })),
++  group: { name: 'test', type: 'group', fields: [] },
++  initiatePayment: vi.fn(async () => ({ message: 'ok' })),
++})
++
++const endpoint = (config: Config, path: string): Endpoint['handler'] => {
++  const found = config.endpoints?.find((candidate) => candidate.path === path)
++
++  if (!found) {
++    throw new Error(`No endpoint at ${path}`)
++  }
++
++  return found.handler
++}
++
++describe('ecommercePlugin payment endpoints', () => {
++  it('pass the configured customers and carts slugs to the payment adapter', async () => {
++    const paymentMethod = adapter()
++    const config = await ecommercePlugin({
++      customers: { slug: 'customers' },
++      payments: { paymentMethods: [paymentMethod] },
++      slugMap: { carts: 'baskets' },
++    })({ collections: [], secret: 'test' } as unknown as Config)
++
++    const cart = {
++      currency: 'USD',
++      id: 'cart-1',
++      items: [{ product: 'product-1', quantity: 1 }],
++      subtotal: 1000,
++    }
++    const findByID = vi.fn(async ({ collection }: { collection: string }) =>
++      collection === 'baskets' ? cart : { id: 'product-1', inventory: 5, priceInUSD: 1000 },
++    )
++    const req = {
++      data: { cartID: 'cart-1', customerEmail: 'buyer@example.com' },
++      payload: { findByID, logger: { error: vi.fn() } },
++      query: {},
++    } as unknown as PayloadRequest
++
++    const response = await endpoint(config, '/payments/test/initiate')(req)
++
++    expect(response.status).toBe(200)
++    expect(findByID).toHaveBeenCalledWith(expect.objectContaining({ collection: 'baskets' }))
++    expect(paymentMethod.initiatePayment).toHaveBeenCalledWith(
++      expect.objectContaining({ customersSlug: 'customers' }),
++    )
++  })
++})
+diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
+index 9e4a90736..1d4c0fee0 100644
+--- a/packages/plugin-ecommerce/src/index.ts
++++ b/packages/plugin-ecommerce/src/index.ts
+@@ -233,7 +233,9 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
+ 
+           const initiatePayment: Endpoint = {
+             handler: initiatePaymentHandler({
++              cartsSlug: collectionSlugMap.carts,
+               currenciesConfig,
++              customersSlug: collectionSlugMap.customers,
+               inventory: sanitizedPluginConfig.inventory,
+               paymentMethod,
+               productsSlug: collectionSlugMap.products,
+@@ -249,6 +251,7 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
+             handler: confirmOrderHandler({
+               cartsSlug: collectionSlugMap.carts,
+               currenciesConfig,
++              customersSlug: collectionSlugMap.customers,
+               ordersSlug: collectionSlugMap.orders,
+               paymentMethod,
+               productsSlug: collectionSlugMap.products,

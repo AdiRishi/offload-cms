@@ -82,10 +82,11 @@ const relationID = (value: DefaultDocumentIDType | { id: DefaultDocumentIDType }
 /**
  * Creates the `pending` transaction for a checkout. It charges the cart's subtotal, which the
  * carts collection computes from stored prices, so the browser never supplies an amount. A
- * customer of `customersSlug` owns the transaction. Anyone else is a guest, known by email.
+ * logged-in user of the plugin's customers collection owns the transaction. Anyone else,
+ * including an admin user of another collection, is a guest, known by email.
  */
 export const createPendingTransaction = async (
-  { customersSlug = "users", data, req, transactionsSlug }: InitiateArgs,
+  { customersSlug, data, req, transactionsSlug }: InitiateArgs,
   { gateway, name }: { gateway: Record<string, unknown>; name: string },
 ) => {
   const { billingAddress, cart, currency, customerEmail, shippingAddress } = data;
@@ -99,7 +100,9 @@ export const createPendingTransaction = async (
     collection: transactionsSlug,
     depth: 0,
     data: {
-      ...(req.user?.collection === customersSlug ? { customer: req.user.id } : { customerEmail }),
+      ...(req.user && req.user.collection === customersSlug
+        ? { customer: req.user.id }
+        : { customerEmail }),
       amount,
       billingAddress,
       cart: cart.id,

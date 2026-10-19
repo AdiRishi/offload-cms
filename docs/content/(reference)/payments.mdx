@@ -33,7 +33,9 @@ Before it settles, an adapter finds the one transaction that holds the gateway o
 
 A payment that the API reports with another amount or currency is refused, and the adapter writes the reason to the transaction's `lastError`. A failure event doesn't fail the transaction, because a gateway can still complete the payment later. Reconciliation expires a transaction only when no payment can arrive any more.
 
-Settlement assumes the plugin's default collection slugs: `transactions`, `orders`, `carts`, `products`, and `variants`.
+A logged-in user of the plugin's `customers.slug` collection owns the transaction and the order. Any other logged-in user, such as an admin, checks out as a guest, known by email. The [customers slug patch](/patches/ecommerce-adapter-customers-slug) passes that slug to the adapters.
+
+Settlement assumes the plugin's default slugs for the other collections: `transactions`, `orders`, `carts`, `products`, and `variants`.
 
 ## Currencies
 
