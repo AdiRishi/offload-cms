@@ -24,12 +24,14 @@ Your code doesn't change. A site installs Offload under the upstream package nam
 
 These steps add Offload to an existing TanStack Start site. [Getting started](https://adirishi.github.io/offload-cms/getting-started) covers the whole setup, including routes, Wrangler, and the first run.
 
-1. GitHub Packages needs a token, even for public packages. Create a token with the `read:packages` scope, export it as `GITHUB_TOKEN`, and add this `.npmrc` to the site:
+1. GitHub Packages needs a token, even for public packages. Create a classic token with the `read:packages` scope and save it in your pnpm user config. Then point the `@adirishi` scope at GitHub Packages in the site's `.npmrc`:
 
-   ```ini
-   @adirishi:registry=https://npm.pkg.github.com
-   //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+   ```bash
+   pnpm config set "//npm.pkg.github.com/:_authToken" <token>
+   echo "@adirishi:registry=https://npm.pkg.github.com" >> .npmrc
    ```
+
+   Keep the token out of the project `.npmrc`. pnpm 11.5.3 and later ignore `${...}` in its credentials. [Getting started](https://adirishi.github.io/offload-cms/getting-started) shows how to pass the token in CI.
 
 2. Install Offload under the upstream names. Every Payload package in the site must be an Offload build at the same version, so add plugins the same way, such as `@payloadcms/plugin-seo@npm:@adirishi/offload-plugin-seo`:
 

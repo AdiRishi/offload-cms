@@ -19,8 +19,9 @@ The package is on GitHub Packages, which needs a token with the `read:packages` 
 ```ini
 # .npmrc
 @adirishi:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
+
+pnpm 11.5.3 and later ignore `${...}` in a project `.npmrc`'s credentials, so give pnpm the token outside the repository, for example with `pnpm config set "//npm.pkg.github.com/:_authToken" <token>`. [Getting started](https://adirishi.github.io/offload-cms/getting-started) shows the other ways, including GitHub Actions.
 
 ```bash
 pnpm add --save-exact @adirishi/offload-cloudflare

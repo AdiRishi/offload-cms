@@ -11,12 +11,32 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
 <Steps>
   <Step title="Connect to GitHub Packages">
-    Offload is on GitHub Packages, which needs a token even for public packages. Create a GitHub token with the `read:packages` scope and export it as `GITHUB_TOKEN`. Then add an `.npmrc` to the site:
+    Offload is on GitHub Packages, which needs a token even for public packages. Create a classic GitHub token with the `read:packages` scope. The GitHub CLI's token works once it has that scope: run `gh auth refresh --scopes read:packages`, then use `gh auth token`.
+
+    Point the `@adirishi` scope at GitHub Packages in the site's `.npmrc`:
 
     ```ini .npmrc
     @adirishi:registry=https://npm.pkg.github.com
-    //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
     ```
+
+    Keep the token out of this file. It's committed, and pnpm 11.5.3 and later don't expand `${...}` in a project `.npmrc`'s registry credentials ([GHSA-3qhv-2rgh-x77r](https://github.com/advisories/GHSA-3qhv-2rgh-x77r)). Give pnpm the token in one of these ways:
+
+    - Save it in your user config, once per machine: `pnpm config set "//npm.pkg.github.com/:_authToken" <token>`.
+    - Pass it to one command in pnpm's environment form: `env "pnpm_config_//npm.pkg.github.com/:_authToken=$(gh auth token)" pnpm install`.
+
+    In GitHub Actions, `actions/setup-node` writes a user-level `.npmrc` that reads `NODE_AUTH_TOKEN`:
+
+    ```yaml .github/workflows/ci.yml
+    - uses: actions/setup-node@v7
+      with:
+        registry-url: https://npm.pkg.github.com
+        scope: "@adirishi"
+    - run: pnpm install --frozen-lockfile
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.OFFLOAD_PACKAGES_TOKEN }}
+    ```
+
+    A workflow's `GITHUB_TOKEN` can install only the packages that grant its repository read access, and Offload's packages belong to another account. Store a classic token with `read:packages` as a repository secret, `OFFLOAD_PACKAGES_TOKEN` in this example.
 
   </Step>
   <Step title="Install the packages">
