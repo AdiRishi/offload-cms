@@ -6,7 +6,8 @@ Offload republishes Payload CMS v4 as `@adirishi/offload-*`, with a short patch 
 - Put new behaviour in a package in `packages/` when Payload's config or plugin API can express it. Patch Payload only when no extension point exists. `upstream/AGENTS.md` explains how a patch is made.
 - Test a change to `packages/` or to a patch with `pnpm release e2e` and `pnpm release e2e --postgres`. Both publish the working tree to a throwaway registry and run the suite in `e2e/`.
 - Releases need no version edit. Once CI passes on `main`, a commit that changes what the packages ship publishes as the next `-offload.<n>` release, with a git tag.
-- Finish with `pnpm check`. `pnpm format:fix` and `pnpm lint:fix` fix most of what it reports.
+- The e2e site has one `initial` migration per database. A schema change rewrites it in place and never adds a migration, so `pnpm deploy:staging` empties the staging D1 database before it migrates. `e2e/AGENTS.md` has the steps.
+- Finish with `pnpm check`. `pnpm format:fix` and `pnpm lint:fix` fix most of what it reports. `pnpm check` skips the lint and type checks in `e2e`, whose dependencies exist only after `pnpm release e2e` installs them, so `pnpm release e2e` runs those checks.
 - The contributor docs in `docs/content/contributing/` cover the layout, testing, and releases.
 
 <!-- BEGIN:turborepo-agent-rules -->

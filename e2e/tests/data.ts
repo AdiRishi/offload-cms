@@ -21,23 +21,18 @@ const paragraph = (value: string) => ({
   version: 1,
 });
 
-/** A Lexical document with paragraphs and, optionally, one `callout` block. */
+/** A Lexical document with paragraphs and, optionally, one block. */
 export const lexical = (
   paragraphs: string[],
-  callout?: { message: string; tone: "info" | "warning" },
+  block?: { blockType: string } & Record<string, string>,
 ) => ({
   root: {
     children: [
       ...paragraphs.map(paragraph),
-      ...(callout
+      ...(block
         ? [
             {
-              fields: {
-                blockName: "",
-                blockType: "callout",
-                id: "6716a0a1b2c3d4e5f6a7b8c9",
-                ...callout,
-              },
+              fields: { blockName: "", id: "6716a0a1b2c3d4e5f6a7b8c9", ...block },
               format: "",
               type: "block",
               version: 2,

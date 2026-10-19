@@ -1,0 +1,452 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 00:21:19 +1100
+Subject: [PATCH] fix(payload): add login sessions without rewriting the
+ sessions array
+
+Concurrent logins as one user fail or lose their sessions. Login reads the
+user with its sessions, hashes the password, then writes the whole user back
+with the new session appended. The SQL adapters write an array by deleting
+all of its rows and inserting them again. D1 has no transactions, so the
+logins interleave those statements: eight logins at once return one 200 and
+seven 500s with "UNIQUE constraint failed: users_sessions.id". On Postgres
+every login returns 200, but each one writes back the sessions it read, so
+the sessions of the other logins disappear and their tokens stop working.
+Logging out of one session, and the cleanup after a login fails, rewrite the
+array the same way.
+
+Login now removes the expired sessions it read, by ID, then adds its session
+with $push, which the SQL adapters write as one insert. Logging out of one
+session and the cleanup after a failed login remove only that session.
+updateOne accepts { $remove: id | id[] } on a top-level array field: the SQL
+adapters delete those rows, in batches that stay within D1's 100 bound
+parameters, and MongoDB pulls them. Session expiry, logout from all sessions,
+refresh and password changes keep their behaviour. MongoDB with transactions
+still rejects concurrent writes to one user with a WriteConflict, as before.
+
+Offload-Patch: concurrent-login-sessions
+Upstream: https://github.com/payloadcms/payload/issues/16027
+Drop-When: the pinned release adds a login session without writing back the sessions array it read (issue 16027, PR 18150)
+Tests: pnpm exec vitest run --project unit packages/drizzle/src/upsertRow/removeArrayRows.spec.ts; PAYLOAD_DATABASE=sqlite pnpm test:int test/auth/int.spec.ts; e2e suite (concurrent logins test)
+---
+ .../db-mongodb/src/utilities/transform.ts     | 18 ++++
+ packages/drizzle/src/upsertRow/index.ts       |  5 ++
+ .../src/upsertRow/removeArrayRows.spec.ts     | 83 +++++++++++++++++++
+ .../drizzle/src/upsertRow/removeArrayRows.ts  | 59 +++++++++++++
+ .../payload/src/auth/operations/logout.ts     | 39 +++++----
+ packages/payload/src/auth/sessions.ts         | 34 ++++++--
+ test/auth/int.spec.ts                         | 75 +++++++++++++++++
+ 7 files changed, 290 insertions(+), 23 deletions(-)
+ create mode 100644 packages/drizzle/src/upsertRow/removeArrayRows.spec.ts
+ create mode 100644 packages/drizzle/src/upsertRow/removeArrayRows.ts
+
+diff --git a/packages/db-mongodb/src/utilities/transform.ts b/packages/db-mongodb/src/utilities/transform.ts
+index adab094b4..b733800a4 100644
+--- a/packages/db-mongodb/src/utilities/transform.ts
++++ b/packages/db-mongodb/src/utilities/transform.ts
+@@ -661,6 +661,24 @@ export const transform = ({
+       }
+     }
+ 
++    // Handle $remove operation for array fields: removes the rows with the given IDs
++    if (
++      $pull &&
++      field.type === 'array' &&
++      operation === 'write' &&
++      field.name in ref &&
++      ref[field.name]
++    ) {
++      const value = ref[field.name]
++
++      if (value && typeof value === 'object' && '$remove' in value) {
++        const ids = Array.isArray(value.$remove) ? value.$remove : [value.$remove]
++        $pull[`${parentPath}${field.name}`] = { id: { $in: ids } }
++        delete ref[field.name]
++        clearEmptyContainer()
++      }
++    }
++
+     // Handle $push operation for relationship fields (converts to $addToSet)
+ 
+     // Handle $push operation for relationship fields (converts to $addToSet) - unified approach
+diff --git a/packages/drizzle/src/upsertRow/index.ts b/packages/drizzle/src/upsertRow/index.ts
+index e51950b86..f0b782797 100644
+--- a/packages/drizzle/src/upsertRow/index.ts
++++ b/packages/drizzle/src/upsertRow/index.ts
+@@ -24,6 +24,7 @@ import { deleteExistingArrayRows } from './deleteExistingArrayRows.js'
+ import { deleteExistingRowsByPath } from './deleteExistingRowsByPath.js'
+ import { handleUpsertError } from './handleUpsertError.js'
+ import { insertArrays } from './insertArrays.js'
++import { removeArrayRows } from './removeArrayRows.js'
+ import { shouldUseOptimizedUpsertRow } from './shouldUseOptimizedUpsertRow.js'
+ 
+ /**
+@@ -61,6 +62,10 @@ export const upsertRow = async <T extends Record<string, unknown> | TypeWithID>(
+ 
+   markWrite(adapter)
+ 
++  if (id) {
++    data = await removeArrayRows({ adapter, data, db, fields, parentID: id, tableName })
++  }
++
+   let insertedRow: Record<string, unknown> = { id }
+   if (id && shouldUseOptimizedUpsertRow({ data, fields })) {
+     try {
+diff --git a/packages/drizzle/src/upsertRow/removeArrayRows.spec.ts b/packages/drizzle/src/upsertRow/removeArrayRows.spec.ts
+new file mode 100644
+index 000000000..21ee83662
+--- /dev/null
++++ b/packages/drizzle/src/upsertRow/removeArrayRows.spec.ts
+@@ -0,0 +1,83 @@
++import type { InStatement } from '@libsql/client'
++import type { FlattenedField } from 'payload'
++
++import { createClient } from '@libsql/client'
++import { drizzle } from 'drizzle-orm/libsql'
++import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
++import { describe, expect, it } from 'vitest'
++
++import type { DrizzleAdapter } from '../types.js'
++
++import { deleteWhere } from '../sqlite/deleteWhere.js'
++import { removeArrayRows } from './removeArrayRows.js'
++
++const usersSessions = sqliteTable('users_sessions', {
++  id: text('id').primaryKey(),
++  _parentID: integer('_parent_id').notNull(),
++})
++
++const fields = [
++  { name: 'name', type: 'text' },
++  { name: 'sessions', type: 'array', flattenedFields: [] },
++] as unknown as FlattenedField[]
++
++// D1 rejects a statement with more than 100 bound parameters.
++const setup = async () => {
++  const client = createClient({ url: ':memory:' })
++  await client.execute('CREATE TABLE users_sessions (id TEXT PRIMARY KEY, _parent_id INTEGER)')
++
++  const execute = client.execute.bind(client)
++  client.execute = ((statement: InStatement) => {
++    if (
++      typeof statement === 'object' &&
++      Array.isArray(statement.args) &&
++      statement.args.length > 100
++    ) {
++      throw new Error('too many SQL variables')
++    }
++    return execute(statement)
++  }) as typeof client.execute
++
++  const db = drizzle(client)
++  const adapter = {
++    deleteWhere,
++    limitedBoundParameters: true,
++    tableNameMap: new Map([['users_sessions', 'users_sessions']]),
++    tables: { users_sessions: usersSessions },
++  } as unknown as DrizzleAdapter
++
++  return { adapter, db }
++}
++
++const sessionIDs = (parentID: number, count: number) =>
++  Array.from({ length: count }, (_, i) => `${parentID}-${i}`)
++
++describe('removeArrayRows', () => {
++  it("deletes only the named rows of the parent's array, within 100 bound parameters", async () => {
++    const { adapter, db } = await setup()
++    const ownSessions = sessionIDs(1, 150)
++    const otherUsersSessions = sessionIDs(2, 2)
++    for (const id of ownSessions) {
++      await db.insert(usersSessions).values({ id, _parentID: 1 })
++    }
++    for (const id of otherUsersSessions) {
++      await db.insert(usersSessions).values({ id, _parentID: 2 })
++    }
++
++    const remainingData = await removeArrayRows({
++      adapter,
++      data: {
++        name: 'Ada',
++        sessions: { $remove: [...ownSessions.slice(0, 120), otherUsersSessions[0]] },
++      },
++      db,
++      fields,
++      parentID: 1,
++      tableName: 'users',
++    })
++
++    expect(remainingData).toEqual({ name: 'Ada' })
++    const remainingIDs = (await db.select().from(usersSessions)).map(({ id }) => id).sort()
++    expect(remainingIDs).toEqual([...ownSessions.slice(120), ...otherUsersSessions].sort())
++  })
++})
+diff --git a/packages/drizzle/src/upsertRow/removeArrayRows.ts b/packages/drizzle/src/upsertRow/removeArrayRows.ts
+new file mode 100644
+index 000000000..f2e659759
+--- /dev/null
++++ b/packages/drizzle/src/upsertRow/removeArrayRows.ts
+@@ -0,0 +1,59 @@
++import type { FlattenedField } from 'payload'
++
++import { and, eq, inArray } from 'drizzle-orm'
++import toSnakeCase from 'to-snake-case'
++
++import type { DrizzleAdapter, DrizzleTransaction } from '../types.js'
++
++type Args = {
++  adapter: DrizzleAdapter
++  data: Record<string, unknown>
++  db: DrizzleAdapter['drizzle'] | DrizzleTransaction
++  fields: FlattenedField[]
++  parentID: number | string
++  tableName: string
++}
++
++/**
++ * Deletes the rows that `{ [arrayField]: { $remove: id | id[] } }` names from top-level array
++ * fields, and returns the data without those operations.
++ */
++export const removeArrayRows = async ({
++  adapter,
++  data,
++  db,
++  fields,
++  parentID,
++  tableName,
++}: Args): Promise<Record<string, unknown>> => {
++  const remainingData = { ...data }
++
++  for (const field of fields) {
++    const value = data[field.name]
++
++    if (field.type !== 'array' || typeof value !== 'object' || !value || !('$remove' in value)) {
++      continue
++    }
++
++    const ids: unknown[] = Array.isArray(value.$remove) ? value.$remove : [value.$remove]
++    const arrayTableName = adapter.tableNameMap.get(`${tableName}_${toSnakeCase(field.name)}`)
++    const table = adapter.tables[arrayTableName]
++    // A limited database accepts 100 bound parameters, and the parent ID takes one
++    const batchSize = adapter.limitedBoundParameters ? 99 : ids.length
++
++    for (let offset = 0; offset < ids.length; offset += batchSize) {
++      await adapter.deleteWhere({
++        db,
++        tableName: arrayTableName,
++        where: and(
++          eq(table._parentID, parentID),
++          inArray(table.id, ids.slice(offset, offset + batchSize)),
++        ),
++      })
++    }
++
++    delete remainingData[field.name]
++  }
++
++  return remainingData
++}
+diff --git a/packages/payload/src/auth/operations/logout.ts b/packages/payload/src/auth/operations/logout.ts
+index 98f651026..22919d014 100644
+--- a/packages/payload/src/auth/operations/logout.ts
++++ b/packages/payload/src/auth/operations/logout.ts
+@@ -73,24 +73,31 @@ export const logoutOperation = async (incomingArgs: Arguments): Promise<boolean>
+ 
+       if (allSessions) {
+         userWithSessions.sessions = []
+-      } else {
+-        const sessionsAfterLogout = (userWithSessions?.sessions || []).filter(
+-          (s) => s.id !== req?.user?._sid,
+-        )
+ 
+-        userWithSessions.sessions = sessionsAfterLogout
++        // Prevent updatedAt from being updated when only removing a session
++        ;(userWithSessions as any).updatedAt = null
++
++        await req.payload.db.updateOne({
++          id: user.id,
++          collection: collectionConfig.slug,
++          data: userWithSessions,
++          req,
++          returning: false,
++        })
++      } else if (user._sid) {
++        // Removing only this session keeps the sessions that concurrent logins add
++        await req.payload.db.updateOne({
++          id: user.id,
++          collection: collectionConfig.slug,
++          data: {
++            sessions: { $remove: user._sid },
++            // Prevent updatedAt from being updated when only removing a session
++            updatedAt: null,
++          },
++          req,
++          returning: false,
++        })
+       }
+-
+-      // Prevent updatedAt from being updated when only removing a session
+-      ;(userWithSessions as any).updatedAt = null
+-
+-      await req.payload.db.updateOne({
+-        id: user.id,
+-        collection: collectionConfig.slug,
+-        data: userWithSessions,
+-        req,
+-        returning: false,
+-      })
+     }
+ 
+     if (shouldCommit) {
+diff --git a/packages/payload/src/auth/sessions.ts b/packages/payload/src/auth/sessions.ts
+index 6d3bcd324..5a1ddeb39 100644
+--- a/packages/payload/src/auth/sessions.ts
++++ b/packages/payload/src/auth/sessions.ts
+@@ -44,19 +44,34 @@ export const addSessionToUser = async ({
+     const expiresAt = new Date(now.getTime() + tokenExpInMs)
+ 
+     const session = { id: sid, createdAt: now, expiresAt }
++    const activeSessions = removeExpiredSessions(user.sessions ?? [])
++    const expiredSessionIDs = (user.sessions ?? [])
++      .filter((existingSession) => !activeSessions.includes(existingSession))
++      .map(({ id }) => id)
+ 
+-    if (!user.sessions?.length) {
+-      user.sessions = [session]
+-    } else {
+-      user.sessions = removeExpiredSessions(user.sessions)
+-      user.sessions.push(session)
++    // Concurrent logins read the same sessions. Writing back the array that this login read
++    // would drop the sessions that the others add, so write only the expired sessions this
++    // login removes and the session it adds. Removing first means that if either write fails,
++    // no session is left for a token that is never issued.
++    if (expiredSessionIDs.length) {
++      await payload.db.updateOne({
++        id: user.id,
++        collection: collectionConfig.slug,
++        data: {
++          sessions: { $remove: expiredSessionIDs },
++          // Prevent updatedAt from being updated when only removing sessions
++          updatedAt: null,
++        },
++        req,
++        returning: false,
++      })
+     }
+ 
+     await payload.db.updateOne({
+       id: user.id,
+       collection: collectionConfig.slug,
+       data: {
+-        ...user,
++        sessions: { $push: session },
+         // Prevent updatedAt from being updated when only adding a session
+         updatedAt: null,
+       },
+@@ -64,6 +79,7 @@ export const addSessionToUser = async ({
+       returning: false,
+     })
+ 
++    user.sessions = [...activeSessions, session]
+     user.collection = collectionConfig.slug
+     user._strategy = 'local-jwt'
+   }
+@@ -93,7 +109,11 @@ export const revokeSession = async ({
+     await payload.db.updateOne({
+       id: user.id,
+       collection: collectionConfig.slug,
+-      data: user,
++      data: {
++        sessions: { $remove: sid },
++        // Prevent updatedAt from being updated when only removing a session
++        updatedAt: null,
++      },
+       req,
+       returning: false,
+     })
+diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
+index 8d8e2664d..5b37f259f 100644
+--- a/test/auth/int.spec.ts
++++ b/test/auth/int.spec.ts
+@@ -3197,6 +3197,81 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+       expect(user2.docs[0]?.sessions).toHaveLength(1)
+     })
+ 
++    // MongoDB transactions reject concurrent writes to one document with a WriteConflict
++    test.options(
++      'should keep the session of every concurrent login',
++      { db: 'drizzle' },
++      async ({ payload }) => {
++        const user = await payload.create({
++          collection: slug,
++          data: {
++            email: `concurrent-sessions-${Date.now()}@example.com`,
++            password,
++            roles: ['admin'],
++          },
++          overrideAccess: true,
++        })
++        const login = () =>
++          payload.login({
++            collection: slug,
++            data: { email: user.email, password },
++            overrideAccess: true,
++          })
++
++        // The concurrent logins then race on a session that already exists
++        const logins = [await login(), ...(await Promise.all(Array.from({ length: 8 }, login)))]
++
++        const storedUser = await payload.db.findOne<User>({
++          collection: slug,
++          where: { id: { equals: user.id } },
++        })
++        const storedSessionIDs = (storedUser?.sessions ?? []).map(({ id }) => id).sort()
++        const issuedSessionIDs = logins
++          .map(({ token }) => jwtDecode<{ sid: string }>(String(token)).sid)
++          .sort()
++
++        expect(storedSessionIDs).toEqual(issuedSessionIDs)
++      },
++    )
++
++    test('should remove only expired sessions when logging in', async ({ payload }) => {
++      const activeSession = {
++        id: uuid(),
++        createdAt: new Date().toISOString(),
++        expiresAt: new Date(Date.now() + 60_000).toISOString(),
++      }
++      const expiredSession = {
++        id: uuid(),
++        createdAt: new Date(Date.now() - 60_000).toISOString(),
++        expiresAt: new Date(Date.now() - 5_000).toISOString(),
++      }
++      const user = await payload.create({
++        collection: slug,
++        data: {
++          email: `expired-sessions-${Date.now()}@example.com`,
++          password,
++          roles: ['admin'],
++          sessions: [activeSession, expiredSession],
++        },
++        overrideAccess: true,
++      })
++
++      const { token } = await payload.login({
++        collection: slug,
++        data: { email: user.email, password },
++        overrideAccess: true,
++      })
++
++      const storedUser = await payload.db.findOne<User>({
++        collection: slug,
++        where: { id: { equals: user.id } },
++      })
++
++      expect((storedUser?.sessions ?? []).map(({ id }) => id).sort()).toEqual(
++        [activeSession.id, jwtDecode<{ sid: string }>(String(token)).sid].sort(),
++      )
++    })
++
+     test('should not update updatedAt when creating a session', async ({ payload }) => {
+       // Create a user
+       const testUser = await payload.create({

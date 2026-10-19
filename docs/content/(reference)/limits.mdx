@@ -6,7 +6,8 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 ## Runtime
 
 - `vite dev` runs in Node, and a deployed site runs in workerd. A difference between the two runtimes shows up only in `vite preview` or on a deployed Worker.
-- A site needs the Workers Paid plan. A Payload Worker is about 4 MB compressed, and the free plan allows 3 MB.
+- Plan for the Workers Paid plan, which allows a Worker of 10 MB compressed. The free plan allows 3 MB, and the `e2e` site's Worker is already 2.7 MB. Each collection, plugin, and dependency adds to it.
+- A server route or `src/server.ts` that imports `payload` or `@payload-config` bundles a second copy of Payload, about 1.1 MB compressed. Read content in server functions instead. [Where Payload runs](/cloudflare#where-payload-runs) explains why.
 - The admin is always at `/admin`. Payload's TanStack Start adapter doesn't support `routes.admin`.
 - Workers can't run `sharp`. [Process images with Cloudflare Images](/images) instead. It reads only JPEG, PNG, GIF, WebP, and AVIF, at most 20 MiB each, and it has no equivalent of Sharp-only options such as `trimOptions`.
 - Nodemailer needs TCP sockets, which Workers don't give it. [Send email with Cloudflare Email Service](/email), or through an adapter that uses `fetch`, such as Payload's Resend adapter.
@@ -15,11 +16,42 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 
 Payload keeps one Postgres pool per isolate. Upstream issue [payloadcms/payload#17335](https://github.com/payloadcms/payload/issues/17335) reports that a query which hangs until Workers cancels its request can leave the pool unusable for the rest of the isolate's life. The symptom is requests that fail in about a millisecond. The reported fix is a pool for each request. Offload doesn't include it, because the hang doesn't reproduce locally.
 
+A related hang does reproduce locally, and `hyperdrivePoolConfig()` prevents it. With pg-pool's default limit of 10 connections, an eleventh concurrent query waits, and pg-pool opens its connection inside the request that releases one. workerd cancels the waiting request because it uses another request's I/O. `hyperdrivePoolConfig()` sets no limit, so a request never waits.
+
+## D1
+
+D1 allows at most 100 columns in a table and 100 bound parameters in a statement. Each field stored on a collection's main table is one column, and each image variant of an upload collection adds 8. Count a wide collection's columns in its migration before you deploy.
+
+Payload binds every column of a document twice when it saves an update, and binds every stored file name once per filename column when it deletes an upload. On D1, either can pass 100 parameters. Two patches keep them within the limit: [one column, one parameter](/patches/d1-upsert-bound-parameters) for updates and [batched file lookups](/patches/d1-file-lookup-bound-parameters) for deletes. An update can still fail on a table at the 100-column limit when the update has a `where` condition, because the condition binds its own values.
+
+D1 runs a migration without a transaction. When a migration fails partway, Payload logs "Rolling back", but the statements that already ran stay applied, and the next `migrate` or `migrate:down` can fail on what they changed. Run `migrate:down` against a local copy of the data before you run it on a deployed database. To undo a failed migration on a deployed database, restore the database with [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/):
+
+```bash
+pnpm wrangler d1 time-travel restore <database> --timestamp=<a time before the migration>
+```
+
+D1 always enforces foreign keys, and it ignores `PRAGMA foreign_keys = OFF`. A migration that drops a table before the tables that reference it can stop with "no such table". The [migration drop order patch](/patches/d1-migration-drop-order) makes `payload migrate:create` write the `DROP TABLE` statements in that order. A migration created with an earlier Offload release can have them in the wrong order. Fix its `down` by moving the statements for a collection's version and relationship tables, such as `_pages_v_rels` and `_pages_v`, above the statement for the collection's own table, `pages`.
+
+A generated migration can also delete rows on D1. When drizzle-kit can't change a SQLite table in place, for example to make a column required or to change its type, the migration rebuilds the table: it turns `foreign_keys` off, copies the rows into `__new_<table>`, drops the old table, and renames the new one. D1 ignores `foreign_keys = OFF`, so dropping the old table deletes every row that references it with `ON DELETE CASCADE`. Payload's `_rels`, `_locales`, array, and block tables reference their parent table that way. Before you run a migration that contains `__new_` on a deployed database, run it on a local copy with data and check the child tables.
+
+Only one local process at a time can use a local D1 database. Wrangler keeps each local database in one SQLite file per `database_id` under `.wrangler/state`, and every process opens that file itself. With two processes on one database, such as two `vite preview` servers, or `vite dev` and a seed script run with `payload run`, queries fail at random with "Failed to get session commit token" or "database is locked: SQLITE_BUSY". A seed then stops at a different document on each run, and `payload run` prints only Drizzle's "Failed query" message, without D1's error. Stop the other process first, or give each process a Wrangler environment with its own `database_id`, and select it with `CLOUDFLARE_ENV`.
+
 ## Passwords
 
 A deployed Worker rejects PBKDF2 with more than 100,000 iterations, and Payload uses 600,000. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes with 100,000 iterations on Workers, which is below OWASP's recommendation of 600,000 for PBKDF2-SHA256.
 
-A user created in Node, through the Payload CLI or a seed script, gets a 600,000-iteration hash that the Worker can't verify. Create users through the deployed admin or the Worker's API.
+A user created in Node, through `vite dev`, the Payload CLI, or a seed script, gets a 600,000-iteration hash that a deployed Worker can't verify. Create the users of a deployed site through its admin or its API.
+
+Local workerd doesn't enforce the limit, so `vite preview` logs in a user whose hash a deployed Worker rejects. The limit exists only in Cloudflare's deployed runtime: the open-source workerd that `vite preview` runs has no such check, and Offload has no supported way to add one.
+
+## TypeScript
+
+`wrangler types` declares the Workers runtime types as globals. They include HTMLRewriter's `Element`, `Comment`, and `Text` interfaces, which merge with the DOM interfaces of the same names. In client components, two kinds of DOM call fail to type-check:
+
+- `append()`, `prepend()`, `before()`, and `after()` accept only `string | ReadableStream | Response`, so passing a DOM node fails.
+- `remove()`, `setAttribute()`, and `removeAttribute()` return an `Element`. A `useEffect` cleanup written as `() => script.remove()` fails, because a cleanup must return nothing.
+
+Use `appendChild()`, `insertBefore()`, or `replaceChildren()` to add nodes, and write the cleanup with braces: `() => { script.remove(); }`. A separate TypeScript project for client components doesn't avoid the clash in a TanStack Start site. A route imports its client components and, through its server functions, the Payload config, which needs the Workers types, so all of them end up in one program.
 
 ## Not tested
 

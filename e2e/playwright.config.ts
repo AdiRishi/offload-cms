@@ -16,6 +16,8 @@ export default defineConfig({
   ],
   reporter: [["list"], ["html", { open: "never" }]],
   testDir: "tests",
+  // `playwright.dev.config.ts` runs these against `vite dev`.
+  testIgnore: "**/tests/dev/**",
   timeout: 60_000,
   use: { baseURL, trace: "retain-on-failure" },
   webServer: {

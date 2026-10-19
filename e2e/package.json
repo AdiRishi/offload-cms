@@ -7,8 +7,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/prepare.ts && playwright test",
-    "deploy:staging": "CLOUDFLARE_ENV=staging pnpm payload migrate && CLOUDFLARE_ENV=staging pnpm build && wrangler deploy"
+    "lint": "oxlint",
+    "test": "node scripts/prepare.ts && playwright test && pnpm test:dev",
+    "test:dev": "playwright test --config playwright.dev.config.ts",
+    "size": "node scripts/worker-size.ts",
+    "deploy:staging": "CLOUDFLARE_ENV=staging pnpm payload migrate:fresh --force-accept-warning && CLOUDFLARE_ENV=staging pnpm build && wrangler deploy"
   },
   "dependencies": {
     "@adirishi/offload-cloudflare": "4.0.0-beta.2-offload.dev",
@@ -43,6 +46,8 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.0.3",
     "@vitejs/plugin-rsc": "0.5.38",
+    "oxlint": "1.88.0",
+    "oxlint-tsgolint": "7.0.2004",
     "typescript": "6.0.3",
     "vite": "8.3.4",
     "wrangler": "4.151.1"

@@ -47,8 +47,9 @@ const startRegistry = async () => {
 
 /**
  * Tests the working tree the way a site uses Offload: publishes a release to a
- * throwaway registry, installs e2e/ from it, then type-checks e2e/ and runs the
- * Playwright suite on D1, or on Postgres through Hyperdrive.
+ * throwaway registry, installs e2e/ from it, then type-checks and lints e2e/ and
+ * runs the Playwright suite on D1, or on Postgres through Hyperdrive. The D1 run
+ * also checks the Worker's compressed size against its budget.
  */
 export const e2e = async ({ postgres }: { postgres: boolean }) => {
   const registry = await startRegistry();
@@ -56,9 +57,10 @@ export const e2e = async ({ postgres }: { postgres: boolean }) => {
     await publish({ registry: registry.url, token: "local-registry", version: workingTreeVersion });
     writeManifest(e2eDir, withOffloadVersion(readManifest(e2eDir), workingTreeVersion));
     // Every run publishes the same version with new contents, so pnpm must forget the last one.
-    // pnpm restores a missing pnpm-lock.yaml from the copy it keeps in node_modules.
+    // pnpm keeps an installed package directory whose version matches, even when the lockfile
+    // records a new integrity, so node_modules goes too.
     rmSync(path.join(e2eDir, "pnpm-lock.yaml"), { force: true });
-    rmSync(path.join(e2eDir, "node_modules/.pnpm/lock.yaml"), { force: true });
+    rmSync(path.join(e2eDir, "node_modules"), { force: true, recursive: true });
     await run("pnpm", ["cache", "delete", "@adirishi/*"], { cwd: e2eDir });
     await run("pnpm", ["install"], { cwd: e2eDir });
   } finally {
@@ -70,5 +72,7 @@ export const e2e = async ({ postgres }: { postgres: boolean }) => {
     cwd: e2eDir,
   });
   await run("pnpm", ["typecheck"], { cwd: e2eDir });
+  await run("pnpm", ["lint"], { cwd: e2eDir });
   await run("pnpm", ["test"], { cwd: e2eDir, env: postgres ? { CLOUDFLARE_ENV: "postgres" } : {} });
+  if (!postgres) await run("pnpm", ["size"], { cwd: e2eDir });
 };

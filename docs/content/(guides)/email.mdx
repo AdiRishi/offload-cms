@@ -59,6 +59,7 @@ Payload sends email through one adapter in its config. Nodemailer can't run on W
 The adapter takes Payload's Nodemailer-style options and converts them for the binding:
 
 - `from`, `to`, `cc`, `bcc`, and `replyTo` accept strings such as `"Name" <address>`, comma-separated lists, and `{ name, address }` objects. Email Service takes one `from` and one `replyTo` address.
+- The adapter ignores an address field that is `null` or empty, as Nodemailer does. Without a `from`, it sends from `defaultFromName` and `defaultFromAddress`. The form builder sends `null` when a form's email has no **Email From**.
 - `html` and `text` must be strings or Buffers.
 - Each attachment needs `filename`, `contentType`, and `content` as a string or a Buffer. Email Service can't read a stream, a `path`, or a URL. An attachment with a `cid` is sent inline.
 - Email Service accepts only [some headers](https://developers.cloudflare.com/email-service/reference/headers/), and at most 50 recipients across `to`, `cc`, and `bcc`.

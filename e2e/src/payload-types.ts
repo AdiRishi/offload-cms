@@ -95,17 +95,17 @@ export type LexicalNodes_DB421B91 =
   | SerializedHeadingNode<LexicalNodes_DB421B91>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_543B40D8".
+ * via the `definition` "LexicalNodes_0501EFF1".
  */
-export type LexicalNodes_543B40D8 =
+export type LexicalNodes_0501EFF1 =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_543B40D8>
-  | SerializedBlockNode<Callout>
+  | SerializedParagraphNode<LexicalNodes_0501EFF1>
+  | SerializedBlockNode<Callout | PullQuote_3756B08C>
   | SerializedHorizontalRuleNode
   | SerializedUploadNode<'media'>
-  | SerializedQuoteNode<LexicalNodes_543B40D8>
+  | SerializedQuoteNode<LexicalNodes_0501EFF1>
   | SerializedRelationshipNode<
       | 'users'
       | 'pages'
@@ -122,11 +122,11 @@ export type LexicalNodes_543B40D8 =
       | 'payload-preferences'
       | 'payload-migrations'
     >
-  | SerializedAutoLinkNode<LexicalNodes_543B40D8, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_543B40D8, LexicalLinkFields>
-  | SerializedListNode<LexicalNodes_543B40D8>
-  | SerializedListItemNode<LexicalNodes_543B40D8>
-  | SerializedHeadingNode<LexicalNodes_543B40D8>;
+  | SerializedAutoLinkNode<LexicalNodes_0501EFF1, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_0501EFF1, LexicalLinkFields>
+  | SerializedListNode<LexicalNodes_0501EFF1>
+  | SerializedListItemNode<LexicalNodes_0501EFF1>
+  | SerializedHeadingNode<LexicalNodes_0501EFF1>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -144,7 +144,9 @@ export interface Config {
   auth: {
     users: UserAuthOperations;
   };
-  blocks: {};
+  blocks: {
+    pullQuote: PullQuote;
+  };
   collections: {
     users: User;
     pages: Page;
@@ -249,6 +251,17 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PullQuote".
+ */
+export interface PullQuote {
+  quote: string;
+  attribution?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'pullQuote';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -291,7 +304,7 @@ export interface Page {
   title: string;
   slug: string;
   hero?: (number | null) | Media;
-  layout?: (Quote | Cta | Content)[] | null;
+  layout?: (Quote | Cta | Content | PullQuote)[] | null;
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -364,6 +377,66 @@ export interface Media {
   focalY?: number | null;
   variants?: {
     thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    square?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    small?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    medium?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    large?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    og?: {
       url?: string | null;
       width?: number | null;
       height?: number | null;
@@ -461,7 +534,7 @@ export interface Post {
   author?: (number | null) | User;
   categories?: (number | Category)[] | null;
   heroImage?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_543B40D8> | null;
+  content?: LexicalRichText<LexicalNodes_0501EFF1> | null;
   publishedAt?: string | null;
   wordCount?: number | null;
   _h_folders?: (number | null) | Folder;
@@ -1301,6 +1374,78 @@ export interface MediaSelect<T extends boolean = true> {
               prefix?: T;
               _objectKey?: T;
             };
+        square?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        small?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        medium?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        large?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        og?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
       };
 }
 /**
@@ -1964,6 +2109,19 @@ export interface Callout {
   blockType: 'callout';
   tone?: ('info' | 'warning') | null;
   message: string;
+  blockName?: string | null;
+}
+/**
+ * Multiple blocks resolve to the `PullQuote` interface with different fields, so a content hash is appended to keep the generated types stable and unambiguous. Set a unique `interfaceName` on the block to choose the name yourself. See https://payloadcms.com/docs/typescript/generating-types#block-interface-name-collisions
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PullQuote_3756B08C".
+ */
+export interface PullQuote_3756B08C {
+  id: string;
+  blockType: 'pullQuote';
+  quote: string;
+  attribution?: string | null;
   blockName?: string | null;
 }
 /**

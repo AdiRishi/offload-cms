@@ -28,21 +28,52 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 });
 ```
 
-**Two runtimes.** `vite dev` runs in Node. `vite build` and `vite preview` run the Worker bundle in workerd, which is what production runs. Check runtime behaviour with `vite build && vite preview`. `vite.config.ts` uses `offloadVite()` from `@adirishi/offload-cloudflare/vite`.
+Never return rich text from a server function as JSON. TanStack Start checks that a server function's result is serializable, and Lexical's node types fail that check. Render the rich text inside the handler with `renderServerComponent` from `@tanstack/react-start/rsc`, and put the result in the page. Payload's TanStack Start adapter already enables React Server Components, and the Lexical converters stay out of the client bundle:
 
-**Bindings replace environment variables.** `payload.config.ts` gets D1, R2, Hyperdrive, and secrets from `await getBindings()` (from `@adirishi/offload-cloudflare`). Declare bindings in `wrangler.jsonc`. Put local secrets such as `PAYLOAD_SECRET` in `.dev.vars` and deployed ones in `wrangler secret put`. `CLOUDFLARE_ENV` selects the Wrangler environment for the Payload CLI and the build.
+```tsx
+import { RichText } from "@payloadcms/richtext-lexical/react";
+import { renderServerComponent } from "@tanstack/react-start/rsc";
+
+const getPost = createServerFn({ method: "GET" })
+  .validator((slug: string) => slug)
+  .handler(async ({ data: slug }) => {
+    // getPayload and config as above
+    const post = (await payload.find({ collection: "posts", where: { slug: { equals: slug } } }))
+      .docs[0];
+    if (!post) return null;
+    return {
+      title: post.title,
+      Content: post.content ? await renderServerComponent(<RichText data={post.content} />) : null,
+    };
+  });
+// In the route component: {post.Content}
+```
+
+`convertLexicalToHTML` from `@payloadcms/richtext-lexical/html` also works when the page needs an HTML string.
+
+**Two runtimes.** `vite dev` runs in Node. `vite build` and `vite preview` run the Worker bundle in workerd, which is what production runs. Check runtime behaviour with `vite build && vite preview`. `vite preview` and `wrangler deploy` run the last build, whichever Wrangler environment `CLOUDFLARE_ENV` selected for it, and the build holds a copy of `.dev.vars`, so build again after you change a secret or switch environments. `vite.config.ts` uses `offloadVite()` from `@adirishi/offload-cloudflare/vite`. Add the site's Vite plugins in `offloadVite({ vite })`, which run after Offload's. A plugin that must run first, such as `devtools()` from `@tanstack/devtools-vite`, goes in `pluginsBefore` and needs `enforce: "pre"`, because Vite orders plugins by `enforce` before array order and Offload's transforms use `enforce: "pre"`.
+
+**`vite dev` can warn that a client component dependency is inconsistently optimized.** The warning names a `'use client'` module of a library that a server component renders. In dev, the browser loads that module apart from the library's pre-bundled copy, so client components and server-rendered parts of the library don't share its React context. Builds have one copy. If the library's parts share state, such as compound components, add it to `optimizeDeps.exclude` in the `vite` option of `offloadVite()`. For an icon library such as `lucide-react`, the split matters only if a context provider sets icon defaults, and excluding it makes the browser load every icon module in dev.
+
+**Bindings replace environment variables.** `payload.config.ts` gets D1, R2, Hyperdrive, and secrets from `await getBindings()` (from `@adirishi/offload-cloudflare`). Declare bindings in `wrangler.jsonc`. Put local secrets such as `PAYLOAD_SECRET` in `.dev.vars` and deployed ones in `wrangler secret put`. `CLOUDFLARE_ENV` selects the Wrangler environment for the Payload CLI and the build. A server function that needs a binding or secret at request time calls `getBindings()` too. In Node it reuses one Wrangler platform proxy per process, so restart `vite dev` after you change `wrangler.jsonc` or `.dev.vars`. For tests, use a separate Wrangler environment with its own D1 `database_id` and R2 bucket, so a test run never touches development data: https://adirishi.github.io/offload-cms/test
 
 **Adapters take bindings:**
 
 - D1: `sqliteD1Adapter({ binding: env.D1, push: false, migrationDir })`
 - Postgres: `postgresAdapter({ pool: hyperdrivePoolConfig(env.HYPERDRIVE), push: false, migrationDir })`
-- R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`
+- R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`. Renaming a stored file and restoring an upload version copy objects, which the binding can't do. They need `copyFile: createS3CopyFile({ accessKeyId, accountId, bucket, secretAccessKey })` from `@payloadcms/storage-r2/copy-file`, which adds the AWS SDK (about 200 KiB compressed) to the Worker.
 - Email Service: `email: cloudflareEmailAdapter({ binding: env.EMAIL, defaultFromAddress, defaultFromName })` from `@adirishi/offload-email-cloudflare`, with `"send_email": [{ "name": "EMAIL" }]`. The `from` domain must be onboarded to Email Sending.
 - Cloudflare Images: `upload: { transformers: [cloudflareTransformer({ transport: { mode: "binding", binding: () => env.IMAGES }, collections })] }` from `@payloadcms/transformer-cloudflare`, with `"images": { "binding": "IMAGES" }`. Pass the binding as a function, because Cloudflare's upload check loads the config without bindings and the transformer throws on an undefined one. `collections` sets upload `variants`, `crop`, and `focalPoint`, and `dynamic` enables `?width=` resizing.
 
-**Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ config, handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
+**Keep one migration until the first deploy.** Before a site deploys, regenerate a single `initial` migration per database after each schema change: delete every file in the migrations directory, including `index.ts`, run `pnpm payload migrate:create initial`, and reset the local database. Once a deployed database has applied migrations, add a new migration for each change.
 
-**GraphQL needs a route.** `src/app/_payload/api.graphql.ts` serves it with `payloadGraphQLHandlers()` from `@adirishi/offload-cloudflare/routes`.
+**Seed with `payload run`.** `pnpm payload run src/seed.ts` runs a script in Node against the Wrangler environment that `CLOUDFLARE_ENV` selects, through `getBindings()`. Pass `overrideAccess: true` to the Local API, don't create users, and stop any dev server or preview on the same environment first. To seed a deployed environment, give it `"remote": true` on D1, R2, and the Images binding.
+
+**Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
+
+**API routes come from Offload.** `src/app/_payload/api.$.ts` serves REST with `payloadApiHandlers()` and `src/app/_payload/api.graphql.ts` serves GraphQL with `payloadGraphQLHandlers()`, both from `@adirishi/offload-cloudflare/routes`. Don't use `payloadApiHandlers` from `@payloadcms/tanstack-start/server`.
+
+**Read Payload in server functions, not server routes.** Server functions run in the RSC environment, which holds the Worker's copy of Payload. Server routes and `src/server.ts` run in the SSR environment, and importing `payload` or `@payload-config` there bundles a second copy, about 1.1 MB compressed. A server route can call a server function instead.
 
 **Workers runtime limits:**
 

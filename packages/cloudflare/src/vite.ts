@@ -22,6 +22,11 @@ import {
   upstreamBundleError,
   upstreamPayloadPackage,
 } from "./payload-builds.ts";
+import {
+  importMetaUrlFallback,
+  isServerEnvironment,
+  literalGraphQLImports,
+} from "./workerd-transforms.ts";
 
 type CloudflarePluginConfig = NonNullable<Parameters<typeof cloudflare>[0]>;
 
@@ -32,11 +37,17 @@ export type OffloadViteOptions = {
   devServerExternalPackages?: string[];
   /** Path to `payload.config.ts`. */
   payloadConfigPath: string;
+  /**
+   * Plugins that run before Offload's and Payload's among plugins with the same
+   * `enforce`, such as `devtools()` from `@tanstack/devtools-vite`. Vite orders
+   * plugins by `enforce` first, and Offload's transforms use `enforce: "pre"`,
+   * so a plugin that must see the source first needs `enforce: "pre"` too.
+   * Plugins in `vite` run after them.
+   */
+  pluginsBefore?: PluginOption[];
   /** The app's own Vite config, merged over Offload's. */
   vite?: (env: ConfigEnv) => UserConfig;
 };
-
-const isServerEnvironment = (environment: { name: string }) => environment.name !== "client";
 
 /** The Offload release this package belongs to. Every Payload package in the site must match it. */
 const { version: offloadVersion } = readManifest(path.join(import.meta.dirname, "../package.json"));
@@ -67,46 +78,6 @@ const serverConditions = (): Plugin => ({
     );
   },
 });
-
-/**
- * workerd leaves `import.meta.url` undefined in bundled modules, and Payload
- * derives `dirname` from it at module scope. Nothing on the request path reads
- * that directory, so a placeholder is enough.
- */
-const importMetaUrlFallback = (): Plugin => ({
-  name: "offload:workerd-import-meta-url",
-  applyToEnvironment: isServerEnvironment,
-  transform(code) {
-    if (!code.includes("import.meta.url")) return null;
-    return code.replaceAll("import.meta.url", '(import.meta.url ?? "file:///worker/index.js")');
-  },
-});
-
-/**
- * The adapter hides the GraphQL imports from the bundler so Node resolves them
- * from node_modules at runtime. A Worker has no node_modules.
- */
-const literalGraphQLImports = (): Plugin => {
-  const hidden = new Map([
-    ["graphqlPackage", "@payloadcms/graphql"],
-    ["graphqlHttpHandlerPath", "graphql-http/lib/use/fetch"],
-  ]);
-  return {
-    name: "offload:workerd-literal-imports",
-    enforce: "pre",
-    applyToEnvironment: isServerEnvironment,
-    transform(code, id) {
-      if (!id.includes("routes/graphql/handler.server")) return null;
-      return code.replace(
-        /import\(\s*\/\*\s*@vite-ignore\s*\*\/\s*(\w+)\s*\)/g,
-        (match, name: string) => {
-          const specifier = hidden.get(name);
-          return specifier === undefined ? match : `import('${specifier}')`;
-        },
-      );
-    },
-  };
-};
 
 /**
  * graphql ships CommonJS and ESM builds. Bundling both breaks its `instanceof`
@@ -163,6 +134,7 @@ export const offloadVite =
     cloudflare: cloudflareOptions,
     devServerExternalPackages = [],
     payloadConfigPath,
+    pluginsBefore = [],
     vite,
   }: OffloadViteOptions): UserConfigFnPromise =>
   async (env) => {
@@ -205,6 +177,7 @@ export const offloadVite =
         payloadConfigPath,
       },
     )(env);
+    config.plugins = [...pluginsBefore, ...(config.plugins ?? [])];
 
     return targetsWorkerd ? bundleEverything(config) : config;
   };

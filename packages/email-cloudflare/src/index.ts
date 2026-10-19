@@ -11,6 +11,16 @@ export type CloudflareEmailAdapterArgs = {
 
 type Recipient = string | EmailAddress;
 type Attachment = NonNullable<SendEmailOptions["attachments"]>[number];
+type AddressField = "bcc" | "cc" | "from" | "replyTo" | "to";
+type AddressValue = SendEmailOptions[AddressField] | null;
+
+/**
+ * Payload's message options, with the `null` addresses that Nodemailer accepts.
+ * The form builder sends `from: null` and `replyTo: null` for an empty sender.
+ */
+type CloudflareEmailMessage = Omit<SendEmailOptions, AddressField> & {
+  [Field in AddressField]?: AddressValue;
+};
 
 /**
  * Sends Payload's email through Cloudflare Email Service. The domain of every
@@ -18,24 +28,28 @@ type Attachment = NonNullable<SendEmailOptions["attachments"]>[number];
  */
 export const cloudflareEmailAdapter =
   ({ binding, defaultFromAddress, defaultFromName }: CloudflareEmailAdapterArgs) =>
-  (): ReturnType<EmailAdapter<EmailSendResult>> => ({
-    name: "cloudflare-email",
-    defaultFromAddress,
-    defaultFromName,
-    sendEmail: async (message) =>
-      binding.send({
-        from: single("from", message.from) ?? { email: defaultFromAddress, name: defaultFromName },
-        to: recipients(message.to) ?? [],
-        cc: recipients(message.cc),
-        bcc: recipients(message.bcc),
-        replyTo: single("replyTo", message.replyTo),
-        subject: message.subject ?? "",
-        text: body("text", message.text),
-        html: body("html", message.html),
-        headers: headers(message.headers),
-        attachments: message.attachments?.map(attachment),
-      }),
-  });
+  () =>
+    ({
+      name: "cloudflare-email",
+      defaultFromAddress,
+      defaultFromName,
+      sendEmail: async (message: CloudflareEmailMessage) =>
+        binding.send({
+          from: single("from", message.from) ?? {
+            email: defaultFromAddress,
+            name: defaultFromName,
+          },
+          to: recipients(message.to) ?? [],
+          cc: recipients(message.cc),
+          bcc: recipients(message.bcc),
+          replyTo: single("replyTo", message.replyTo),
+          subject: message.subject ?? "",
+          text: body("text", message.text),
+          html: body("html", message.html),
+          headers: headers(message.headers),
+          attachments: message.attachments?.map(attachment),
+        }),
+    }) satisfies ReturnType<EmailAdapter<EmailSendResult>>;
 
 // Splits a Nodemailer address list on the commas that sit outside quoted names and angle brackets.
 const addressListPattern = /(?:"(?:[^"\\]|\\.)*"|<[^>]*>|[^,"<])+/gu;
@@ -49,19 +63,23 @@ const parseAddress = (value: string): Recipient => {
   return unquoted ? { email, name: unquoted } : email;
 };
 
-const recipients = (value: SendEmailOptions["to"]): Recipient[] | undefined =>
-  value === undefined
-    ? undefined
-    : (Array.isArray(value) ? value : [value]).flatMap((entry) =>
-        typeof entry === "string"
-          ? (entry.match(addressListPattern) ?? [])
-              .map((part) => part.trim())
-              .filter(Boolean)
-              .map(parseAddress)
-          : [entry.name ? { email: entry.address, name: entry.name } : entry.address],
-      );
+/** Returns undefined for an absent, `null`, or empty address list, as Nodemailer treats them. */
+const recipients = (value: AddressValue): Recipient[] | undefined => {
+  if (value === undefined || value === null) return undefined;
+  const list = (Array.isArray(value) ? value : [value]).flatMap((entry) => {
+    if (typeof entry === "string") {
+      return (entry.match(addressListPattern) ?? [])
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map(parseAddress);
+    }
+    if (!entry.address) return [];
+    return [entry.name ? { email: entry.address, name: entry.name } : entry.address];
+  });
+  return list.length > 0 ? list : undefined;
+};
 
-const single = (field: "from" | "replyTo", value: SendEmailOptions["to"]) => {
+const single = (field: "from" | "replyTo", value: AddressValue) => {
   const list = recipients(value);
   if (list && list.length > 1) {
     throw new Error(`Cloudflare Email Service takes one ${field} address, not ${list.length}.`);

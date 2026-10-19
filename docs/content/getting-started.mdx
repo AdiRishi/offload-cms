@@ -11,12 +11,32 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
 <Steps>
   <Step title="Connect to GitHub Packages">
-    Offload is on GitHub Packages, which needs a token even for public packages. Create a GitHub token with the `read:packages` scope and export it as `GITHUB_TOKEN`. Then add an `.npmrc` to the site:
+    Offload is on GitHub Packages, which needs a token even for public packages. Create a classic GitHub token with the `read:packages` scope. The GitHub CLI's token works once it has that scope: run `gh auth refresh --scopes read:packages`, then use `gh auth token`.
+
+    Point the `@adirishi` scope at GitHub Packages in the site's `.npmrc`:
 
     ```ini .npmrc
     @adirishi:registry=https://npm.pkg.github.com
-    //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
     ```
+
+    Keep the token out of this file. It's committed, and pnpm 11.5.3 and later don't expand `${...}` in a project `.npmrc`'s registry credentials ([GHSA-3qhv-2rgh-x77r](https://github.com/advisories/GHSA-3qhv-2rgh-x77r)). Give pnpm the token in one of these ways:
+
+    - Save it in your user config, once per machine: `pnpm config set "//npm.pkg.github.com/:_authToken" <token>`.
+    - Pass it to one command in pnpm's environment form: `env "pnpm_config_//npm.pkg.github.com/:_authToken=$(gh auth token)" pnpm install`.
+
+    In GitHub Actions, `actions/setup-node` writes a user-level `.npmrc` that reads `NODE_AUTH_TOKEN`:
+
+    ```yaml .github/workflows/ci.yml
+    - uses: actions/setup-node@v7
+      with:
+        registry-url: https://npm.pkg.github.com
+        scope: "@adirishi"
+    - run: pnpm install --frozen-lockfile
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.OFFLOAD_PACKAGES_TOKEN }}
+    ```
+
+    A workflow's `GITHUB_TOKEN` can install only the packages that grant its repository read access, and Offload's packages belong to another account. Store a classic token with `read:packages` as a repository secret, `OFFLOAD_PACKAGES_TOKEN` in this example.
 
   </Step>
   <Step title="Install the packages">
@@ -102,7 +122,7 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     PAYLOAD_SECRET=a-long-random-string
     ```
 
-    Run `pnpm wrangler types` to generate the `Env` type for these bindings.
+    Run `pnpm wrangler types` to generate the `Env` type for these bindings. The generated file also declares Workers runtime types that clash with a few DOM methods in client components. [Known limits](/limits#typescript) lists them.
 
   </Step>
   <Step title="Write the Payload config">
@@ -142,7 +162,7 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     Payload's TanStack Start adapter keeps the site's routes in `src/app`. Copy these files from `e2e`:
 
     - `src/router.tsx` and `src/app/__root.tsx`, which pass Payload's search-param handling and root wrapper to TanStack Router
-    - `src/app/_payload.tsx` and the `src/app/_payload/` directory, which hold the admin, REST, and server-function routes from Payload's TanStack Start template, plus `api.graphql.ts` for GraphQL
+    - `src/app/_payload.tsx` and the `src/app/_payload/` directory, which hold the admin, REST, and server-function routes from Payload's TanStack Start template, plus `api.graphql.ts` for GraphQL. The REST and GraphQL routes use Offload's handlers, which keep the Worker to [one copy of Payload](/cloudflare#where-payload-runs).
 
     Then run `pnpm payload generate:importmap` to rebuild `src/app/_payload/importMap.js` for your config. Your own pages go next to `_payload`, as `e2e` does in `src/app/_frontend`.
 
@@ -152,10 +172,9 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
     ```ts src/server.ts
     import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
-    import config from "@payload-config";
     import handler from "@tanstack/react-start/server-entry";
 
-    export default createPayloadWorker({ config, handler });
+    export default createPayloadWorker({ handler });
     ```
 
   </Step>
@@ -170,6 +189,8 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
     Open `/admin` on the address that Vite prints. Payload asks you to create the first user. After you create it, you see the dashboard with the **Users** and **Media** collections.
 
+    This user is for local work only. `vite dev` runs in Node, which hashes the password with 600,000 PBKDF2 iterations, and a deployed Worker can verify at most 100,000. Create the users of the deployed site on the deployed Worker, as [Deploy to Cloudflare](/deploy) shows.
+
   </Step>
   <Step title="Run the Worker build">
     `vite dev` runs in Node. To run the bundle that Cloudflare runs, build it and serve it in local workerd:
@@ -179,7 +200,9 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     pnpm vite preview
     ```
 
-    The preview uses the same local D1 and R2 state as `vite dev`, so the user you created can log in.
+    The preview uses the same local D1 and R2 state as `vite dev`, so the user you created can log in. Local workerd doesn't enforce the deployed Worker's PBKDF2 limit, so this login doesn't show whether a deployed Worker accepts the password hash.
+
+    The preview runs the last build, with the secrets that `vite build` copied from `.dev.vars` into it. After you change `.dev.vars`, build again before you preview.
 
   </Step>
 </Steps>
@@ -192,8 +215,13 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 For Payload work in this site, read `node_modules/@adirishi/offload-cloudflare/skills/offload/SKILL.md` first.
 ```
 
+pnpm 12.11 and later can also link the skills that dependencies ship into the agent skill directories a project has, such as `.claude/skills`. After an install, pnpm lists `@adirishi/offload-cloudflare` and `@adirishi/offload-payload` as awaiting approval. Run `pnpm approve` and approve both. The first links Offload's `offload` skill, and the second links Payload's `payload` skill, which the Offload skill builds on. pnpm records the approval in `pnpm-workspace.yaml`, and each link points at the installed version, so the skills change when you update Offload.
+
+Keep the `AGENTS.md` line too. It works with every package manager and agent, and it makes the agent read Offload's skill before Payload's, whose Next.js advice Offload's skill overrides.
+
 ## Next steps
 
 - [Deploy to Cloudflare](/deploy) puts the site on a real Worker.
+- [Seed content](/seed) fills a local or deployed environment from a script.
 - [Use Postgres through Hyperdrive](/postgres) replaces D1 with Postgres.
 - [Known limits](/limits) lists what works differently on Workers.

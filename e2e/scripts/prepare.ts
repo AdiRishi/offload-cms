@@ -7,6 +7,15 @@ import { copyFileSync, existsSync, rmSync } from "node:fs";
 
 const run = (command: string, args: string[]) => execFileSync(command, args, { stdio: "inherit" });
 
+// The steps below drop every table, and an environment such as staging binds a remote database.
+const environment = process.env.CLOUDFLARE_ENV;
+if (environment !== undefined && environment !== "postgres") {
+  console.error(
+    `prepare drops every table in the selected database, so it runs only with CLOUDFLARE_ENV unset for local D1 or set to postgres. CLOUDFLARE_ENV is ${JSON.stringify(environment)}.`,
+  );
+  process.exit(1);
+}
+
 // Local secrets for the Worker. The example values are fine for tests.
 if (!existsSync(".dev.vars")) copyFileSync(".dev.vars.example", ".dev.vars");
 
@@ -31,5 +40,28 @@ if (process.env.CLOUDFLARE_ENV === "postgres") {
   ]);
 }
 
+// Drop a database that has documents in it, then run every migration's down, so a database
+// command that fails on D1 fails the run. migrate:fresh puts every migration in one batch, which
+// migrate:down rolls back newest first. migrate:reset would run the downs oldest first
+// (payloadcms/payload#15334). The CLI opens the local database, so it must finish before the
+// suite starts the preview server.
+run("pnpm", ["payload", "migrate"]);
+run("pnpm", [
+  "payload",
+  "createDocuments",
+  "--slug=pages",
+  `--documents=${JSON.stringify([
+    {
+      data: {
+        _status: "published",
+        layout: [{ blockType: "cta", href: "/", label: "Home" }],
+        slug: "reset",
+        title: "Reset",
+      },
+    },
+  ])}`,
+]);
+run("pnpm", ["payload", "migrate:fresh", "--force-accept-warning"]);
+run("pnpm", ["payload", "migrate:down"]);
 run("pnpm", ["payload", "migrate"]);
 run("pnpm", ["build"]);

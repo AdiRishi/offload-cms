@@ -89,3 +89,23 @@ test("sends attachment content as bytes, with an inline image keyed by cid", asy
     },
   ]);
 });
+
+test("sends from the default sender when the form builder passes an empty sender as null", async () => {
+  const { sendEmail, sent } = sendThroughAdapter();
+
+  await sendEmail({
+    from: null,
+    replyTo: null,
+    to: "office@example.com",
+    cc: "",
+    bcc: "",
+    subject: "New submission",
+    html: "<p>Hello</p>",
+  });
+
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0]?.from, { email: "noreply@example.com", name: "Example CMS" });
+  assert.equal(sent[0]?.replyTo, undefined);
+  assert.equal(sent[0]?.cc, undefined);
+  assert.equal(sent[0]?.bcc, undefined);
+});

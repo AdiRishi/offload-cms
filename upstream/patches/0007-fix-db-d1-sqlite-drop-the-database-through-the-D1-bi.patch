@@ -1,0 +1,277 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 00:15:37 +1100
+Subject: [PATCH] fix(db-d1-sqlite): drop the database through the D1 binding
+
+payload migrate:fresh fails on D1 with "adapter.client.execute is not a
+function", and so does starting with PAYLOAD_DROP_DATABASE=true. The D1
+adapter uses the SQLite adapter's dropDatabase, which calls the libSQL
+client's execute and executeMultiple. A D1 binding has neither.
+
+The D1 adapter now has its own dropDatabase. It reads the tables from
+sqlite_master, skips D1's own _cf_ tables, which D1 refuses to drop, and
+drops the rest in one batch, which D1 runs as a transaction. D1 always
+enforces foreign keys and ignores PRAGMA foreign_keys = OFF. Dropping a table
+fails with "no such table" when another table that references it also
+references a table that is already dropped, so the batch drops each table
+before the tables it references, read from PRAGMA foreign_key_list. It also
+sets PRAGMA defer_foreign_keys, so tables that reference each other can drop
+with rows in them. Each statement is DROP TABLE IF EXISTS, as in the SQLite
+adapter, because dropping an FTS5 table also drops its shadow tables. The
+libSQL adapter keeps the SQLite dropDatabase.
+
+Warning: PAYLOAD_DROP_DATABASE=true now drops every table. A Worker drops the
+database on the first getPayload call in each new isolate, so never set it
+on a deployed Worker.
+
+Offload-Patch: d1-drop-database
+Upstream: https://github.com/payloadcms/payload/issues/15415
+Drop-When: the pinned release's D1 adapter drops the database without the libSQL client
+Tests: pnpm exec vitest run --project unit packages/db-d1-sqlite/src/dropDatabase.spec.ts; e2e suite (e2e/scripts/prepare.ts runs migrate:fresh on D1)
+---
+ .../db-d1-sqlite/src/dropDatabase.spec.ts     | 99 +++++++++++++++++++
+ packages/db-d1-sqlite/src/dropDatabase.ts     | 43 ++++++++
+ packages/db-d1-sqlite/src/dropOrder.ts        | 35 +++++++
+ packages/db-d1-sqlite/src/index.ts            |  2 +-
+ packages/db-d1-sqlite/src/types.ts            |  3 +-
+ 5 files changed, 180 insertions(+), 2 deletions(-)
+ create mode 100644 packages/db-d1-sqlite/src/dropDatabase.spec.ts
+ create mode 100644 packages/db-d1-sqlite/src/dropDatabase.ts
+ create mode 100644 packages/db-d1-sqlite/src/dropOrder.ts
+
+diff --git a/packages/db-d1-sqlite/src/dropDatabase.spec.ts b/packages/db-d1-sqlite/src/dropDatabase.spec.ts
+new file mode 100644
+index 000000000..72618bdae
+--- /dev/null
++++ b/packages/db-d1-sqlite/src/dropDatabase.spec.ts
+@@ -0,0 +1,99 @@
++import type { PlatformProxy } from 'wrangler'
++
++import { sql } from 'drizzle-orm'
++import { type AnyD1Database, drizzle } from 'drizzle-orm/d1'
++import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
++import { tmpdir } from 'node:os'
++import path from 'node:path'
++import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
++
++import type { SQLiteD1Adapter } from './types.js'
++
++import { dropDatabase } from './dropDatabase.js'
++
++// A collection with versions and a relationship, and two collections that reference each other.
++const schema = [
++  'CREATE TABLE users (id integer PRIMARY KEY, avatar_id integer REFERENCES media(id))',
++  'CREATE TABLE media (id integer PRIMARY KEY, uploaded_by_id integer REFERENCES users(id))',
++  'CREATE TABLE pages (id integer PRIMARY KEY)',
++  'CREATE TABLE _pages_v (id integer PRIMARY KEY, parent_id integer REFERENCES pages(id) ON DELETE set null)',
++  'CREATE TABLE _pages_v_rels (id integer PRIMARY KEY, parent_id integer REFERENCES _pages_v(id) ON DELETE cascade, pages_id integer REFERENCES pages(id) ON DELETE cascade)',
++  'INSERT INTO users VALUES (1, 1)',
++  'INSERT INTO media VALUES (1, 1)',
++  'INSERT INTO pages VALUES (1)',
++  'INSERT INTO _pages_v VALUES (1, 1)',
++  'INSERT INTO _pages_v_rels VALUES (1, 1, 1)',
++]
++
++describe('dropDatabase', () => {
++  let configDir: string
++  let platform: PlatformProxy<{ DB: AnyD1Database }>
++
++  const tableNames = async () => {
++    const tables = await drizzle(platform.env.DB).all<{ name: string }>(
++      sql`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`,
++    )
++    return tables.map(({ name }) => name)
++  }
++
++  const createTables = () =>
++    platform.env.DB.batch([
++      platform.env.DB.prepare('PRAGMA defer_foreign_keys = on'),
++      ...schema.map((statement) => platform.env.DB.prepare(statement)),
++    ])
++
++  const adapter = () => ({ drizzle: drizzle(platform.env.DB) }) as unknown as SQLiteD1Adapter
++
++  beforeAll(() => {
++    configDir = mkdtempSync(path.join(tmpdir(), 'd1-drop-database-'))
++    writeFileSync(
++      path.join(configDir, 'wrangler.json'),
++      JSON.stringify({
++        compatibility_date: '2026-01-01',
++        d1_databases: [{ binding: 'DB', database_id: 'drop-database', database_name: 'test' }],
++        name: 'd1-drop-database',
++      }),
++    )
++  })
++
++  beforeEach(async () => {
++    const { getPlatformProxy } = await import('wrangler')
++    platform = await getPlatformProxy({
++      configPath: path.join(configDir, 'wrangler.json'),
++      persist: false,
++    })
++  })
++
++  afterEach(() => platform.dispose())
++
++  afterAll(() => rmSync(configDir, { force: true, recursive: true }))
++
++  it('drops tables whose rows reference each other and keeps D1 internal tables', async () => {
++    await createTables()
++
++    await dropDatabase({ adapter: adapter() })
++
++    expect(await tableNames()).toEqual(['_cf_METADATA'])
++  })
++
++  it('drops an FTS5 table, whose drop also removes its shadow tables', async () => {
++    await createTables()
++    await platform.env.DB.batch([
++      platform.env.DB.prepare('CREATE VIRTUAL TABLE search USING fts5(title)'),
++      platform.env.DB.prepare("INSERT INTO search VALUES ('Home')"),
++    ])
++
++    await dropDatabase({ adapter: adapter() })
++
++    expect(await tableNames()).toEqual(['_cf_METADATA'])
++  })
++
++  it('drops a database left by a migration that stopped partway', async () => {
++    await createTables()
++    await platform.env.DB.prepare('DROP TABLE pages').run()
++
++    await dropDatabase({ adapter: adapter() })
++
++    expect(await tableNames()).toEqual(['_cf_METADATA'])
++  })
++})
+diff --git a/packages/db-d1-sqlite/src/dropDatabase.ts b/packages/db-d1-sqlite/src/dropDatabase.ts
+new file mode 100644
+index 000000000..8acdaee11
+--- /dev/null
++++ b/packages/db-d1-sqlite/src/dropDatabase.ts
+@@ -0,0 +1,43 @@
++import { sql } from 'drizzle-orm'
++
++import type { DropDatabase } from './types.js'
++
++import { dropOrder } from './dropOrder.js'
++
++/**
++ * Drops every table in one batch, which D1 runs as a transaction. D1 refuses to drop its own
++ * `_cf_` tables, and SQLite manages the `sqlite_` ones. Deferring foreign keys to the end of the
++ * batch lets tables in a reference cycle drop while their rows still reference each other.
++ * Dropping an FTS5 table also drops its shadow tables, which `IF EXISTS` then skips.
++ */
++export const dropDatabase: DropDatabase = async function ({ adapter }) {
++  const db = adapter.drizzle
++
++  const tables = (
++    await db.all<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type = 'table'`)
++  )
++    .map(({ name }) => name)
++    .filter((name) => !name.startsWith('_cf_') && !name.startsWith('sqlite_'))
++
++  if (!tables.length) {
++    return
++  }
++
++  const references = Object.fromEntries(
++    await Promise.all(
++      tables.map(async (name) => {
++        const foreignKeys = await db.all<{ table: string }>(
++          sql`PRAGMA foreign_key_list(${sql.identifier(name)})`,
++        )
++        return [name, foreignKeys.map(({ table }) => table)] as const
++      }),
++    ),
++  )
++
++  await db.batch([
++    db.run(sql`PRAGMA defer_foreign_keys = on`),
++    ...dropOrder(references).map((name) =>
++      db.run(sql`DROP TABLE IF EXISTS ${sql.identifier(name)}`),
++    ),
++  ])
++}
+diff --git a/packages/db-d1-sqlite/src/dropOrder.ts b/packages/db-d1-sqlite/src/dropOrder.ts
+new file mode 100644
+index 000000000..40d36b8a4
+--- /dev/null
++++ b/packages/db-d1-sqlite/src/dropOrder.ts
+@@ -0,0 +1,35 @@
++/**
++ * Orders tables so that each one comes before the tables it references. D1 enforces foreign keys
++ * and ignores `PRAGMA foreign_keys = OFF`, and `PRAGMA defer_foreign_keys = on` doesn't help here:
++ * dropping a table fails with "no such table" when another table that references it also
++ * references a table that is already dropped. Tables in a reference cycle keep their given order.
++ *
++ * @param references each table's name, mapped to the names of the tables its foreign keys reference
++ */
++export const dropOrder = (references: Record<string, string[]>): string[] => {
++  const referencedBy = new Map<string, string[]>()
++
++  for (const [table, parents] of Object.entries(references)) {
++    for (const parent of parents) {
++      if (parent !== table) {
++        referencedBy.set(parent, [...(referencedBy.get(parent) ?? []), table])
++      }
++    }
++  }
++
++  const ordered: string[] = []
++  const visited = new Set<string>()
++
++  const visit = (table: string) => {
++    if (visited.has(table)) {
++      return
++    }
++    visited.add(table)
++    referencedBy.get(table)?.forEach(visit)
++    ordered.push(table)
++  }
++
++  Object.keys(references).forEach(visit)
++
++  return ordered
++}
+diff --git a/packages/db-d1-sqlite/src/index.ts b/packages/db-d1-sqlite/src/index.ts
+index f28297463..1f0a84c5d 100644
+--- a/packages/db-d1-sqlite/src/index.ts
++++ b/packages/db-d1-sqlite/src/index.ts
+@@ -46,7 +46,6 @@ import {
+   createJSONQuery,
+   defaultDrizzleSnapshot,
+   deleteWhere,
+-  dropDatabase,
+   init,
+   insert,
+   requireDrizzleKit,
+@@ -58,6 +57,7 @@ import { fileURLToPath } from 'url'
+ import type { Args, SQLiteD1Adapter } from './types.js'
+ 
+ import { connect } from './connect.js'
++import { dropDatabase } from './dropDatabase.js'
+ import { execute } from './execute.js'
+ 
+ const filename = fileURLToPath(import.meta.url)
+diff --git a/packages/db-d1-sqlite/src/types.ts b/packages/db-d1-sqlite/src/types.ts
+index 6a3ba0d39..bf14b1f3b 100644
+--- a/packages/db-d1-sqlite/src/types.ts
++++ b/packages/db-d1-sqlite/src/types.ts
+@@ -108,6 +108,7 @@ export type SQLiteD1Adapter = {
+   binding: Args['binding']
+   client: AnyD1Database
+   drizzle: Drizzle
++  dropDatabase: DropDatabase
+   /**
+    * Experimental. Enables read replicas support with the `first-primary` strategy.
+    *
+@@ -116,7 +117,7 @@ export type SQLiteD1Adapter = {
+    * ```readReplicas: 'first-primary'```
+    */
+   readReplicas?: 'first-primary'
+-} & BaseSQLiteAdapter &
++} & Omit<BaseSQLiteAdapter, 'dropDatabase'> &
+   SQLiteDrizzleAdapter
+ 
+ export type IDType = 'integer' | 'numeric' | 'text'

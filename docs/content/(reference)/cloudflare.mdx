@@ -1,14 +1,14 @@
 ---
 title: "@adirishi/offload-cloudflare"
-description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Worker entry, and the GraphQL route.
+description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Worker entry, and the API routes.
 ---
 
-| Entry point                           | Exports                                   |
-| ------------------------------------- | ----------------------------------------- |
-| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`     |
-| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()` |
-| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                   |
-| `@adirishi/offload-cloudflare/routes` | `payloadGraphQLHandlers()`                |
+| Entry point                           | Exports                                            |
+| ------------------------------------- | -------------------------------------------------- |
+| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`              |
+| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()`          |
+| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                            |
+| `@adirishi/offload-cloudflare/routes` | `payloadApiHandlers()`, `payloadGraphQLHandlers()` |
 
 The package also ships the agent skill `skills/offload/SKILL.md`. [Getting started](/getting-started#set-up-your-coding-agent) shows how a site points its agent at it.
 
@@ -20,12 +20,25 @@ offloadVite(options: OffloadViteOptions): UserConfigFnPromise
 
 Returns the site's Vite config: Payload's `withPayload()` with TanStack Start, React Server Components, and React. `vite build` and `vite preview` target workerd through `@cloudflare/vite-plugin`. `vite dev` runs in Node, because the RSC module runner can't load Payload's CommonJS dependencies in workerd.
 
-| Option                      | Type                              | Description                                                                                     |
-| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `payloadConfigPath`         | `string`                          | Required. The path to `payload.config.ts`.                                                      |
-| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's.                                              |
-| `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                |
-| `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds. |
+| Option                      | Type                              | Description                                                                                                    |
+| --------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `payloadConfigPath`         | `string`                          | Required. The path to `payload.config.ts`.                                                                     |
+| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's. Its plugins run after Offload's.                            |
+| `pluginsBefore`             | `PluginOption[]`                  | Plugins that run before Payload's, TanStack Start's, and Offload's own, among plugins with the same `enforce`. |
+| `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                               |
+| `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds.                |
+
+Put a plugin in `pluginsBefore` when it must see the source before any other transform. TanStack's `devtools()` from `@tanstack/devtools-vite` is one. It writes each element's source line into a `data-tsd-source` attribute. After another plugin has changed the file, the server and the client write different lines, and React reports a hydration mismatch.
+
+Vite orders plugins by `enforce` before their order in the array, and Offload's own transforms use `enforce: "pre"`. A plugin in `pluginsBefore` without `enforce: "pre"` still runs after them. `devtools()` sets `enforce: "pre"`.
+
+```ts vite.config.ts
+offloadVite({
+  payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts"),
+  pluginsBefore: [devtools()],
+  vite: () => ({ plugins: [tailwindcss()] }),
+});
+```
 
 ### Payload package check
 
@@ -50,7 +63,7 @@ For `vite build` and `vite preview`, `offloadVite()` changes Payload's Node-orie
 | Resolves `pg-pool` to its CommonJS build                           | The Worker fails at startup with `Class extends value #<Object> is not a constructor`.           |
 | Imports `@cloudflare/vite-plugin` only for build and preview       | Loading the plugin breaks CommonJS interop in Node-mode dev.                                     |
 
-[`packages/cloudflare/src/vite.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/vite.ts) has one Vite plugin per change.
+[`packages/cloudflare/src/vite.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/vite.ts) and [`workerd-transforms.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/workerd-transforms.ts) have one Vite plugin per change. The plugins that rewrite code return sourcemaps, so stack traces point at the original lines.
 
 ## getBindings()
 
@@ -60,7 +73,11 @@ getBindings(): Promise<Cloudflare.Env>
 
 Returns the Worker's bindings. In workerd, the bindings come from `cloudflare:workers`. In Node, for `vite dev` and the Payload CLI, they come from Wrangler's `getPlatformProxy()`, which reads the same local D1 and R2 state as `vite preview`. `CLOUDFLARE_ENV` selects the Wrangler environment.
 
-Call it with top-level `await` in `payload.config.ts`. In Node, it throws if the site doesn't have `wrangler` installed.
+Call it with top-level `await` in `payload.config.ts`, and in a server function that reads a binding or secret when it runs. In Node, it throws if the site doesn't have `wrangler` installed.
+
+In Node, the first call for a Wrangler environment starts a platform proxy, and every later call in the process returns its bindings. `vite dev` reloads the Payload config after each edit and keeps the proxy, so restart `vite dev` after you change `wrangler.jsonc` or `.dev.vars`.
+
+To keep test data apart from development data, give the tests their own Wrangler environment with a different D1 `database_id` and R2 bucket, and run the Payload CLI, the build, and the tests with `CLOUDFLARE_ENV` set to it. Wrangler keeps local state per database and bucket, so the two sets of data never mix. [Keep test data apart](/test) shows the setup.
 
 ## hyperdrivePoolConfig()
 
@@ -68,13 +85,12 @@ Call it with top-level `await` in `payload.config.ts`. In Node, it throws if the
 hyperdrivePoolConfig(hyperdrive: Hyperdrive, options?: PoolConfig): PoolConfig
 ```
 
-Returns the `pool` option for `postgresAdapter()`. The returned config reads `hyperdrive.connectionString` when the pool connects, because a Worker can read it only inside a request. It sets `maxUses: 1`, so each query gets a new connection and Hyperdrive does the pooling. Values in `options` override both.
+Returns the `pool` option for `postgresAdapter()`. The returned config reads `hyperdrive.connectionString` when the pool connects, because a Worker can read it only inside a request. It sets `maxUses: 1`, so each query gets a new connection and Hyperdrive does the pooling. It also sets `max: Infinity`, so a request never waits for a connection that another request releases: pg-pool would open that connection inside the other request, and workerd cancels a request that uses another request's I/O. Values in `options` override these.
 
 ## createPayloadWorker()
 
 ```ts
 createPayloadWorker(args: {
-  config: Promise<SanitizedConfig>;
   handler: { fetch: (request: Request) => Response | Promise<Response> };
   jobs?: RunOptions;
 }): ExportedHandler
@@ -84,16 +100,40 @@ Returns the Worker's default export.
 
 | Argument  | Description                                                                                                    |
 | --------- | -------------------------------------------------------------------------------------------------------------- |
-| `config`  | The default export of `@payload-config`.                                                                       |
 | `handler` | The default export of `@tanstack/react-start/server-entry`. It serves every request.                           |
 | `jobs`    | Options for `payload.jobs.run()`, except `req`. The defaults are `allQueues: true` and `overrideAccess: true`. |
 
 On each Cron Trigger, the Worker queues Payload's scheduled jobs with `payload.jobs.handleSchedules()`, then runs the due jobs with `payload.jobs.run()`. Scheduled publishing runs this way.
 
+## Where Payload runs
+
+TanStack Start builds the Worker as two environments. The RSC environment runs server functions and renders the admin. The SSR environment runs the Worker entry and server routes, and renders HTML. Code in either one that imports `@payload-config` or `payload` bundles its own copy of Payload. In the `e2e` site, the second copy added 1,117 KiB to the compressed Worker.
+
+The Worker entry and the API route handlers below load Payload from the RSC environment with `import.meta.viteRsc.import()` from `@vitejs/plugin-rsc`, so the Worker bundles one copy. A server route of your own that imports `payload` or `@payload-config` brings the second copy back. Read content in a `createServerFn()` handler instead. It runs in the RSC environment, also when a route loader or a server route calls it.
+
+## payloadApiHandlers()
+
+```ts
+payloadApiHandlers(): { DELETE; GET; OPTIONS; PATCH; POST; PUT }
+```
+
+Returns the server handlers for the REST route at `/_payload/api/$`. Use it in place of `payloadApiHandlers()` from `@payloadcms/tanstack-start/server`, which Payload's TanStack Start template uses and which imports Payload into the SSR environment.
+
+```ts src/app/_payload/api.$.ts
+import { payloadApiHandlers } from "@adirishi/offload-cloudflare/routes";
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/_payload/api/$")({
+  server: {
+    handlers: payloadApiHandlers(),
+  },
+});
+```
+
 ## payloadGraphQLHandlers()
 
 ```ts
-payloadGraphQLHandlers(args: { getConfig: () => Promise<SanitizedConfig> }): { POST }
+payloadGraphQLHandlers(): { POST }
 ```
 
 Returns the server handlers for a TanStack Start route at `/_payload/api/graphql`. Payload's TanStack Start template routes only REST.
@@ -104,9 +144,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_payload/api/graphql")({
   server: {
-    handlers: payloadGraphQLHandlers({
-      getConfig: async () => (await import("@payload-config")).default,
-    }),
+    handlers: payloadGraphQLHandlers(),
   },
 });
 ```

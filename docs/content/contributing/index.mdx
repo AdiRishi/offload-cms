@@ -11,7 +11,7 @@ pnpm upstream checkout
 pnpm check
 ```
 
-`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests.
+`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests. It lints and type-checks every directory except `e2e`, whose dependencies exist only after `pnpm release e2e` installs them from its registry. `pnpm release e2e` lints and type-checks `e2e` after that install.
 
 ## Layout
 

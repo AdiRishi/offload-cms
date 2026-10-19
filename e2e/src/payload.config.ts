@@ -14,6 +14,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
+import { PullQuote } from "./blocks";
 import { AuditLogs } from "./collections/AuditLogs";
 import { Categories } from "./collections/Categories";
 import { FieldTypes } from "./collections/FieldTypes";
@@ -51,6 +52,7 @@ export default buildConfig({
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
   },
+  blocks: [PullQuote],
   collections: [Users, Pages, Posts, Categories, Media, FieldTypes, Folders, Tags, AuditLogs],
   db: databaseAdapter(),
   editor: lexicalEditor(),
@@ -94,7 +96,21 @@ export default buildConfig({
       cloudflareTransformer({
         // A function: cloudflareTransformer() throws on an undefined binding, as in upload validation.
         transport: { mode: "binding", binding: () => env.IMAGES },
-        collections: { media: { variants: [{ name: "thumbnail", width: 160, height: 120 }] } },
+        // Seven variants make media's main table 80 columns wide, near D1's limits of
+        // 100 columns per table and 100 bound parameters per statement.
+        collections: {
+          media: {
+            variants: [
+              { name: "thumbnail", width: 160, height: 120 },
+              { name: "square", width: 256, height: 256 },
+              { name: "small", width: 320 },
+              { name: "card", width: 480, height: 320 },
+              { name: "medium", width: 640 },
+              { name: "large", width: 1024 },
+              { name: "og", width: 1200, height: 630 },
+            ],
+          },
+        },
       }),
     ],
   },

@@ -3,8 +3,6 @@ import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_payload/api/graphql")({
   server: {
-    handlers: payloadGraphQLHandlers({
-      getConfig: async () => (await import("@payload-config")).default,
-    }),
+    handlers: payloadGraphQLHandlers(),
   },
 });

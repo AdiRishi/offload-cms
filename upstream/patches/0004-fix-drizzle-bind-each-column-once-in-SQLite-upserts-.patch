@@ -1,0 +1,177 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Mon, 19 Oct 2026 20:12:12 +1100
+Subject: [PATCH] fix(drizzle): bind each column once in SQLite upserts on D1
+
+On D1, updating a document whose main table has more than 50 columns fails
+with "D1_ERROR: too many SQL variables". upsertRow saves an update as
+INSERT ... ON CONFLICT DO UPDATE SET, which binds every column twice, once in
+VALUES and once in SET. D1 accepts at most 100 bound parameters per statement.
+An upload collection with seven image variants has 80 columns, so editors
+can't change a media item's alt text, focal point or folder.
+
+When the adapter sets limitedBoundParameters, as the D1 adapter does, SET now
+reads each value it repeats from SQLite's excluded row, so the statement binds
+each column once. D1 allows at most 100 columns per table, so an upsert stays
+within the limit. The exception is an update with a where condition on a
+table at that column limit, because the condition binds its own values.
+Postgres and the other SQLite adapters build the same statement as before.
+
+Offload-Patch: d1-upsert-bound-parameters
+Upstream: https://github.com/payloadcms/payload/pull/18239
+Drop-When: the pinned release contains PR 18239 or another fix that binds each column of a SQLite upsert once on D1
+Tests: pnpm exec vitest run --project unit packages/drizzle/src/sqlite/insert.spec.ts; e2e suite (media update and delete test)
+---
+ packages/drizzle/src/sqlite/insert.spec.ts | 82 ++++++++++++++++++++++
+ packages/drizzle/src/sqlite/insert.ts      | 42 ++++++++++-
+ 2 files changed, 122 insertions(+), 2 deletions(-)
+ create mode 100644 packages/drizzle/src/sqlite/insert.spec.ts
+
+diff --git a/packages/drizzle/src/sqlite/insert.spec.ts b/packages/drizzle/src/sqlite/insert.spec.ts
+new file mode 100644
+index 000000000..4d83d5bb3
+--- /dev/null
++++ b/packages/drizzle/src/sqlite/insert.spec.ts
+@@ -0,0 +1,82 @@
++import type { InStatement } from '@libsql/client'
++
++import { createClient } from '@libsql/client'
++import { sql } from 'drizzle-orm'
++import { drizzle } from 'drizzle-orm/libsql'
++import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
++import { describe, expect, it } from 'vitest'
++
++import type { BaseSQLiteAdapter } from './types.js'
++
++import { insert } from './insert.js'
++
++const columnNames = Array.from({ length: 79 }, (_, i) => `col${i}`)
++
++const wide = sqliteTable('wide', {
++  id: integer('id').primaryKey(),
++  ...Object.fromEntries(columnNames.map((name) => [name, text(name)])),
++})
++
++const row = (id: number, value: string): Record<string, unknown> => ({
++  id,
++  ...Object.fromEntries(columnNames.map((name) => [name, value])),
++})
++
++// D1 rejects a statement with more than 100 bound parameters.
++const setup = async () => {
++  const client = createClient({ url: ':memory:' })
++  await client.execute(
++    `CREATE TABLE wide (id INTEGER PRIMARY KEY, ${columnNames.map((name) => `${name} TEXT`).join(', ')})`,
++  )
++
++  const execute = client.execute.bind(client)
++  client.execute = ((statement: InStatement) => {
++    if (
++      typeof statement === 'object' &&
++      Array.isArray(statement.args) &&
++      statement.args.length > 100
++    ) {
++      throw new Error('too many SQL variables')
++    }
++    return execute(statement)
++  }) as typeof client.execute
++
++  const db = drizzle(client)
++  const adapter = { limitedBoundParameters: true, tables: { wide } } as unknown as BaseSQLiteAdapter
++
++  return { adapter, db }
++}
++
++describe('sqlite insert with limitedBoundParameters', () => {
++  it('updates an existing 80-column row through an upsert', async () => {
++    const { adapter, db } = await setup()
++    await db.insert(wide).values(row(1, 'before'))
++
++    const values = row(1, 'after')
++    const [result] = await insert.call(adapter, {
++      db,
++      onConflictDoUpdate: { set: values, target: wide.id },
++      tableName: 'wide',
++      values,
++    })
++
++    expect(result).toEqual(values)
++    expect(await db.select().from(wide)).toEqual([values])
++  })
++
++  it('keeps the update condition of an upsert', async () => {
++    const { adapter, db } = await setup()
++    await db.insert(wide).values(row(1, 'before'))
++
++    const values = row(1, 'after')
++    const result = await insert.call(adapter, {
++      db,
++      onConflictDoUpdate: { set: values, target: wide.id, where: sql`0` },
++      tableName: 'wide',
++      values,
++    })
++
++    expect(result).toEqual([])
++    expect(await db.select().from(wide)).toEqual([row(1, 'before')])
++  })
++})
+diff --git a/packages/drizzle/src/sqlite/insert.ts b/packages/drizzle/src/sqlite/insert.ts
+index 58a1c434d..20c56e07c 100644
+--- a/packages/drizzle/src/sqlite/insert.ts
++++ b/packages/drizzle/src/sqlite/insert.ts
+@@ -1,15 +1,53 @@
+-import { getTableColumns } from 'drizzle-orm'
++import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
++
++import { getTableColumns, is, SQL, sql } from 'drizzle-orm'
+ 
+ import type { BaseSQLiteAdapter, Insert } from './types.js'
+ 
++type OnConflictDoUpdate = NonNullable<Parameters<Insert>[0]['onConflictDoUpdate']>
++
++/**
++ * `INSERT ... ON CONFLICT DO UPDATE SET` binds a column twice when `SET` repeats the inserted
++ * value. Reading that value from SQLite's `excluded` row binds it once, so an upsert of a row
++ * wider than 50 columns stays within a limit of 100 bound parameters.
++ */
++const setFromExcluded = (
++  { set, ...config }: OnConflictDoUpdate,
++  table: SQLiteTable,
++  values: Record<string, unknown>[],
++): OnConflictDoUpdate => {
++  const columns = getTableColumns(table)
++
++  return {
++    ...config,
++    set: Object.fromEntries(
++      Object.entries(set).map(([key, value]) => {
++        const column = columns[key]
++        const isInsertedValue =
++          column &&
++          value !== undefined &&
++          !is(value, SQL) &&
++          values.every((row) => row[key] === value)
++
++        return [key, isInsertedValue ? sql`excluded.${sql.identifier(column.name)}` : value]
++      }),
++    ),
++  }
++}
++
+ export const insert: Insert = async function (
+   // Here 'this' is not a parameter. See:
+   // https://www.typescriptlang.org/docs/handbook/2/classes.html#this-parameters
+   this: BaseSQLiteAdapter,
+-  { db, onConflictDoUpdate, tableName, values },
++  { db, onConflictDoUpdate: onConflictDoUpdateArg, tableName, values },
+ ): Promise<Record<string, unknown>[]> {
+   const table = this.tables[tableName]
+ 
++  const onConflictDoUpdate =
++    this.limitedBoundParameters && onConflictDoUpdateArg
++      ? setFromExcluded(onConflictDoUpdateArg, table, Array.isArray(values) ? values : [values])
++      : onConflictDoUpdateArg
++
+   // Batch insert if limitedBoundParameters: true
+   if (this.limitedBoundParameters && Array.isArray(values)) {
+     const results: Record<string, unknown>[] = []

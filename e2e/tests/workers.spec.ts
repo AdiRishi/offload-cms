@@ -3,7 +3,7 @@
 // to bundle for workerd.
 
 import { lexical, png } from "./data";
-import { expect, test, unique } from "./fixtures";
+import { type Doc, expect, type PayloadApi, test, unique } from "./fixtures";
 
 test("R2 stores uploads byte for byte and serves byte ranges", async ({ anonymous, api }) => {
   const image = png({ height: 48, width: 64 });
@@ -33,6 +33,60 @@ test("the Images binding generates upload variants", async ({ api }) => {
     { alt: "Variants" },
   );
   expect(media).toMatchObject({ variants: { thumbnail: { height: 120, width: 160 } } });
+});
+
+/** The R2 keys of an upload's stored file, its original, and each variant. */
+const storedObjectKeys = (media: Doc) => {
+  const variants = typeof media.variants === "object" && media.variants ? media.variants : {};
+  return [media, media.original, ...Object.values(variants)].flatMap((file: unknown) =>
+    typeof file === "object" && file && "filename" in file && typeof file.filename === "string"
+      ? [
+          [
+            "prefix" in file ? file.prefix : "",
+            "_objectKey" in file ? file._objectKey : "",
+            file.filename,
+          ]
+            .filter(Boolean)
+            .join("/"),
+        ]
+      : [],
+  );
+};
+
+/** The status of each object in the local R2 bucket, read through Miniflare's local explorer. */
+const r2Statuses = (api: PayloadApi, keys: string[]) =>
+  Promise.all(
+    keys.map(async (key) =>
+      (
+        await api.request.get(
+          `/cdn-cgi/local/explorer/api/r2/buckets/offload-e2e/objects/${encodeURIComponent(key)}`,
+        )
+      ).status(),
+    ),
+  );
+
+test("an editor updates and deletes an image with every variant", async ({ api }) => {
+  const media = await api.upload(
+    "media",
+    {
+      buffer: png({ height: 630, width: 1200 }),
+      mimeType: "image/png",
+      name: `${unique("wide")}.png`,
+    },
+    { alt: "Before" },
+  );
+  const objectKeys = storedObjectKeys(media);
+  expect(objectKeys).toHaveLength(9);
+  expect(await r2Statuses(api, objectKeys)).toEqual(objectKeys.map(() => 200));
+
+  expect(await api.update("media", media.id, { alt: "After" })).toMatchObject({ alt: "After" });
+  expect(await r2Statuses(api, objectKeys)).toEqual(objectKeys.map(() => 200));
+
+  const deleted = await api.request.delete(`/api/media/${media.id}`, {
+    headers: { Authorization: `JWT ${api.token}` },
+  });
+  expect(deleted.status(), await deleted.text()).toBe(200);
+  expect(await r2Statuses(api, objectKeys)).toEqual(objectKeys.map(() => 404));
 });
 
 test("Email Service sends Payload's password reset email", async ({ anonymous, api }) => {
