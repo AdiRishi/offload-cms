@@ -68,6 +68,22 @@
       ]
     },
     {
+      "name": "change-password-form",
+      "type": "registry:component",
+      "title": "Change password form",
+      "description": "Changes the logged-in account's password after checking the current one, and ends its other sessions.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["@offload/form-fields"],
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls changePassword from @/server/account.functions, which you write. Render it on a page behind the account guard. It uses the shadcn components button, checkbox, field, input, spinner, and textarea, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "files": [
+        {
+          "path": "registry/accounts/change-password-form.tsx",
+          "type": "registry:component",
+          "target": "@components/accounts/change-password-form.tsx"
+        }
+      ]
+    },
+    {
       "name": "verify-email-result",
       "type": "registry:component",
       "title": "Verify email result",

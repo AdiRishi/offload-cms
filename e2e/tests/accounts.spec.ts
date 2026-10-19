@@ -221,6 +221,54 @@ test("an active customer's session slides past its first expiry", async ({
   await page.close();
 });
 
+test("a customer can't change their email or password through REST", async ({ api, visitor }) => {
+  const email = customerEmail("self-update");
+  const account = await createCustomer(api, email);
+  const headers = { Authorization: `JWT ${await restToken(visitor, email)}` };
+  const update = (data: Record<string, unknown>) =>
+    visitor.patch(`/api/customers/${account.id}`, { data, headers });
+
+  expect((await update({ email: customerEmail("taken-over") })).status()).toBe(403);
+  expect((await update({ password: "offload-taken-over-password" })).status()).toBe(403);
+  expect((await update({ name: "Ada" })).status()).toBe(200);
+  expect((await restLogin(visitor, email)).status()).toBe(200);
+});
+
+test("a customer changes their password after confirming the current one", async ({
+  api,
+  baseURL,
+  browser,
+  visitor,
+}) => {
+  const email = customerEmail("change-password");
+  await createCustomer(api, email);
+  const otherDevice = await restToken(visitor, email);
+  const newPassword = "offload-changed-customer-password";
+  const page = await newVisitor(browser, baseURL);
+  await page.goto("/login?returnTo=/account/password");
+  await logInThroughForm(page, email);
+  await expect(page).toHaveURL(/\/account\/password$/);
+
+  const change = async (current: string) => {
+    await page.getByLabel("Current password").fill(current);
+    await page.getByLabel("New password").fill(newPassword);
+    await page.getByLabel("Confirm password").fill(newPassword);
+    await page.getByRole("button", { name: "Change password" }).click();
+  };
+  await change("not-the-current-password");
+  await expect(page.getByText("Your current password is wrong.")).toBeVisible();
+  expect((await restLogin(visitor, email, newPassword)).status()).toBe(401);
+
+  await change(password);
+  await expect(page.getByText("Your password is changed")).toBeVisible();
+  expect(await signedInAs(visitor, otherDevice)).toBeNull();
+  expect((await restLogin(visitor, email)).status()).toBe(401);
+  expect((await restLogin(visitor, email, newPassword)).status()).toBe(200);
+  await page.goto("/account");
+  await expect(page.getByText(`Logged in as ${email}`)).toBeVisible();
+  await page.close();
+});
+
 test("a guarded page sends a visitor to log in and back, but never off the site", async ({
   api,
   baseURL,

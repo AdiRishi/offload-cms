@@ -14,6 +14,9 @@ function AccountPage() {
       <Link to="/account/bookings" className="underline">
         Your bookings
       </Link>
+      <Link to="/account/password" className="underline">
+        Change your password
+      </Link>
     </main>
   );
 }

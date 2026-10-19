@@ -31,6 +31,8 @@ import { getSafeRedirect } from "payload/shared";
 import { cache } from "react";
 
 import type {
+  ChangePasswordInput,
+  ChangePasswordResult,
   ForgotPasswordInput,
   ForgotPasswordResult,
   LogInInput,
@@ -103,6 +105,11 @@ export type AccountHelpers<TSlug extends AuthCollectionSlug> = {
   resetPassword: (input: ResetPasswordInput) => Promise<ResetPasswordResult>;
   /** Verifies the account's email with the token from the verification email. */
   verifyEmail: (input: VerifyEmailInput) => Promise<VerifyEmailResult>;
+  /**
+   * Sets a new password for the logged-in account after checking its current password, keeps
+   * the visitor's session, and ends the account's other sessions.
+   */
+  changePassword: (input: ChangePasswordInput) => Promise<ChangePasswordResult>;
 };
 
 type CookieParts = ReturnType<
@@ -431,6 +438,37 @@ export const createAccountHelpers = <TSlug extends AuthCollectionSlug>({
     }
   };
 
+  const changePassword = async ({
+    currentPassword,
+    newPassword,
+  }: ChangePasswordInput): Promise<ChangePasswordResult> => {
+    try {
+      const account = await getAccount();
+      if (!account?.email) return { status: "signed-out" };
+      const { payload, collection } = await load();
+      // A login checks the current password and applies the login rate limit. The session it
+      // adds ends with the account's other sessions when the password changes.
+      await loginOperation({
+        collection,
+        data: { email: account.email, password: currentPassword },
+        req: await visitorRequest(payload),
+      });
+      await payload.update({
+        collection: slug,
+        id: account.id,
+        data: { password: newPassword },
+        overrideAccess: true,
+        req: await visitorRequest(payload, account),
+      });
+      return { status: "changed" };
+    } catch (error) {
+      if (error instanceof AuthenticationError) return { status: "invalid" };
+      if (error instanceof LockedAuth || isTooManyRequests(error)) return { status: "limited" };
+      console.error("A password change failed", error);
+      return { status: "error" };
+    }
+  };
+
   return {
     getAccount,
     requireAccount,
@@ -440,5 +478,6 @@ export const createAccountHelpers = <TSlug extends AuthCollectionSlug>({
     requestPasswordReset,
     resetPassword,
     verifyEmail,
+    changePassword,
   };
 };

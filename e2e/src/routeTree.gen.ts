@@ -26,6 +26,7 @@ import { Route as PayloadApiSplatRouteImport } from './app/_payload/api.$'
 import { Route as PayloadApiGraphqlRouteImport } from './app/_payload/api.graphql'
 import { Route as FrontendAccountAccountIndexRouteImport } from './app/_frontend/_account/account.index'
 import { Route as FrontendAccountAccountBookingsRouteImport } from './app/_frontend/_account/account.bookings'
+import { Route as FrontendAccountAccountPasswordRouteImport } from './app/_frontend/_account/account.password'
 
 const FrontendRoute = FrontendRouteImport.update({
   id: '/_frontend',
@@ -111,6 +112,12 @@ const FrontendAccountAccountBookingsRoute =
     path: '/account/bookings',
     getParentRoute: () => FrontendAccountRoute,
   } as any)
+const FrontendAccountAccountPasswordRoute =
+  FrontendAccountAccountPasswordRouteImport.update({
+    id: '/account/password',
+    path: '/account/password',
+    getParentRoute: () => FrontendAccountRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof FrontendIndexRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/api/graphql': typeof PayloadApiGraphqlRoute
   '/admin/': typeof PayloadAdminIndexRoute
   '/account/bookings': typeof FrontendAccountAccountBookingsRoute
+  '/account/password': typeof FrontendAccountAccountPasswordRoute
   '/account/': typeof FrontendAccountAccountIndexRoute
 }
 export interface FileRoutesByTo {
@@ -142,6 +150,7 @@ export interface FileRoutesByTo {
   '/api/graphql': typeof PayloadApiGraphqlRoute
   '/admin': typeof PayloadAdminIndexRoute
   '/account/bookings': typeof FrontendAccountAccountBookingsRoute
+  '/account/password': typeof FrontendAccountAccountPasswordRoute
   '/account': typeof FrontendAccountAccountIndexRoute
 }
 export interface FileRoutesById {
@@ -162,6 +171,7 @@ export interface FileRoutesById {
   '/_payload/api/graphql': typeof PayloadApiGraphqlRoute
   '/_payload/admin/': typeof PayloadAdminIndexRoute
   '/_frontend/_account/account/bookings': typeof FrontendAccountAccountBookingsRoute
+  '/_frontend/_account/account/password': typeof FrontendAccountAccountPasswordRoute
   '/_frontend/_account/account/': typeof FrontendAccountAccountIndexRoute
 }
 export interface FileRouteTypes {
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/api/graphql'
     | '/admin/'
     | '/account/bookings'
+    | '/account/password'
     | '/account/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -196,6 +207,7 @@ export interface FileRouteTypes {
     | '/api/graphql'
     | '/admin'
     | '/account/bookings'
+    | '/account/password'
     | '/account'
   id:
     | '__root__'
@@ -215,6 +227,7 @@ export interface FileRouteTypes {
     | '/_payload/api/graphql'
     | '/_payload/admin/'
     | '/_frontend/_account/account/bookings'
+    | '/_frontend/_account/account/password'
     | '/_frontend/_account/account/'
   fileRoutesById: FileRoutesById
 }
@@ -344,16 +357,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FrontendAccountAccountBookingsRouteImport
       parentRoute: typeof FrontendAccountRoute
     }
+    '/_frontend/_account/account/password': {
+      id: '/_frontend/_account/account/password'
+      path: '/account/password'
+      fullPath: '/account/password'
+      preLoaderRoute: typeof FrontendAccountAccountPasswordRouteImport
+      parentRoute: typeof FrontendAccountRoute
+    }
   }
 }
 
 interface FrontendAccountRouteChildren {
   FrontendAccountAccountBookingsRoute: typeof FrontendAccountAccountBookingsRoute
+  FrontendAccountAccountPasswordRoute: typeof FrontendAccountAccountPasswordRoute
   FrontendAccountAccountIndexRoute: typeof FrontendAccountAccountIndexRoute
 }
 
 const FrontendAccountRouteChildren: FrontendAccountRouteChildren = {
   FrontendAccountAccountBookingsRoute: FrontendAccountAccountBookingsRoute,
+  FrontendAccountAccountPasswordRoute: FrontendAccountAccountPasswordRoute,
   FrontendAccountAccountIndexRoute: FrontendAccountAccountIndexRoute,
 }
 

@@ -1,4 +1,5 @@
 import {
+  changePasswordInput,
   forgotPasswordInput,
   logInInput,
   resetPasswordInput,
@@ -55,3 +56,8 @@ export const verifyEmail = createServerFn({ method: "POST" })
   .middleware([hideServerErrors])
   .validator(verifyEmailInput)
   .handler(({ data }) => accounts.verifyEmail(data));
+
+export const changePassword = createServerFn({ method: "POST" })
+  .middleware([hideServerErrors])
+  .validator(changePasswordInput)
+  .handler(({ data }) => accounts.changePassword(data));

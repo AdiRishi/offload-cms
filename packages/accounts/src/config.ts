@@ -104,6 +104,33 @@ const rateLimitHook =
     return args;
   };
 
+/**
+ * Payload lets a user who may update their own document change its email and password through
+ * REST, with no current password and without verifying the new email. A stolen session could then
+ * keep the account. Only the admin's users, and server code with `overrideAccess`, may change them.
+ */
+const protectCredentials: CollectionBeforeOperationHook = ({
+  args,
+  operation,
+  overrideAccess,
+  req,
+}) => {
+  if (operation !== "update" || overrideAccess) return args;
+  if (req.user?.collection === req.payload.config.admin.user) return args;
+  const { data } = args;
+  const changesEmail =
+    typeof data.email === "string" && data.email.trim().toLowerCase() !== req.user?.email;
+  if (changesEmail || "password" in data) {
+    throw new APIError(
+      "Only an admin can change an account's email or password here.",
+      403,
+      null,
+      true,
+    );
+  }
+  return args;
+};
+
 const link = (siteURL: string, path: string, token?: string) => {
   const url = new URL(path, siteURL);
   if (token) url.searchParams.set("token", token);
@@ -145,7 +172,9 @@ const defaultResetPassword =
  *   the REST endpoints too.
  * - Email verification, unless `verify` is `false`, and emails that link to the site's pages.
  * - Access that lets only the admin's users create and delete accounts, and lets an account read
- *   and update only itself.
+ *   and update only itself. An account can't change its own email or password through REST.
+ *   `createAccountHelpers()` changes the password after checking the current one, and only the
+ *   admin's users change an email.
  *
  * The collection's own `auth`, `access`, and `admin` settings override these, and its
  * `beforeOperation` hooks run after the rate limit.
@@ -202,6 +231,7 @@ export const accountCollection = (
       ...hooks,
       beforeOperation: [
         rateLimitHook(collection.slug, rateLimit),
+        protectCredentials,
         ...(hooks?.beforeOperation ?? []),
       ],
     },

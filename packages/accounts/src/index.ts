@@ -33,11 +33,20 @@ export const resetPasswordInput = z.object({
 
 export const verifyEmailInput = z.object({ token: z.string().min(1).max(512) });
 
+export const changePasswordInput = z.object({
+  currentPassword: z
+    .string()
+    .min(1, "Enter your current password.")
+    .max(128, "Use at most 128 characters."),
+  newPassword,
+});
+
 export type LogInInput = z.infer<typeof logInInput>;
 export type SignUpInput = z.infer<typeof signUpInput>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordInput>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordInput>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailInput>;
+export type ChangePasswordInput = z.infer<typeof changePasswordInput>;
 
 /**
  * `invalid` covers an unknown email and a wrong password alike. `email-unverified` comes only
@@ -68,3 +77,11 @@ export type ResetPasswordResult =
 
 /** `invalid` for a link that was already used or never existed. */
 export type VerifyEmailResult = { status: "verified" | "invalid" | "error" };
+
+/**
+ * `invalid` for a wrong current password, and `signed-out` when the visitor's session ended first.
+ * `limited` comes from the login rate limit, which the current password check shares.
+ */
+export type ChangePasswordResult = {
+  status: "changed" | "invalid" | "limited" | "signed-out" | "error";
+};

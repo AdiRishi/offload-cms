@@ -25,18 +25,18 @@ accountCollection(collection: AccountCollectionConfig, options: AccountOptions):
 
 Returns an auth collection for the site's visitors, such as customers or members. It adds these settings to `collection`:
 
-| Setting                          | Value                                                                               |
-| -------------------------------- | ----------------------------------------------------------------------------------- |
-| `auth.tokenExpiration`           | `1209600`, 14 days. `getAccount()` extends an active session.                       |
-| `auth.maxLoginAttempts`          | `0`, so Payload never locks an account.                                             |
-| `auth.depth`                     | `0`                                                                                 |
-| `auth.cookies`                   | `{ secure: true, sameSite: "Lax" }`                                                 |
-| `auth.verify`                    | The [verification email](#emails), unless `options.verify` is `false`.              |
-| `auth.forgotPassword`            | The [password reset email](#emails).                                                |
-| `access.create`, `access.delete` | `isAdminUser`                                                                       |
-| `access.read`, `access.update`   | `true` for a user of `admin.user`, and the account's own document for an account.   |
-| `admin.useAsTitle`               | `"email"`                                                                           |
-| `hooks.beforeOperation`          | The [rate limit](#rate-limit), before the collection's own `beforeOperation` hooks. |
+| Setting                          | Value                                                                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.tokenExpiration`           | `1209600`, 14 days. `getAccount()` extends an active session.                                                                                |
+| `auth.maxLoginAttempts`          | `0`, so Payload never locks an account.                                                                                                      |
+| `auth.depth`                     | `0`                                                                                                                                          |
+| `auth.cookies`                   | `{ secure: true, sameSite: "Lax" }`                                                                                                          |
+| `auth.verify`                    | The [verification email](#emails), unless `options.verify` is `false`.                                                                       |
+| `auth.forgotPassword`            | The [password reset email](#emails).                                                                                                         |
+| `access.create`, `access.delete` | `isAdminUser`                                                                                                                                |
+| `access.read`, `access.update`   | `true` for a user of `admin.user`, and the account's own document for an account.                                                            |
+| `admin.useAsTitle`               | `"email"`                                                                                                                                    |
+| `hooks.beforeOperation`          | The [rate limit](#rate-limit) and the [credentials guard](#email-and-password-changes), before the collection's own `beforeOperation` hooks. |
 
 The keys of the collection's own `auth`, `access`, and `admin` replace these one key at a time. `auth.cookies` merges over the default cookie settings, so `auth: { cookies: { domain: "example.com" } }` keeps `secure` and `sameSite`. `AccountCollectionConfig` is `CollectionConfig` without `auth.verify` and without the email functions of `auth.forgotPassword`, which come from `options`.
 
@@ -62,6 +62,12 @@ The hook runs for the `login` and `forgotPassword` operations of the collection,
 `<ip>` is the `cf-connecting-ip` header, and `<email>` is the address trimmed and in lowercase. A request without the header, such as one under `vite dev`, gets only the email key. Every attempt counts, whether or not the password is right.
 
 If any key is over its limit, the hook throws an `APIError` with status 429 and the message "Too many attempts. Wait a minute and try again." REST answers 429, and the server helpers return `limited`. The binding counts per Cloudflare location and is eventually consistent.
+
+### Email and password changes
+
+Payload lets a user who may update their own document change its `email` and `password` through REST, with no current password and without verifying the new email. A stolen session could then keep the account. So an `update` that changes `email` or sets `password` fails with an `APIError` with status 403, unless the user is a user of `admin.user` or the call passes `overrideAccess: true`. REST answers 403. Other fields, such as a `name`, stay open to the account.
+
+An account changes its password with [`changePassword()`](#changepassword), which checks the current password first. Only the admin's users change an account's email in this version.
 
 ### Emails
 
@@ -105,18 +111,19 @@ Access for documents that belong to one account.
 
 ```ts
 createAccountHelpers<TSlug extends AuthCollectionSlug>(options: AccountHelpersOptions<TSlug>): {
-  getAccount: () => Promise<(AuthenticatedUser & Account) | null>;
-  requireAccount: () => Promise<AuthenticatedUser & Account>;
+  getAccount: () => Promise<Account<TSlug> | null>;
+  requireAccount: () => Promise<Account<TSlug>>;
   logIn: (input: LogInInput) => Promise<LogInResult>;
   logOut: (options?: { everywhere?: boolean }) => Promise<void>;
   signUp: (input: SignUpInput, options: { turnstileSecret: string; data?: AccountData }) => Promise<SignUpResult>;
   requestPasswordReset: (input: ForgotPasswordInput, options: { turnstileSecret: string }) => Promise<ForgotPasswordResult>;
   resetPassword: (input: ResetPasswordInput) => Promise<ResetPasswordResult>;
   verifyEmail: (input: VerifyEmailInput) => Promise<VerifyEmailResult>;
+  changePassword: (input: ChangePasswordInput) => Promise<ChangePasswordResult>;
 }
 ```
 
-Returns the server helpers for one account collection. `Account` is the collection's generated type, and `AccountData` is the collection's required data without `email` and `password`. A site calls it once, in a server-only module, and calls the helpers from its own `createServerFn()` handlers:
+Returns the server helpers for one account collection. `Account<TSlug>` is the collection's generated type with the session fields Payload adds to a request's user, and `AccountData` is the collection's required data without `email` and `password`. A site calls it once, in a server-only module, and calls the helpers from its own `createServerFn()` handlers:
 
 ```ts src/lib/accounts.server.ts
 import { createAccountHelpers } from "@adirishi/offload-accounts/server";
@@ -186,6 +193,10 @@ Sets a new password with the token from a reset email. Payload ends every sessio
 
 Verifies the account's email with the token from the verification email. It doesn't log the visitor in.
 
+### changePassword()
+
+Sets a new password for the logged-in account. It first checks `currentPassword` with a login, which shares the login [rate limit](#rate-limit). Then Payload keeps the visitor's session and ends the account's other sessions. It returns `signed-out` when the visitor has no account session.
+
 ## Input schemas
 
 Zod schemas for the input of the site's server functions. Pass each one to `.validator()`. The forms validate with the same schemas in the browser.
@@ -197,18 +208,21 @@ Zod schemas for the input of the site's server functions. Pass each one to `.val
 | `forgotPasswordInput` | `email`, `turnstileToken`                         |
 | `resetPasswordInput`  | `token`, `password`                               |
 | `verifyEmailInput`    | `token`                                           |
+| `changePasswordInput` | `currentPassword`, `newPassword`                  |
 
-| Key              | Rule                                                                | Message when the rule fails                     |
-| ---------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
-| `email`          | Trimmed and lowercased. An email address of at most 254 characters. | Enter a valid email address.                    |
-| `password`       | Login: 1 to 128 characters. Sign-up and reset: 8 to 128 characters. | Enter your password. Use at least 8 characters. |
-| `turnstileToken` | 1 to 2,048 characters                                               |                                                 |
-| `returnTo`       | Optional, at most 2,048 characters                                  |                                                 |
-| `token`          | 1 to 512 characters                                                 |                                                 |
+| Key               | Rule                                                                | Message when the rule fails                     |
+| ----------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
+| `email`           | Trimmed and lowercased. An email address of at most 254 characters. | Enter a valid email address.                    |
+| `password`        | Login: 1 to 128 characters. Sign-up and reset: 8 to 128 characters. | Enter your password. Use at least 8 characters. |
+| `currentPassword` | 1 to 128 characters                                                 | Enter your current password.                    |
+| `newPassword`     | 8 to 128 characters                                                 | Use at least 8 characters.                      |
+| `turnstileToken`  | 1 to 2,048 characters                                               |                                                 |
+| `returnTo`        | Optional, at most 2,048 characters                                  |                                                 |
+| `token`           | 1 to 512 characters                                                 |                                                 |
 
 A password over 128 characters fails with "Use at most 128 characters." To collect more fields at sign-up, extend the schema: `signUpInput.extend({ name: z.string().max(100) })`.
 
-The types `LogInInput`, `SignUpInput`, `ForgotPasswordInput`, `ResetPasswordInput`, and `VerifyEmailInput` are the schemas' output types.
+The types `LogInInput`, `SignUpInput`, `ForgotPasswordInput`, `ResetPasswordInput`, `VerifyEmailInput`, and `ChangePasswordInput` are the schemas' output types.
 
 ## Results
 
@@ -229,22 +243,29 @@ type ResetPasswordResult =
   { status: "signed-in"; returnTo: string } | { status: "invalid" | "error" };
 
 type VerifyEmailResult = { status: "verified" | "invalid" | "error" };
+
+type ChangePasswordResult = {
+  status: "changed" | "invalid" | "limited" | "signed-out" | "error";
+};
 ```
 
-| Status             | Returned by                        | Meaning                                                                                        |
-| ------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `signed-in`        | `logIn`, `signUp`, `resetPassword` | The session cookie is set. Go to `returnTo`.                                                   |
-| `check-email`      | `signUp`                           | The visitor must follow the link in an email. A new account and an existing email both get it. |
-| `sent`             | `requestPasswordReset`             | The request passed its checks. An account with the email gets a reset email.                   |
-| `verified`         | `verifyEmail`                      | The account can log in.                                                                        |
-| `invalid`          | `logIn`                            | The email has no account, or the password is wrong. The result doesn't say which.              |
-| `invalid`          | `signUp`                           | A field failed the collection's validation. `errors` maps field paths to messages.             |
-| `invalid`          | `resetPassword`, `verifyEmail`     | The link expired, was already used, or never existed.                                          |
-| `email-unverified` | `logIn`                            | The password is right, but the account hasn't verified its email.                              |
-| `locked`           | `logIn`                            | Payload locked the account. Only a collection that sets `auth.maxLoginAttempts` returns it.    |
-| `limited`          | `logIn`, `requestPasswordReset`    | The visitor's IP or the email is over the [rate limit](#rate-limit).                           |
-| `unverified`       | `signUp`, `requestPasswordReset`   | The Turnstile check failed.                                                                    |
-| `error`            | Every helper                       | Something unexpected failed. The helper logged it.                                             |
+| Status             | Returned by                                       | Meaning                                                                                        |
+| ------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `signed-in`        | `logIn`, `signUp`, `resetPassword`                | The session cookie is set. Go to `returnTo`.                                                   |
+| `check-email`      | `signUp`                                          | The visitor must follow the link in an email. A new account and an existing email both get it. |
+| `sent`             | `requestPasswordReset`                            | The request passed its checks. An account with the email gets a reset email.                   |
+| `verified`         | `verifyEmail`                                     | The account can log in.                                                                        |
+| `changed`          | `changePassword`                                  | The new password is set. The visitor stays logged in, and other sessions ended.                |
+| `invalid`          | `changePassword`                                  | The current password is wrong.                                                                 |
+| `signed-out`       | `changePassword`                                  | The visitor has no account session.                                                            |
+| `invalid`          | `logIn`                                           | The email has no account, or the password is wrong. The result doesn't say which.              |
+| `invalid`          | `signUp`                                          | A field failed the collection's validation. `errors` maps field paths to messages.             |
+| `invalid`          | `resetPassword`, `verifyEmail`                    | The link expired, was already used, or never existed.                                          |
+| `email-unverified` | `logIn`                                           | The password is right, but the account hasn't verified its email.                              |
+| `locked`           | `logIn`                                           | Payload locked the account. Only a collection that sets `auth.maxLoginAttempts` returns it.    |
+| `limited`          | `logIn`, `requestPasswordReset`, `changePassword` | The visitor's IP or the email is over the [rate limit](#rate-limit).                           |
+| `unverified`       | `signUp`, `requestPasswordReset`                  | The Turnstile check failed.                                                                    |
+| `error`            | Every helper                                      | Something unexpected failed. The helper logged it.                                             |
 
 ## Registry
 
@@ -256,6 +277,7 @@ Offload's shadcn registry installs the account forms as source files that the si
 | `sign-up-form`         | `components/accounts/sign-up-form.tsx`         | `@offload/form-fields`, `@offload/turnstile` | Those of `form-fields`       | `@tanstack/react-form` |
 | `forgot-password-form` | `components/accounts/forgot-password-form.tsx` | `@offload/form-fields`, `@offload/turnstile` | Those of `form-fields`       | `@tanstack/react-form` |
 | `reset-password-form`  | `components/accounts/reset-password-form.tsx`  | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
+| `change-password-form` | `components/accounts/change-password-form.tsx` | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
 | `verify-email-result`  | `components/accounts/verify-email-result.tsx`  | None                                         | None                         | None                   |
 | `account-menu`         | `components/accounts/account-menu.tsx`         | None                                         | `button`, `dropdown-menu`    | None                   |
 
@@ -273,6 +295,7 @@ The components import their server functions from `@/server/account.functions`, 
 | `SignUpForm`         | `returnTo?: string`                                         | `signUp`               |
 | `ForgotPasswordForm` | None                                                        | `requestPasswordReset` |
 | `ResetPasswordForm`  | `token: string`                                             | `resetPassword`        |
+| `ChangePasswordForm` | None                                                        | `changePassword`       |
 | `VerifyEmailResult`  | `result: VerifyEmailResult`                                 | None                   |
 | `AccountMenu`        | `account: { email: string; name?: string \| null } \| null` | `logOut`               |
 

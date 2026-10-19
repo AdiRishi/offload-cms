@@ -150,6 +150,7 @@ The site needs:
 
     ```ts src/server/account.functions.ts
     import {
+      changePasswordInput,
       forgotPasswordInput,
       logInInput,
       resetPasswordInput,
@@ -205,6 +206,11 @@ The site needs:
       .middleware([hideServerErrors])
       .validator(verifyEmailInput)
       .handler(({ data }) => accounts.verifyEmail(data));
+
+    export const changePassword = createServerFn({ method: "POST" })
+      .middleware([hideServerErrors])
+      .validator(changePasswordInput)
+      .handler(({ data }) => accounts.changePassword(data));
     ```
 
     `getAccount` returns only the fields that the pages show. The account document also holds its `sessions`, so never return the whole document to the browser.
@@ -216,7 +222,7 @@ The site needs:
     The forms import `button`, `checkbox`, `field`, `input`, `spinner`, and `textarea` from the site's own `src/components/ui`, and the account menu imports `button` and `dropdown-menu`. The registry doesn't install them, so the CLI never replaces the site's copies. Add the ones the site doesn't have first, such as `pnpm dlx shadcn@latest add dropdown-menu`. Then add the items:
 
     ```bash
-    pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/verify-email-result @offload/account-menu
+    pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/change-password-form @offload/verify-email-result @offload/account-menu
     ```
 
     The CLI copies the components into `src/components/accounts/`, with the shared form fields in `src/components/form-fields.tsx` and the Turnstile widget. [The registry reference](/accounts#registry) lists what each item installs.
@@ -327,6 +333,23 @@ The site needs:
         </ul>
       );
     }
+    ```
+
+    Give the account its own password page under the guard:
+
+    ```tsx src/app/_frontend/_account/account.password.tsx
+    import { createFileRoute } from "@tanstack/react-router";
+
+    import { ChangePasswordForm } from "@/components/accounts/change-password-form";
+
+    export const Route = createFileRoute("/_frontend/_account/account/password")({
+      component: () => (
+        <main>
+          <h1>Change your password</h1>
+          <ChangePasswordForm />
+        </main>
+      ),
+    });
     ```
 
   </Step>
@@ -510,6 +533,12 @@ The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes passwords with 100,000 it
 ## Create customers through the Worker
 
 A password hash made in Node, through `vite dev`, the Payload CLI, or a seed script, uses 600,000 iterations, and a deployed Worker can't verify it. Create customers through sign-up, the deployed admin, or the deployed REST API, and never from a seed script. [Known limits](/limits#passwords) has the details.
+
+## Email and password changes
+
+Payload lets a user change their own email and password through REST, with no current password and without verifying the new email. A stolen session could then lock the real customer out for good. `accountCollection()` refuses an update that changes `email` or sets `password`, with a 403, unless the user is one of the admin's users or the server code passes `overrideAccess: true`. A customer can still update other fields of their own account, such as a name.
+
+A customer changes their password on the page above, through `changePassword()`. It checks the current password first, keeps the customer logged in, and ends their other sessions. Changing an account's email is for the admin's users only in this version, through the admin.
 
 ## Change the emails
 
