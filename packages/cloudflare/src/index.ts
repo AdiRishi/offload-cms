@@ -1,6 +1,6 @@
 import type { PoolConfig } from "pg";
 
-import { createRequire } from "node:module";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 
 type Wrangler = Pick<typeof import("wrangler"), "getPlatformProxy">;
@@ -27,6 +27,10 @@ export const getBindings = async (): Promise<Cloudflare.Env> => {
   const wrangler: unknown = createRequire(path.join(process.cwd(), "package.json"))("wrangler");
   if (!isWrangler(wrangler))
     throw new Error("Install wrangler to use Cloudflare bindings outside workerd.");
+  // Wrangler loads node:domain, which replaces properties of the node:events exports. Vite's
+  // module runner hands CommonJS packages such as undici the ESM namespace of node:events
+  // whenever it differs from those exports, so their `class extends EventEmitter` would fail.
+  syncBuiltinESMExports();
 
   const proxy = await wrangler.getPlatformProxy<Cloudflare.Env>({
     environment: process.env.CLOUDFLARE_ENV,
