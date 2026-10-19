@@ -12,4 +12,4 @@
 
 `pnpm build` refuses a checkout that differs from the pin plus the patches. Export your commits first, or reset the checkout with `pnpm upstream checkout --force`.
 
-To move to a newer Payload release, use the `upgrade-payload` skill.
+To move to a newer Payload release, follow `.agents/skills/upgrade-payload/SKILL.md`.
