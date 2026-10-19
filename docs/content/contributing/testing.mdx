@@ -44,7 +44,7 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 | `tests/admin.spec.ts`    | Admin rendering, server functions, and saves: drafting, publishing, and translating a page, uploading to R2, and a document with every field type                                                                                                                                                             |
 | `tests/api.spec.ts`      | REST, GraphQL queries with arguments, and access control                                                                                                                                                                                                                                                      |
 | `tests/workers.spec.ts`  | R2 byte ranges, image variants through the Images binding, updating and deleting an image whose seven variants pass D1's parameter limit, a password reset email through Email Service, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins |
-| `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API                                                                                                                                                                                                                                       |
+| `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API, with a post's rich text returned from a server function as a React Server Component                                                                                                                                                  |
 
 ## How the site is set up
 

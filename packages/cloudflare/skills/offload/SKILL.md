@@ -28,6 +28,29 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 });
 ```
 
+Never return rich text from a server function as JSON. TanStack Start checks that a server function's result is serializable, and Lexical's node types fail that check. Render the rich text inside the handler with `renderServerComponent` from `@tanstack/react-start/rsc`, and put the result in the page. Payload's TanStack Start adapter already enables React Server Components, and the Lexical converters stay out of the client bundle:
+
+```tsx
+import { RichText } from "@payloadcms/richtext-lexical/react";
+import { renderServerComponent } from "@tanstack/react-start/rsc";
+
+const getPost = createServerFn({ method: "GET" })
+  .validator((slug: string) => slug)
+  .handler(async ({ data: slug }) => {
+    // getPayload and config as above
+    const post = (await payload.find({ collection: "posts", where: { slug: { equals: slug } } }))
+      .docs[0];
+    if (!post) return null;
+    return {
+      title: post.title,
+      Content: post.content ? await renderServerComponent(<RichText data={post.content} />) : null,
+    };
+  });
+// In the route component: {post.Content}
+```
+
+`convertLexicalToHTML` from `@payloadcms/richtext-lexical/html` also works when the page needs an HTML string.
+
 **Two runtimes.** `vite dev` runs in Node. `vite build` and `vite preview` run the Worker bundle in workerd, which is what production runs. Check runtime behaviour with `vite build && vite preview`. `vite.config.ts` uses `offloadVite()` from `@adirishi/offload-cloudflare/vite`. Add the site's Vite plugins in `offloadVite({ vite })`, which run after Offload's. A plugin that must run first, such as `devtools()` from `@tanstack/devtools-vite`, goes in `pluginsBefore`.
 
 **Bindings replace environment variables.** `payload.config.ts` gets D1, R2, Hyperdrive, and secrets from `await getBindings()` (from `@adirishi/offload-cloudflare`). Declare bindings in `wrangler.jsonc`. Put local secrets such as `PAYLOAD_SECRET` in `.dev.vars` and deployed ones in `wrangler secret put`. `CLOUDFLARE_ENV` selects the Wrangler environment for the Payload CLI and the build.

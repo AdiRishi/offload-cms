@@ -1,31 +1,17 @@
-import type { HTMLConvertersFunction } from "@payloadcms/richtext-lexical/html";
-
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { renderServerComponent } from "@tanstack/react-start/rsc";
 
-const htmlConverters: HTMLConvertersFunction = ({ defaultConverters }) => ({
-  ...defaultConverters,
-  blocks: {
-    callout: ({ node }) => {
-      const { fields } = node;
-      const message =
-        "message" in fields && typeof fields.message === "string" ? fields.message : "";
-      const tone = "tone" in fields && fields.tone === "warning" ? "warning" : "info";
-      return `<aside data-tone="${tone}">${message}</aside>`;
-    },
-  },
-  // The posts editor has no inline blocks. Replacing the default map also keeps it
-  // assignable: its `| undefined` values don't fit the converters type.
-  inlineBlocks: {},
-});
+import { PostContent } from "../../post-content";
 
+// Lexical's JSON doesn't pass the server function's serializability check, so
+// the rich text comes back as a rendered React Server Component instead.
 const getPost = createServerFn({ method: "GET" })
   .validator((slug: string) => slug)
   .handler(async ({ data: slug }) => {
-    const [{ getPayload }, { default: config }, { convertLexicalToHTML }] = await Promise.all([
+    const [{ getPayload }, { default: config }] = await Promise.all([
       import("payload"),
       import("@payload-config"),
-      import("@payloadcms/richtext-lexical/html"),
     ]);
     const payload = await getPayload({ config });
     const { docs } = await payload.find({
@@ -36,13 +22,17 @@ const getPost = createServerFn({ method: "GET" })
     });
     const post = docs[0];
     if (!post) return null;
-    const html = post.content
-      ? convertLexicalToHTML({ converters: htmlConverters, data: post.content })
-      : "";
     const categories = (post.categories ?? []).map((category) =>
       typeof category === "object" ? category.name : String(category),
     );
-    return { categories, html, title: post.title, wordCount: post.wordCount ?? 0 };
+    return {
+      categories,
+      Content: post.content
+        ? await renderServerComponent(<PostContent content={post.content} />)
+        : null,
+      title: post.title,
+      wordCount: post.wordCount ?? 0,
+    };
   });
 
 export const Route = createFileRoute("/_frontend/posts/$slug")({
@@ -61,8 +51,7 @@ function PostView() {
       <h1>{post.title}</h1>
       <p data-testid="categories">{post.categories.join(", ")}</p>
       <p data-testid="word-count">{post.wordCount} words</p>
-      {/* oxlint-disable-next-line react/no-danger -- server-rendered from Lexical by Payload's converter */}
-      <div dangerouslySetInnerHTML={{ __html: post.html }} />
+      {post.Content}
     </article>
   );
 }
