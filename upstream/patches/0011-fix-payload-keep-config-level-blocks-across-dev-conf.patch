@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 00:49:57 +1100
+Subject: [PATCH] fix(payload): keep config-level blocks across dev config
+ reloads
+
+After a Payload config edit in Vite dev, a site that defines a block in the
+config's blocks array and references it by slug fails on every admin page
+with "Block not found for slug", and Payload's reload fails in the Drizzle
+schema build with "Cannot read properties of undefined (reading 'name')".
+The failed reload leaves getPayload waiting, so every later request hangs.
+Vite re-evaluates the config module and its importers, but not the module
+that exports the block, so the new config gets the block object that the
+first sanitizeConfig call marked as sanitized. sanitizeConfig skipped such a
+block without adding it to config.blocks, so the reloaded config had no
+blocks for the Lexical BlocksFeature and the Drizzle schema to look up.
+
+sanitizeConfig now adds an already sanitized block to config.blocks and only
+skips sanitizing it again.
+
+Offload-Patch: dev-reload-config-blocks
+Drop-When: the pinned release adds already sanitized blocks to config.blocks in sanitizeConfig
+Tests: pnpm exec vitest run --project unit packages/payload/src/config/sanitize.spec.ts; e2e dev check (tests/dev/config-reload.spec.ts)
+---
+ packages/payload/src/config/sanitize.spec.ts | 19 +++++++++++++++++++
+ packages/payload/src/config/sanitize.ts      |  3 +++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/packages/payload/src/config/sanitize.spec.ts b/packages/payload/src/config/sanitize.spec.ts
+index 6578b3629..3109fe0a9 100644
+--- a/packages/payload/src/config/sanitize.spec.ts
++++ b/packages/payload/src/config/sanitize.spec.ts
+@@ -1,3 +1,4 @@
++import type { Block } from '../fields/config/types.js'
+ import type { Config } from './types.js'
+ 
+ import { describe, expect, it } from 'vitest'
+@@ -108,4 +109,22 @@ describe('sanitizeConfig', () => {
+       locales: [],
+     })
+   })
++
++  it('should keep config-level blocks that an earlier config already sanitized', () => {
++    // Dev reloads re-evaluate the config module but not the modules its blocks come from.
++    const pullQuote: Block = {
++      slug: 'pullQuote',
++      fields: [{ name: 'quote', type: 'textarea' }],
++    }
++
++    sanitizeConfig({ ...configDefaults, blocks: [pullQuote] })
++    const reloaded = sanitizeConfig({ ...configDefaults, blocks: [pullQuote] })
++
++    expect(reloaded.blocks.map((block) => block.slug)).toEqual(['pullQuote'])
++    expect(reloaded.blocks[0]?.flattenedFields.map((field) => field.name)).toEqual([
++      'quote',
++      'id',
++      'blockName',
++    ])
++  })
+ })
+diff --git a/packages/payload/src/config/sanitize.ts b/packages/payload/src/config/sanitize.ts
+index a82360ab6..1a141f5a7 100644
+--- a/packages/payload/src/config/sanitize.ts
++++ b/packages/payload/src/config/sanitize.ts
+@@ -423,7 +423,10 @@ export const sanitizeConfig = (incomingConfig: Config): SanitizedConfig => {
+     for (const block of incomingConfig.blocks) {
+       const sanitizedBlock = block
+ 
++      // A dev reload sanitizes a new config, but blocks from modules that were not re-evaluated
++      // are the objects an earlier config sanitized.
+       if (sanitizedBlock._sanitized === true) {
++        config.blocks.push(flattenBlock({ block }))
+         continue
+       }
+       sanitizedBlock._sanitized = true
