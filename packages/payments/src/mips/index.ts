@@ -141,7 +141,6 @@ const resolve = async (
     const order = await settlePaidTransaction({
       finalize,
       group,
-      name,
       paid: { ...check.paid, id: paymentID },
       req,
       transaction: await reopenForLatePayment(req, transaction, paymentID),

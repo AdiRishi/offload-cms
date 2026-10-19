@@ -170,7 +170,6 @@ export const razorpayAdapter = ({
       const order = await settlePaidTransaction({
         finalize,
         group,
-        name,
         paid: payment,
         req,
         transaction: open,

@@ -11,6 +11,8 @@ declare module "@payloadcms/plugin-ecommerce" {
     transactionID: DefaultDocumentIDType;
   }) => Promise<Record<string, unknown>>;
 
+  export class CartAlreadyPurchasedError extends Error {}
+
   export const getEcommerceCollectionSlugs: (
     config: Pick<SanitizedConfig, "custom">,
   ) => CollectionSlugMap;

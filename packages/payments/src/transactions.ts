@@ -1,7 +1,11 @@
 import type { PaymentAdapter, PaymentAdapterArgs } from "@payloadcms/plugin-ecommerce/types";
 import type { DefaultDocumentIDType, Field, GroupField, PayloadRequest, Where } from "payload";
 
-import { getEcommerceCollectionSlugs, settleTransaction } from "@payloadcms/plugin-ecommerce";
+import {
+  CartAlreadyPurchasedError,
+  getEcommerceCollectionSlugs,
+  settleTransaction,
+} from "@payloadcms/plugin-ecommerce";
 import { z } from "zod";
 
 /** The collection slugs the ecommerce plugin was configured with. */
@@ -281,47 +285,45 @@ export const reopenForLatePayment = async (
  * `finalize` is core's `finalizeOrder` in confirm-order, or `settleOnServer(req)` elsewhere. Either
  * returns the existing order when the transaction is already settled.
  *
- * Two payments for one cart that settle at the same moment can both pass the cart check. Each one
- * checks again after it settles, and writes the double payment to `group`'s `lastError` and the
- * log. Write any other change to the group before calling it, and pass the written group.
+ * Two payments for one cart that settle at the same moment both pass the cart check, but core
+ * gives each order the cart's unique `cartKey`, so only one order is created. The other payment is
+ * refused like any second payment.
  */
 export const settlePaidTransaction = async ({
   finalize,
   group,
-  name,
   paid,
   req,
   transaction,
 }: {
   finalize: Finalize;
   group: Record<string, unknown> & { shippingAddress?: unknown };
-  name: string;
   paid: { amount: number; currency: string; id: string };
   req: PayloadRequest;
   transaction: Transaction;
 }) => {
   assertPaymentMatches(paid, transaction);
   await assertCartOpen(req, transaction, paid.id);
-  const order = await finalize({
-    transactionID: transaction.id,
-    orderData: {
-      amount: transaction.amount,
-      currency: transaction.currency,
-      ...(transaction.customer
-        ? { customer: transaction.customer }
-        : { customerEmail: transaction.customerEmail }),
-      items: transaction.items,
-      ...(group.shippingAddress ? { shippingAddress: group.shippingAddress } : {}),
-      status: "processing",
-    },
-  });
-  const other = await otherPurchase(req, transaction);
-  if (other !== undefined) {
-    const message = secondPayment(paid.id, transaction, other);
-    req.payload.logger.error(message);
-    await updateGatewayGroup(req, transaction, name, { ...group, lastError: message });
+  try {
+    return await finalize({
+      transactionID: transaction.id,
+      orderData: {
+        amount: transaction.amount,
+        currency: transaction.currency,
+        ...(transaction.customer
+          ? { customer: transaction.customer }
+          : { customerEmail: transaction.customerEmail }),
+        items: transaction.items,
+        ...(group.shippingAddress ? { shippingAddress: group.shippingAddress } : {}),
+        status: "processing",
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof CartAlreadyPurchasedError)) throw error;
+    throw new PaymentRefused(
+      secondPayment(paid.id, transaction, (await otherPurchase(req, transaction)) ?? "another"),
+    );
   }
-  return order;
 };
 
 /** Settles outside confirm-order: from a webhook, a payment notification, or reconciliation. */
