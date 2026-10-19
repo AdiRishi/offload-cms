@@ -1,0 +1,55 @@
+---
+title: Keep test data apart
+description: Run end-to-end tests against their own local D1 database and R2 bucket, so a test run never touches the content you develop with.
+---
+
+Wrangler keeps local data per binding: each D1 `database_id` and each R2 `bucket_name` has its own files under `.wrangler/state`. Give your tests a Wrangler environment with their own IDs. When `CLOUDFLARE_ENV` selects that environment, the Payload CLI, the build, and the preview all use its data, and a test run can reset it without touching your development content.
+
+<Steps>
+  <Step title="Add a test environment">
+    Add an `e2e` environment to `wrangler.jsonc` with its own database ID and bucket name. Environments don't inherit bindings, so repeat every binding the site uses:
+
+    ```jsonc wrangler.jsonc
+    "env": {
+      "e2e": {
+        "d1_databases": [
+          { "binding": "D1", "database_name": "my-site-e2e", "database_id": "local-e2e" }
+        ],
+        "r2_buckets": [{ "binding": "R2", "bucket_name": "my-site-e2e" }],
+        "images": { "binding": "IMAGES" }
+      }
+    }
+    ```
+
+    The ID only names the local database. Nothing is created on Cloudflare.
+
+  </Step>
+  <Step title="Prepare the environment and serve it">
+    Reset the database and apply the migrations, seed the content the tests need, and build for the environment. Then serve the build:
+
+    ```bash
+    CLOUDFLARE_ENV=e2e pnpm payload migrate:fresh --force-accept-warning
+    CLOUDFLARE_ENV=e2e pnpm payload run src/seed.ts
+    CLOUDFLARE_ENV=e2e pnpm vite build
+    pnpm vite preview --port 4173
+    ```
+
+    In Playwright, run the same commands as the web server:
+
+    ```ts playwright.config.ts
+    webServer: {
+      command:
+        "CLOUDFLARE_ENV=e2e pnpm payload migrate:fresh --force-accept-warning && CLOUDFLARE_ENV=e2e pnpm payload run src/seed.ts && CLOUDFLARE_ENV=e2e pnpm vite build && pnpm vite preview --port 4173 --strictPort",
+      url: "http://localhost:4173",
+    },
+    ```
+
+    `vite preview` needs no `CLOUDFLARE_ENV`, because it serves the environment that the build was for.
+
+  </Step>
+  <Step title="Build for development again">
+    `vite preview` and `wrangler deploy` run the last build, whichever environment it was for. The Cloudflare Vite plugin records that build's path in `.wrangler/deploy/config.json`, so a build into another output directory still becomes the one they run. After a test run, run `pnpm vite build` before you preview your development data.
+  </Step>
+</Steps>
+
+Only one process at a time may open a local D1 database. Don't run a dev server or a second preview on the test environment while the tests run, and stop them before you migrate or seed it. [Known limits](/limits#d1) explains the errors you get otherwise.
