@@ -31,7 +31,7 @@ These steps add Offload to an existing TanStack Start site. [Getting started](ht
    //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
    ```
 
-2. Install Offload under the upstream names:
+2. Install Offload under the upstream names. Every Payload package in the site must be an Offload build at the same version, so add plugins the same way, such as `@payloadcms/plugin-seo@npm:@adirishi/offload-plugin-seo`:
 
    ```bash
    pnpm add --save-exact @adirishi/offload-cloudflare payload@npm:@adirishi/offload-payload @payloadcms/ui@npm:@adirishi/offload-ui @payloadcms/tanstack-start@npm:@adirishi/offload-tanstack-start @payloadcms/db-d1-sqlite@npm:@adirishi/offload-db-d1-sqlite

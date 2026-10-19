@@ -48,6 +48,11 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 - `sharp` can't run, so uploads keep the original image and `imageSizes` and crops aren't generated.
 - Nodemailer can't open sockets. Send email through an adapter that uses `fetch`, such as `@payloadcms/email-resend`.
 
-**Packages move together.** Every Payload package is `@adirishi/offload-<name>`, for example `@payloadcms/plugin-seo` as `npm:@adirishi/offload-plugin-seo@<version>`. Give every `@adirishi/offload-*` dependency the same version, and change them together when you update.
+**Every Payload package must be an Offload build.** That covers `payload` and every `@payloadcms/*` package, including plugins and adapters you add later. Install each one under its upstream name, for example `"@payloadcms/plugin-seo": "npm:@adirishi/offload-plugin-seo@<version>"`, at the same version as the rest. An upstream `@payloadcms/*` version breaks the site in two ways:
+
+- Payload's dev server throws when its packages' versions differ.
+- The upstream package installs its own upstream copies of other Payload packages, such as `@payloadcms/ui`, without Offload's patches.
+
+Third-party plugins that list `payload` as a peer dependency install normally. Change every `@adirishi/offload-*` version together when you update.
 
 The Offload docs at https://adirishi.github.io/offload-cms list each patch to Payload and the known limits on Workers.

@@ -52,7 +52,7 @@ const offloadReadme = ({
     "",
     "## Install",
     "",
-    "Install the package under its upstream name, so imports and Payload's documentation keep working:",
+    "Install the package under its upstream name, so imports and Payload's documentation keep working. Every Payload package in a site must be an Offload build at the same version:",
     "",
     "```json",
     `"${upstreamName}": "npm:${published}@${version}"`,

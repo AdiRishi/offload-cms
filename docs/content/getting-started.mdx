@@ -46,7 +46,7 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     }
     ```
 
-    Every package that Payload publishes has an Offload build. For example, `@payloadcms/plugin-seo` is `@adirishi/offload-plugin-seo`. Give every Offload package the same version, because Payload checks that its packages match.
+    Every Payload package in the site must be an Offload build at the same version, including plugins you add later. For example, install `@payloadcms/plugin-seo` as `npm:@adirishi/offload-plugin-seo@{{version}}`. Payload's dev server throws when its packages' versions differ, and an upstream plugin would install its own upstream copy of `@payloadcms/ui`.
 
     With pnpm 11, exclude Offload from the minimum release age, so a release installs on the day it's published. Allow the install scripts of `workerd` and `esbuild` too:
 
