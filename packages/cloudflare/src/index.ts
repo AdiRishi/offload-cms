@@ -57,6 +57,16 @@ export const getBindings = async (): Promise<Cloudflare.Env> => {
 };
 
 /**
+ * Keeps the Worker alive until `promise` settles, so a request can answer first and finish its
+ * work afterwards. Inside workerd it passes the promise to `waitUntil` from `cloudflare:workers`.
+ * Node never cancels pending work, so there the promise just runs. Attach error handling to
+ * `promise` first: nothing awaits it.
+ */
+export const waitUntil = async (promise: Promise<unknown>) => {
+  if (isWorkerd) (await import("cloudflare:workers")).waitUntil(promise);
+};
+
+/**
  * Pool options for `postgresAdapter` behind Hyperdrive. Workers only allow
  * reading the Hyperdrive binding inside a request, and Payload opens its pool
  * there, so the connection string is read lazily. `maxUses: 1` gives every
