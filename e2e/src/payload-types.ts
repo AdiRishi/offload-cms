@@ -373,6 +373,66 @@ export interface Media {
       prefix?: string | null;
       _objectKey?: string | null;
     };
+    square?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    small?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    medium?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    large?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
+    og?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+      prefix?: string | null;
+      _objectKey?: string | null;
+    };
   };
 }
 /**
@@ -1290,6 +1350,78 @@ export interface MediaSelect<T extends boolean = true> {
     | T
     | {
         thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        square?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        small?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        medium?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        large?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+              prefix?: T;
+              _objectKey?: T;
+            };
+        og?:
           | T
           | {
               url?: T;
