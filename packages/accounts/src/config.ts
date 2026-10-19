@@ -2,6 +2,7 @@ import type {
   Access,
   CollectionBeforeOperationHook,
   CollectionConfig,
+  Endpoint,
   IncomingAuthType,
   PayloadRequest,
   User,
@@ -131,6 +132,21 @@ const protectCredentials: CollectionBeforeOperationHook = ({
   return args;
 };
 
+/**
+ * Payload gives every auth collection `POST /first-register`, which creates the first document of
+ * an empty collection with access control bypassed and marks it verified. A collection endpoint
+ * comes before the auth endpoints, so this one answers instead.
+ */
+const refuseFirstRegister: Endpoint = {
+  path: "/first-register",
+  method: "post",
+  handler: () =>
+    Response.json(
+      { errors: [{ message: "Accounts are created through sign-up or by an admin." }] },
+      { status: 403 },
+    ),
+};
+
 const link = (siteURL: string, path: string, token?: string) => {
   const url = new URL(path, siteURL);
   if (token) url.searchParams.set("token", token);
@@ -171,6 +187,8 @@ const defaultResetPassword =
  * - A rate limit on logins and password reset requests, per visitor IP and per email, that covers
  *   the REST endpoints too.
  * - Email verification, unless `verify` is `false`, and emails that link to the site's pages.
+ * - `POST /first-register` answering 403, so the empty collection can't get its first account
+ *   past access control.
  * - Access that lets only the admin's users create and delete accounts, and lets an account read
  *   and update only itself. An account can't change its own email or password through REST.
  *   `createAccountHelpers()` changes the password after checking the current one, and only the
@@ -180,7 +198,7 @@ const defaultResetPassword =
  * `beforeOperation` hooks run after the rate limit.
  */
 export const accountCollection = (
-  { auth, access, admin, hooks, ...collection }: AccountCollectionConfig,
+  { auth, access, admin, hooks, endpoints, ...collection }: AccountCollectionConfig,
   { siteURL, rateLimit, verify = true, paths, emails }: AccountOptions,
 ): CollectionConfig => {
   const logInPath = paths?.logIn ?? "/login";
@@ -220,6 +238,7 @@ export const accountCollection = (
   return {
     ...collection,
     admin: { useAsTitle: "email", ...admin },
+    endpoints: endpoints === false ? false : [refuseFirstRegister, ...(endpoints ?? [])],
     access: {
       create: isAdminUser,
       read: adminOrSelf(collection.slug),

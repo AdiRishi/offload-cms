@@ -20,3 +20,21 @@ setup("create the first admin through the admin panel", async ({ page }) => {
     .toBe(true);
   await page.context().storageState({ path: adminStorageState });
 });
+
+// It runs here, before any test creates a customer, because Payload's first-register endpoint
+// only works on an empty collection.
+setup("an empty customers collection refuses a first account through REST", async ({
+  playwright,
+  baseURL,
+}) => {
+  const request = await playwright.request.newContext({
+    baseURL,
+    storageState: { cookies: [], origins: [] },
+  });
+  const credentials = { email: "first-customer@offload.test", password: "offload-first-customer" };
+
+  const registered = await request.post("/api/customers/first-register", { data: credentials });
+  expect(registered.status(), await registered.text()).toBe(403);
+  expect((await request.post("/api/customers/login", { data: credentials })).status()).toBe(401);
+  await request.dispose();
+});

@@ -25,18 +25,19 @@ accountCollection(collection: AccountCollectionConfig, options: AccountOptions):
 
 Returns an auth collection for the site's visitors, such as customers or members. It adds these settings to `collection`:
 
-| Setting                          | Value                                                                                                                                        |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auth.tokenExpiration`           | `1209600`, 14 days. `getAccount()` extends an active session.                                                                                |
-| `auth.maxLoginAttempts`          | `0`, so Payload never locks an account.                                                                                                      |
-| `auth.depth`                     | `0`                                                                                                                                          |
-| `auth.cookies`                   | `{ secure: true, sameSite: "Lax" }`                                                                                                          |
-| `auth.verify`                    | The [verification email](#emails), unless `options.verify` is `false`.                                                                       |
-| `auth.forgotPassword`            | The [password reset email](#emails).                                                                                                         |
-| `access.create`, `access.delete` | `isAdminUser`                                                                                                                                |
-| `access.read`, `access.update`   | `true` for a user of `admin.user`, and the account's own document for an account.                                                            |
-| `admin.useAsTitle`               | `"email"`                                                                                                                                    |
-| `hooks.beforeOperation`          | The [rate limit](#rate-limit) and the [credentials guard](#email-and-password-changes), before the collection's own `beforeOperation` hooks. |
+| Setting                          | Value                                                                                                                                                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `auth.tokenExpiration`           | `1209600`, 14 days. `getAccount()` extends an active session.                                                                                                                                                |
+| `auth.maxLoginAttempts`          | `0`, so Payload never locks an account.                                                                                                                                                                      |
+| `auth.depth`                     | `0`                                                                                                                                                                                                          |
+| `auth.cookies`                   | `{ secure: true, sameSite: "Lax" }`                                                                                                                                                                          |
+| `auth.verify`                    | The [verification email](#emails), unless `options.verify` is `false`.                                                                                                                                       |
+| `auth.forgotPassword`            | The [password reset email](#emails).                                                                                                                                                                         |
+| `access.create`, `access.delete` | `isAdminUser`                                                                                                                                                                                                |
+| `access.read`, `access.update`   | `true` for a user of `admin.user`, and the account's own document for an account.                                                                                                                            |
+| `admin.useAsTitle`               | `"email"`                                                                                                                                                                                                    |
+| `endpoints`                      | `POST /first-register` answering 403, before the collection's own endpoints. Payload's own `first-register` would create the first document of an empty collection past access control and mark it verified. |
+| `hooks.beforeOperation`          | The [rate limit](#rate-limit) and the [credentials guard](#email-and-password-changes), before the collection's own `beforeOperation` hooks.                                                                 |
 
 The keys of the collection's own `auth`, `access`, and `admin` replace these one key at a time. `auth.cookies` merges over the default cookie settings, so `auth: { cookies: { domain: "example.com" } }` keeps `secure` and `sameSite`. `AccountCollectionConfig` is `CollectionConfig` without `auth.verify` and without the email functions of `auth.forgotPassword`, which come from `options`.
 

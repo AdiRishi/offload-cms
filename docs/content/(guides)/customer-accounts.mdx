@@ -534,6 +534,8 @@ The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes passwords with 100,000 it
 
 A password hash made in Node, through `vite dev`, the Payload CLI, or a seed script, uses 600,000 iterations, and a deployed Worker can't verify it. Create customers through sign-up, the deployed admin, or the deployed REST API, and never from a seed script. [Known limits](/limits#passwords) has the details.
 
+Payload gives every auth collection `POST /api/<slug>/first-register`, which creates the first account of an empty collection past access control. `accountCollection()` answers it with 403, so the first customer signs up like the rest.
+
 ## Email and password changes
 
 Payload lets a user change their own email and password through REST, with no current password and without verifying the new email. A stolen session could then lock the real customer out for good. `accountCollection()` refuses an update that changes `email` or sets `password`, with a 403, unless the user is one of the admin's users or the server code passes `overrideAccess: true`. A customer can still update other fields of their own account, such as a name.
