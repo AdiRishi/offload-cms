@@ -11,7 +11,7 @@ import { upgrade, upgradeContinue } from "./upgrade.ts";
 const usage = `usage: upstream <command>
 
   checkout [--force]              Create upstream/payload from the pin and the patches
-  export                          Write the checkout's commits to patches/ and PATCHES.md
+  export                          Write the checkout's commits to patches/ and the docs' patch pages
   status [--against <tag>]        Show each patch's upstream PR state
   upgrade <tag> [--drop <id>]...  Move the patch series to a newer Payload release
   upgrade --continue              Apply the remaining patches after resolving a conflict

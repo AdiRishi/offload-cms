@@ -27,7 +27,7 @@ Also done when every breaking change in the release notes is classified as affec
 
 Run `pnpm upstream:upgrade <tag> --drop <id> ...` with the **drop** verdicts.
 
-On a conflict, the script prints the patch's intent. Resolve the conflict so the patch still meets that intent. If the surrounding code changed shape, rewrite the patch. Then run `git -C upstream/payload cherry-pick --continue` and `pnpm upstream:upgrade --continue`. If a patch's intent changed, reword the commit message too, since `PATCHES.md` is generated from it.
+On a conflict, the script prints the patch's intent. Resolve the conflict so the patch still meets that intent. If the surrounding code changed shape, rewrite the patch. Then run `git -C upstream/payload cherry-pick --continue` and `pnpm upstream:upgrade --continue`. If a patch's intent changed, reword the commit message too, since the patch pages in `docs/content/patches` are generated from it.
 
 `pnpm-lock.yaml` hunks never resolve by hand. Take the new tag's lockfile, run `pnpm install --no-frozen-lockfile` in `upstream/payload`, and amend the regenerated lockfile into the patch.
 
@@ -56,7 +56,7 @@ Done when that works on staging, or when the report says staging is not configur
 
 ## 6. Report
 
-Commit the patch series, `PATCHES.md`, the pin, and the changes to `packages/` and `e2e` as separate commits. Then report:
+Commit the patch series and its docs pages, the pin, and the changes to `packages/` and `e2e` as separate commits. Then report:
 
 - each patch's verdict and what changed in reworked patches
 - the breaking changes that affect sites, and what a site must change

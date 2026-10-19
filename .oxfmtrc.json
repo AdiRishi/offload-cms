@@ -14,10 +14,12 @@
   "ignorePatterns": [
     "**/dist/**",
     "**/.wrangler/**",
+    "docs/.blume/**",
+    "docs/.blume-verify/**",
     "upstream/payload/**",
     "pnpm-lock.yaml",
     "upstream/patches/**",
-    "upstream/PATCHES.md",
+    "docs/content/patches/[0-9]*.md",
     "e2e/pnpm-lock.yaml",
     "e2e/src/migrations/**",
     "e2e/src/payload-types.ts",
