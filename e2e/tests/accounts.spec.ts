@@ -177,12 +177,17 @@ test("logging out ends this session, and logging out everywhere ends the others"
   const otherDevice = await restToken(visitor, email);
   const page = await newVisitor(browser, baseURL);
 
+  const sessionToken = async () =>
+    (await page.context().cookies()).find(({ name }) => name === "payload-token")?.value ?? "";
+
   await page.goto("/login");
   await logInThroughForm(page, email);
   await expect(page).toHaveURL(/\/account$/);
+  const loggedOut = await sessionToken();
   await page.getByRole("button", { name: email }).click();
   await page.getByRole("menuitem", { name: "Log out", exact: true }).click();
   await expect(page.getByRole("link", { name: "Log in" })).toBeVisible();
+  expect(await signedInAs(visitor, loggedOut)).toBeNull();
   await page.goto("/account");
   await expect(page).toHaveURL(/\/login\?returnTo=%2Faccount$/);
   expect(await signedInAs(visitor, otherDevice)).toBe(email);
@@ -190,8 +195,10 @@ test("logging out ends this session, and logging out everywhere ends the others"
   await logInThroughForm(page, email);
   await expect(page).toHaveURL(/\/account$/);
   await page.getByRole("button", { name: email }).click();
+  const loggedOutEverywhere = await sessionToken();
   await page.getByRole("menuitem", { name: "Log out everywhere" }).click();
   await expect(page.getByRole("link", { name: "Log in" })).toBeVisible();
+  expect(await signedInAs(visitor, loggedOutEverywhere)).toBeNull();
   expect(await signedInAs(visitor, otherDevice)).toBeNull();
   await page.close();
 });
@@ -223,6 +230,13 @@ test("an active customer's session slides past its first expiry", async ({
   await page.goto("/account");
   await expect(page.getByText(`Logged in as ${email}`)).toBeVisible();
   await page.close();
+});
+
+test("a visitor can't create an account through REST", async ({ visitor }) => {
+  const created = await visitor.post("/api/customers", {
+    data: { email: customerEmail("rest-sign-up"), password },
+  });
+  expect(created.status(), await created.text()).toBe(403);
 });
 
 test("a customer can't change their email or password through REST", async ({ api, visitor }) => {
@@ -480,7 +494,11 @@ test("password reset requests past the limit for one email are refused", async (
   const email = customerEmail("reset-limited");
   await createCustomer(api, email);
   const statuses: string[] = [];
-  for (let attempt = 0; attempt <= 2 * attemptsPerMinute && !statuses.includes("limited"); attempt++) {
+  for (
+    let attempt = 0;
+    attempt <= 2 * attemptsPerMinute && !statuses.includes("limited");
+    attempt++
+  ) {
     const request = await playwright.request.newContext({
       baseURL,
       extraHTTPHeaders: visitorHeaders(),

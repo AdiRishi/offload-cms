@@ -97,7 +97,7 @@ test("concurrent logins as one user each keep a session, and logout ends only it
   }
 });
 
-test("token refreshes that race logins as one user keep every session and extend their own", async ({
+test("a smoke test of the refresh patch: refreshes and logins as one user keep every session", async ({
   anonymous,
   api,
 }) => {

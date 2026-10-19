@@ -7,7 +7,7 @@ type Registry = {
   items: {
     name: string;
     registryDependencies?: string[];
-    files: { path: string; target: string }[];
+    files: { path: string; target: string; type: string }[];
   }[];
 };
 
@@ -40,6 +40,22 @@ test("registry items depend only on other Offload items", () => {
     for (const item of registry.items) {
       for (const dependency of item.registryDependencies ?? []) {
         assert.match(dependency, /^@offload\//, `${item.name} depends on ${dependency}.`);
+      }
+    }
+  }
+});
+
+// A site owns its components/ui. An item that installed a file there would replace the site's copy.
+test("registry items install nothing into the site's components/ui", () => {
+  for (const { registry } of registries) {
+    for (const item of registry.items) {
+      for (const file of item.files) {
+        assert.doesNotMatch(
+          file.target,
+          /^@components\/ui\//,
+          `${item.name} installs ${file.target}.`,
+        );
+        assert.notEqual(file.type, "registry:ui", `${item.name} has a registry:ui file.`);
       }
     }
   }
