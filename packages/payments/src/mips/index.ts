@@ -13,6 +13,7 @@ import {
   expireTransaction,
   type Finalize,
   findTransaction,
+  flagPayment,
   gatewayFields,
   gatewayGroup,
   PaymentRefused,
@@ -20,7 +21,7 @@ import {
   settleOnServer,
   settlePaidTransaction,
   transactionSchema,
-  updateGatewayGroup,
+  writeGatewayFields,
 } from "../transactions.ts";
 import {
   type MipsAPI,
@@ -72,8 +73,6 @@ const mipsGroup = z.looseObject({
   ...gatewayFields,
 });
 
-type MipsGroup = z.infer<typeof mipsGroup>;
-
 const mipsTransaction = transactionSchema.extend({ mips: mipsGroup });
 
 type MipsTransaction = z.infer<typeof mipsTransaction>;
@@ -98,16 +97,16 @@ const orderOf = (transaction: MipsTransaction) => ({
 const findByReference = (req: PayloadRequest, reference: string) =>
   findTransaction(req, { "mips.reference": { equals: reference } }, mipsTransaction);
 
-/** Logs `message` and writes it to the transaction's `lastError`. */
+/** Logs `message` and writes it to the transaction's `lastError`. A refused payment is an error. */
 const record = async (
   req: PayloadRequest,
   transaction: MipsTransaction,
-  group: MipsGroup,
   message: string,
   level: "warn" | "error",
 ) => {
-  req.payload.logger[level](message);
-  await updateGatewayGroup(req, transaction, name, { ...group, lastError: message });
+  if (level === "error") return flagPayment(req, transaction, name, message);
+  req.payload.logger.warn(message);
+  await writeGatewayFields(req, transaction, name, { lastError: message });
 };
 
 /** Asks mIPS about the transaction's order and checks the answer against the transaction. */
@@ -125,12 +124,11 @@ const lookUp = async (api: MipsAPI, req: PayloadRequest, transaction: MipsTransa
 /**
  * Settles the transaction when `check` reports a matching payment. A payment that can't settle,
  * because it contradicts the transaction or arrived for a transaction that can't take it any more,
- * goes to `lastError` and the error log. `group` is the group as last written.
+ * goes to `lastError` and the error log.
  */
 const resolve = async (
   req: PayloadRequest,
   transaction: MipsTransaction,
-  group: MipsGroup,
   check: OrderCheck,
   finalize: Finalize,
 ): Promise<Outcome> => {
@@ -140,15 +138,15 @@ const resolve = async (
     const paymentID = transaction.mips.reference;
     const order = await settlePaidTransaction({
       finalize,
-      group,
       paid: { ...check.paid, id: paymentID },
       req,
+      shippingAddress: transaction.mips.shippingAddress,
       transaction: await reopenForLatePayment(req, transaction, paymentID),
     });
     return { result: "settled", orderID: createdOrder.parse(order).id };
   } catch (error) {
     if (!(error instanceof PaymentRefused)) throw error;
-    await record(req, transaction, group, error.message, "error");
+    await record(req, transaction, error.message, "error");
     return { result: "refused", reason: error.message };
   }
 };
@@ -162,29 +160,29 @@ const settleNotified = async (
   transaction: MipsTransaction,
   notification: MipsNotification,
 ) => {
-  const group = {
-    ...transaction.mips,
-    paymentMethod: notification.payment_method ?? transaction.mips.paymentMethod,
-  };
-  if (group.paymentMethod !== transaction.mips.paymentMethod) {
-    await updateGatewayGroup(req, transaction, name, group);
+  if (
+    notification.payment_method &&
+    notification.payment_method !== transaction.mips.paymentMethod
+  ) {
+    await writeGatewayFields(req, transaction, name, {
+      paymentMethod: notification.payment_method,
+    });
   }
 
   const check = await lookUp(api, req, transaction);
-  const outcome = await resolve(req, transaction, group, check, settleOnServer(req));
+  const outcome = await resolve(req, transaction, check, settleOnServer(req));
   if (outcome.result === "settled") return reply("success");
   if (outcome.result === "refused") return reply("fail");
   if (outcome.result === "unanswered") {
-    await record(req, transaction, group, outcome.problem, "warn");
+    await record(req, transaction, outcome.problem, "warn");
     return reply("fail", 500);
   }
   if (outcome.status === "waiting") return reply("fail", 500);
   await record(
     req,
     transaction,
-    group,
     outcome.problem ??
-      `mIPS notified a payment, but reports order ${group.reference} as ${outcome.status}.`,
+      `mIPS notified a payment, but reports order ${transaction.mips.reference} as ${outcome.status}.`,
     "warn",
   );
   return reply("fail");
@@ -323,12 +321,12 @@ export const mipsAdapter = ({
       const { cartID, reference } = confirmData.parse(data);
       const transaction = await findByReference(req, reference);
       if (!transaction) throw new Error(`No mIPS transaction has reference ${reference}.`);
-      if (transaction.cart !== cartID) {
+      if (String(transaction.cart) !== String(cartID)) {
         throw new Error(`Transaction ${transaction.id} belongs to another cart.`);
       }
 
       const check = await lookUp(api, req, transaction);
-      const outcome = await resolve(req, transaction, transaction.mips, check, finalizeOrder);
+      const outcome = await resolve(req, transaction, check, finalizeOrder);
       if (outcome.result === "settled") {
         return {
           message: "Payment confirmed.",
@@ -362,7 +360,6 @@ export const mipsAdapter = ({
           await record(
             req,
             transaction,
-            mips,
             `mIPS answered the cancellation of order ${mips.reference} with ${cancel.operation_details ?? cancel.operation_status}, but still reports it as ${check.status}.`,
             "warn",
           );
@@ -370,13 +367,13 @@ export const mipsAdapter = ({
         }
       }
 
-      const outcome = await resolve(req, transaction, mips, check, settleOnServer(req));
+      const outcome = await resolve(req, transaction, check, settleOnServer(req));
       if (outcome.result === "settled") return "settled";
       if (outcome.result === "refused") return "pending";
       if (expiryStep(outcome, createdAt, now) === "expire") {
         return (await expireTransaction(req, transaction)) ? "expired" : "pending";
       }
-      if (outcome.problem) await record(req, transaction, mips, outcome.problem, "warn");
+      if (outcome.problem) await record(req, transaction, outcome.problem, "warn");
       return "pending";
     },
   };

@@ -6,6 +6,7 @@ import {
   getEcommerceCollectionSlugs,
   settleTransaction,
 } from "@payloadcms/plugin-ecommerce";
+import { killTransaction } from "payload";
 import { z } from "zod";
 
 /** The collection slugs the ecommerce plugin was configured with. */
@@ -292,15 +293,15 @@ export const reopenForLatePayment = async (
  */
 export const settlePaidTransaction = async ({
   finalize,
-  group,
   paid,
   req,
+  shippingAddress,
   transaction,
 }: {
   finalize: Finalize;
-  group: Record<string, unknown> & { shippingAddress?: unknown };
   paid: { amount: number; currency: string; id: string };
   req: PayloadRequest;
+  shippingAddress: unknown;
   transaction: Transaction;
 }) => {
   assertPaymentMatches(paid, transaction);
@@ -315,7 +316,7 @@ export const settlePaidTransaction = async ({
           ? { customer: transaction.customer }
           : { customerEmail: transaction.customerEmail }),
         items: transaction.items,
-        ...(group.shippingAddress ? { shippingAddress: group.shippingAddress } : {}),
+        ...(shippingAddress ? { shippingAddress } : {}),
         status: "processing",
       },
     });
@@ -334,21 +335,49 @@ export const settleOnServer =
     settleTransaction({ ...args, req });
 
 /**
- * Writes the gateway's group without touching the transaction's status, so it can't undo a
- * settlement that runs at the same time. Pass the whole group: MongoDB replaces it.
+ * Writes only `fields` of the gateway's group, so it can't undo a concurrent settlement or erase
+ * what another request wrote to the group's other fields. With `whilePending`, it writes only while
+ * the transaction is still `pending`, and returns whether it wrote. The SQL adapters write the
+ * given columns only. MongoDB would replace the whole group, and Offload doesn't run on it.
  */
-export const updateGatewayGroup = async (
+export const writeGatewayFields = async (
   req: PayloadRequest,
   transaction: Transaction,
   name: string,
-  group: Record<string, unknown>,
+  fields: Record<string, unknown>,
+  { whilePending = false }: { whilePending?: boolean } = {},
 ) => {
-  await req.payload.db.updateOne({
-    collection: collectionSlugs(req).transactions,
-    id: transaction.id,
-    data: { [name]: group },
-    req,
-  });
+  const collection = collectionSlugs(req).transactions;
+  const data = { [name]: fields };
+  const written = whilePending
+    ? await req.payload.db.updateOne({
+        collection,
+        data,
+        options: { atomic: true },
+        req,
+        where: {
+          and: [{ id: { equals: transaction.id } }, { status: { equals: "pending" } }],
+        },
+      })
+    : await req.payload.db.updateOne({ collection, id: transaction.id, data, req });
+  return Boolean(written);
+};
+
+/**
+ * Records a payment that must not settle: logs `message` at error level and writes it to the
+ * group's `lastError`, for an admin to refund. Inside confirm-order, core holds a database
+ * transaction that it rolls back when the adapter throws. Nothing in it needs keeping, so this
+ * ends it first, and the flag survives on Postgres as on D1.
+ */
+export const flagPayment = async (
+  req: PayloadRequest,
+  transaction: Transaction,
+  name: string,
+  message: string,
+) => {
+  req.payload.logger.error(message);
+  if (await req.transactionID) await killTransaction(req);
+  await writeGatewayFields(req, transaction, name, { lastError: message });
 };
 
 /**

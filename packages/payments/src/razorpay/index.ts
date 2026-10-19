@@ -14,6 +14,7 @@ import {
   expireTransaction,
   type Finalize,
   findTransaction,
+  flagPayment,
   gatewayFields,
   gatewayGroup,
   PaymentRefused,
@@ -21,7 +22,7 @@ import {
   settleOnServer,
   settlePaidTransaction,
   transactionSchema,
-  updateGatewayGroup,
+  writeGatewayFields,
 } from "../transactions.ts";
 import {
   checkoutTimeoutSeconds,
@@ -62,7 +63,6 @@ const razorpayGroup = z.looseObject({
 const razorpayTransaction = transactionSchema.extend({ razorpay: razorpayGroup.nullish() });
 
 type RazorpayTransaction = z.infer<typeof razorpayTransaction>;
-type RazorpayGroup = z.infer<typeof razorpayGroup>;
 
 const confirmData = z.object({
   cartID: documentID,
@@ -79,16 +79,6 @@ type Outcome =
 
 const findByOrderID = (req: PayloadRequest, orderID: string) =>
   findTransaction(req, { "razorpay.orderID": { equals: orderID } }, razorpayTransaction);
-
-const writeGroup = async (
-  req: PayloadRequest,
-  transaction: RazorpayTransaction,
-  changes: Partial<RazorpayGroup>,
-) => {
-  const group = { ...transaction.razorpay, ...changes };
-  await updateGatewayGroup(req, transaction, name, group);
-  return group;
-};
 
 /** A receipt unique across every database that shares the Razorpay keys, at most 40 characters. */
 const receiptFor = (transactionID: string | number) => {
@@ -134,33 +124,33 @@ export const razorpayAdapter = ({
    * from the Razorpay Dashboard. Throws only for errors that a retry may fix.
    */
   const settle = async ({
-    changes = {},
+    eventID,
     finalize,
     payment,
     req,
     transaction,
   }: {
-    changes?: Partial<RazorpayGroup>;
+    eventID?: string | null;
     finalize: Finalize;
     payment: RazorpayPayment | undefined;
     req: PayloadRequest;
     transaction: RazorpayTransaction;
   }): Promise<Outcome> => {
-    const settledPayment = transaction.status === "succeeded" && transaction.razorpay?.paymentID;
-    const group = await writeGroup(req, transaction, {
-      ...changes,
-      ...(payment && !settledPayment && { paymentID: payment.id }),
-    });
+    if (eventID !== undefined) {
+      await writeGatewayFields(req, transaction, name, { lastEventID: eventID });
+    }
     if (!payment || (payment.status !== "authorized" && payment.status !== "captured")) {
       return { kind: "unsettled" };
     }
     try {
+      const settledPayment = transaction.status === "succeeded" && transaction.razorpay?.paymentID;
       if (settledPayment && settledPayment !== payment.id) {
         throw new PaymentRefused(
           `Payment ${payment.id} was ${payment.status} for transaction ${transaction.id}, which payment ${settledPayment} already settled. Refund payment ${payment.id} from the Razorpay Dashboard.`,
         );
       }
       const open = await reopenForLatePayment(req, transaction, payment.id);
+      await writeGatewayFields(req, open, name, { paymentID: payment.id }, { whilePending: true });
       if (payment.status === "authorized") {
         if (open.status !== "pending") return { kind: "unsettled" };
         assertPaymentMatches(payment, open);
@@ -169,16 +159,15 @@ export const razorpayAdapter = ({
       }
       const order = await settlePaidTransaction({
         finalize,
-        group,
         paid: payment,
         req,
+        shippingAddress: transaction.razorpay?.shippingAddress,
         transaction: open,
       });
       return { kind: "settled", orderID: settledOrder.parse(order).id };
     } catch (error) {
       if (!(error instanceof PaymentRefused)) throw error;
-      req.payload.logger.error(error.message);
-      await updateGatewayGroup(req, transaction, name, { ...group, lastError: error.message });
+      await flagPayment(req, transaction, name, error.message);
       return { kind: "unsettled", error: error.message };
     }
   };
@@ -194,7 +183,7 @@ export const razorpayAdapter = ({
       ? await api.fetchPayment(event.paymentID)
       : paymentToSettle(await api.fetchOrderPayments(event.orderID), event.orderID);
     await settle({
-      changes: { lastEventID: eventID },
+      eventID,
       finalize: settleOnServer(req),
       payment: payment?.order_id === event.orderID ? payment : undefined,
       req,
@@ -229,7 +218,7 @@ export const razorpayAdapter = ({
         receipt: receiptFor(transaction.id),
         notes: { transactionID: String(transaction.id) },
       });
-      await updateGatewayGroup(args.req, transaction, name, {
+      await writeGatewayFields(args.req, transaction, name, {
         orderID: order.id,
         shippingAddress: args.data.shippingAddress,
       });
@@ -321,13 +310,15 @@ export const razorpayAdapter = ({
             }
 
             if (event.kind === "failed") {
-              if (transaction.status === "pending") {
-                await writeGroup(req, transaction, {
-                  lastError: event.error,
-                  lastEventID: eventID,
-                  paymentID: event.paymentID,
-                });
-              }
+              // Only while pending: a failure read before another payment settled the transaction
+              // must not overwrite what that settlement wrote.
+              await writeGatewayFields(
+                req,
+                transaction,
+                name,
+                { lastError: event.error, lastEventID: eventID },
+                { whilePending: true },
+              );
               return Response.json({ received: true });
             }
 
@@ -357,7 +348,7 @@ export const razorpayAdapter = ({
       const createdAt = Date.parse(transaction.createdAt);
       const expire = async (lastError?: string) => {
         const expired = await expireTransaction(req, transaction);
-        if (expired && lastError) await writeGroup(req, transaction, { lastError });
+        if (expired && lastError) await writeGatewayFields(req, transaction, name, { lastError });
         return expired ? "expired" : "pending";
       };
 

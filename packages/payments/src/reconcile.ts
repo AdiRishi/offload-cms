@@ -29,7 +29,6 @@ const processingTimeoutMs = 15 * 60 * 1000;
 const documentID = z.union([z.number(), z.string()]);
 const pendingTransaction = z.object({ id: documentID, paymentMethod: z.string() });
 const stuckTransaction = z.object({ id: documentID, cart: documentID.nullish() });
-const groupOf = z.record(z.string(), z.unknown());
 
 export type ReconcilePaymentsOptions = {
   /** The adapters whose transactions the task reconciles. Pass the ones in `paymentMethods`. */
@@ -125,18 +124,10 @@ const recordError = async (
   paymentMethod: string,
   message: string,
 ) => {
-  const transaction = await req.payload.findByID({
-    collection: collectionSlugs(req).transactions,
-    id,
-    depth: 0,
-    overrideAccess: true,
-    req,
-  });
-  const group = groupOf.safeParse(transaction[paymentMethod]);
   await req.payload.db.updateOne({
     collection: collectionSlugs(req).transactions,
     id,
-    data: { [paymentMethod]: { ...(group.success ? group.data : {}), lastError: message } },
+    data: { [paymentMethod]: { lastError: message } },
     req,
   });
 };
