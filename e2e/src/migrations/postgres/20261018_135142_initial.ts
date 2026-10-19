@@ -91,6 +91,16 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"block_name" varchar
   );
   
+  CREATE TABLE "pages_blocks_pull_quote" (
+  	"_order" integer NOT NULL,
+  	"_parent_id" integer NOT NULL,
+  	"_path" text NOT NULL,
+  	"id" varchar PRIMARY KEY NOT NULL,
+  	"quote" varchar,
+  	"attribution" varchar,
+  	"block_name" varchar
+  );
+  
   CREATE TABLE "pages_breadcrumbs" (
   	"_order" integer NOT NULL,
   	"_parent_id" integer NOT NULL,
@@ -163,6 +173,17 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"_path" text NOT NULL,
   	"id" serial PRIMARY KEY NOT NULL,
   	"body" jsonb,
+  	"_uuid" varchar,
+  	"block_name" varchar
+  );
+  
+  CREATE TABLE "_pages_v_blocks_pull_quote" (
+  	"_order" integer NOT NULL,
+  	"_parent_id" integer NOT NULL,
+  	"_path" text NOT NULL,
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"quote" varchar,
+  	"attribution" varchar,
   	"_uuid" varchar,
   	"block_name" varchar
   );
@@ -335,7 +356,55 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"variants_thumbnail_filesize" numeric,
   	"variants_thumbnail_filename" varchar,
   	"variants_thumbnail_prefix" varchar,
-  	"variants_thumbnail__objectkey" varchar
+  	"variants_thumbnail__objectkey" varchar,
+  	"variants_square_url" varchar,
+  	"variants_square_width" numeric,
+  	"variants_square_height" numeric,
+  	"variants_square_mime_type" varchar,
+  	"variants_square_filesize" numeric,
+  	"variants_square_filename" varchar,
+  	"variants_square_prefix" varchar,
+  	"variants_square__objectkey" varchar,
+  	"variants_small_url" varchar,
+  	"variants_small_width" numeric,
+  	"variants_small_height" numeric,
+  	"variants_small_mime_type" varchar,
+  	"variants_small_filesize" numeric,
+  	"variants_small_filename" varchar,
+  	"variants_small_prefix" varchar,
+  	"variants_small__objectkey" varchar,
+  	"variants_card_url" varchar,
+  	"variants_card_width" numeric,
+  	"variants_card_height" numeric,
+  	"variants_card_mime_type" varchar,
+  	"variants_card_filesize" numeric,
+  	"variants_card_filename" varchar,
+  	"variants_card_prefix" varchar,
+  	"variants_card__objectkey" varchar,
+  	"variants_medium_url" varchar,
+  	"variants_medium_width" numeric,
+  	"variants_medium_height" numeric,
+  	"variants_medium_mime_type" varchar,
+  	"variants_medium_filesize" numeric,
+  	"variants_medium_filename" varchar,
+  	"variants_medium_prefix" varchar,
+  	"variants_medium__objectkey" varchar,
+  	"variants_large_url" varchar,
+  	"variants_large_width" numeric,
+  	"variants_large_height" numeric,
+  	"variants_large_mime_type" varchar,
+  	"variants_large_filesize" numeric,
+  	"variants_large_filename" varchar,
+  	"variants_large_prefix" varchar,
+  	"variants_large__objectkey" varchar,
+  	"variants_og_url" varchar,
+  	"variants_og_width" numeric,
+  	"variants_og_height" numeric,
+  	"variants_og_mime_type" varchar,
+  	"variants_og_filesize" numeric,
+  	"variants_og_filename" varchar,
+  	"variants_og_prefix" varchar,
+  	"variants_og__objectkey" varchar
   );
   
   CREATE TABLE "media_locales" (
@@ -388,6 +457,54 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"version_variants_thumbnail_filename" varchar,
   	"version_variants_thumbnail_prefix" varchar,
   	"version_variants_thumbnail__objectkey" varchar,
+  	"version_variants_square_url" varchar,
+  	"version_variants_square_width" numeric,
+  	"version_variants_square_height" numeric,
+  	"version_variants_square_mime_type" varchar,
+  	"version_variants_square_filesize" numeric,
+  	"version_variants_square_filename" varchar,
+  	"version_variants_square_prefix" varchar,
+  	"version_variants_square__objectkey" varchar,
+  	"version_variants_small_url" varchar,
+  	"version_variants_small_width" numeric,
+  	"version_variants_small_height" numeric,
+  	"version_variants_small_mime_type" varchar,
+  	"version_variants_small_filesize" numeric,
+  	"version_variants_small_filename" varchar,
+  	"version_variants_small_prefix" varchar,
+  	"version_variants_small__objectkey" varchar,
+  	"version_variants_card_url" varchar,
+  	"version_variants_card_width" numeric,
+  	"version_variants_card_height" numeric,
+  	"version_variants_card_mime_type" varchar,
+  	"version_variants_card_filesize" numeric,
+  	"version_variants_card_filename" varchar,
+  	"version_variants_card_prefix" varchar,
+  	"version_variants_card__objectkey" varchar,
+  	"version_variants_medium_url" varchar,
+  	"version_variants_medium_width" numeric,
+  	"version_variants_medium_height" numeric,
+  	"version_variants_medium_mime_type" varchar,
+  	"version_variants_medium_filesize" numeric,
+  	"version_variants_medium_filename" varchar,
+  	"version_variants_medium_prefix" varchar,
+  	"version_variants_medium__objectkey" varchar,
+  	"version_variants_large_url" varchar,
+  	"version_variants_large_width" numeric,
+  	"version_variants_large_height" numeric,
+  	"version_variants_large_mime_type" varchar,
+  	"version_variants_large_filesize" numeric,
+  	"version_variants_large_filename" varchar,
+  	"version_variants_large_prefix" varchar,
+  	"version_variants_large__objectkey" varchar,
+  	"version_variants_og_url" varchar,
+  	"version_variants_og_width" numeric,
+  	"version_variants_og_height" numeric,
+  	"version_variants_og_mime_type" varchar,
+  	"version_variants_og_filesize" numeric,
+  	"version_variants_og_filename" varchar,
+  	"version_variants_og_prefix" varchar,
+  	"version_variants_og__objectkey" varchar,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
@@ -1416,6 +1533,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "pages_blocks_quote_locales" ADD CONSTRAINT "pages_blocks_quote_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages_blocks_quote"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_blocks_cta" ADD CONSTRAINT "pages_blocks_cta_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_blocks_content" ADD CONSTRAINT "pages_blocks_content_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "pages_blocks_pull_quote" ADD CONSTRAINT "pages_blocks_pull_quote_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_breadcrumbs" ADD CONSTRAINT "pages_breadcrumbs_doc_id_pages_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."pages"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "pages_breadcrumbs" ADD CONSTRAINT "pages_breadcrumbs_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages" ADD CONSTRAINT "pages_hero_id_media_id_fk" FOREIGN KEY ("hero_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
@@ -1428,6 +1546,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_pages_v_blocks_quote_locales" ADD CONSTRAINT "_pages_v_blocks_quote_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v_blocks_quote"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_blocks_cta" ADD CONSTRAINT "_pages_v_blocks_cta_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_blocks_content" ADD CONSTRAINT "_pages_v_blocks_content_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_pages_v_blocks_pull_quote" ADD CONSTRAINT "_pages_v_blocks_pull_quote_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_version_breadcrumbs" ADD CONSTRAINT "_pages_v_version_breadcrumbs_doc_id_pages_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."pages"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_pages_v_version_breadcrumbs" ADD CONSTRAINT "_pages_v_version_breadcrumbs_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v" ADD CONSTRAINT "_pages_v_parent_id_pages_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."pages"("id") ON DELETE set null ON UPDATE no action;
@@ -1628,6 +1747,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "pages_blocks_content_order_idx" ON "pages_blocks_content" USING btree ("_order");
   CREATE INDEX "pages_blocks_content_parent_id_idx" ON "pages_blocks_content" USING btree ("_parent_id");
   CREATE INDEX "pages_blocks_content_path_idx" ON "pages_blocks_content" USING btree ("_path");
+  CREATE INDEX "pages_blocks_pull_quote_order_idx" ON "pages_blocks_pull_quote" USING btree ("_order");
+  CREATE INDEX "pages_blocks_pull_quote_parent_id_idx" ON "pages_blocks_pull_quote" USING btree ("_parent_id");
+  CREATE INDEX "pages_blocks_pull_quote_path_idx" ON "pages_blocks_pull_quote" USING btree ("_path");
   CREATE INDEX "pages_breadcrumbs_order_idx" ON "pages_breadcrumbs" USING btree ("_order");
   CREATE INDEX "pages_breadcrumbs_parent_id_idx" ON "pages_breadcrumbs" USING btree ("_parent_id");
   CREATE INDEX "pages_breadcrumbs_locale_idx" ON "pages_breadcrumbs" USING btree ("_locale");
@@ -1654,6 +1776,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_pages_v_blocks_content_order_idx" ON "_pages_v_blocks_content" USING btree ("_order");
   CREATE INDEX "_pages_v_blocks_content_parent_id_idx" ON "_pages_v_blocks_content" USING btree ("_parent_id");
   CREATE INDEX "_pages_v_blocks_content_path_idx" ON "_pages_v_blocks_content" USING btree ("_path");
+  CREATE INDEX "_pages_v_blocks_pull_quote_order_idx" ON "_pages_v_blocks_pull_quote" USING btree ("_order");
+  CREATE INDEX "_pages_v_blocks_pull_quote_parent_id_idx" ON "_pages_v_blocks_pull_quote" USING btree ("_parent_id");
+  CREATE INDEX "_pages_v_blocks_pull_quote_path_idx" ON "_pages_v_blocks_pull_quote" USING btree ("_path");
   CREATE INDEX "_pages_v_version_breadcrumbs_order_idx" ON "_pages_v_version_breadcrumbs" USING btree ("_order");
   CREATE INDEX "_pages_v_version_breadcrumbs_parent_id_idx" ON "_pages_v_version_breadcrumbs" USING btree ("_parent_id");
   CREATE INDEX "_pages_v_version_breadcrumbs_locale_idx" ON "_pages_v_version_breadcrumbs" USING btree ("_locale");
@@ -1726,6 +1851,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE UNIQUE INDEX "media_filename_idx" ON "media" USING btree ("filename");
   CREATE INDEX "media_original_original_filename_idx" ON "media" USING btree ("original_filename");
   CREATE INDEX "media_variants_thumbnail_variants_thumbnail_filename_idx" ON "media" USING btree ("variants_thumbnail_filename");
+  CREATE INDEX "media_variants_square_variants_square_filename_idx" ON "media" USING btree ("variants_square_filename");
+  CREATE INDEX "media_variants_small_variants_small_filename_idx" ON "media" USING btree ("variants_small_filename");
+  CREATE INDEX "media_variants_card_variants_card_filename_idx" ON "media" USING btree ("variants_card_filename");
+  CREATE INDEX "media_variants_medium_variants_medium_filename_idx" ON "media" USING btree ("variants_medium_filename");
+  CREATE INDEX "media_variants_large_variants_large_filename_idx" ON "media" USING btree ("variants_large_filename");
+  CREATE INDEX "media_variants_og_variants_og_filename_idx" ON "media" USING btree ("variants_og_filename");
   CREATE UNIQUE INDEX "media_locales_locale_parent_id_unique" ON "media_locales" USING btree ("_locale","_parent_id");
   CREATE INDEX "media_rels_order_idx" ON "media_rels" USING btree ("order");
   CREATE INDEX "media_rels_parent_idx" ON "media_rels" USING btree ("parent_id");
@@ -1739,6 +1870,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_media_v_version_version_filename_idx" ON "_media_v" USING btree ("version_filename");
   CREATE INDEX "_media_v_version_original_version_original_filename_idx" ON "_media_v" USING btree ("version_original_filename");
   CREATE INDEX "_media_v_version_variants_thumbnail_version_variants_thu_idx" ON "_media_v" USING btree ("version_variants_thumbnail_filename");
+  CREATE INDEX "_media_v_version_variants_square_version_variants_square_idx" ON "_media_v" USING btree ("version_variants_square_filename");
+  CREATE INDEX "_media_v_version_variants_small_version_variants_small_f_idx" ON "_media_v" USING btree ("version_variants_small_filename");
+  CREATE INDEX "_media_v_version_variants_card_version_variants_card_fil_idx" ON "_media_v" USING btree ("version_variants_card_filename");
+  CREATE INDEX "_media_v_version_variants_medium_version_variants_medium_idx" ON "_media_v" USING btree ("version_variants_medium_filename");
+  CREATE INDEX "_media_v_version_variants_large_version_variants_large_f_idx" ON "_media_v" USING btree ("version_variants_large_filename");
+  CREATE INDEX "_media_v_version_variants_og_version_variants_og_filenam_idx" ON "_media_v" USING btree ("version_variants_og_filename");
   CREATE INDEX "_media_v_created_at_idx" ON "_media_v" USING btree ("created_at");
   CREATE INDEX "_media_v_updated_at_idx" ON "_media_v" USING btree ("updated_at");
   CREATE UNIQUE INDEX "_media_v_locales_locale_parent_id_unique" ON "_media_v_locales" USING btree ("_locale","_parent_id");
@@ -2064,6 +2201,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "pages_blocks_quote_locales" CASCADE;
   DROP TABLE "pages_blocks_cta" CASCADE;
   DROP TABLE "pages_blocks_content" CASCADE;
+  DROP TABLE "pages_blocks_pull_quote" CASCADE;
   DROP TABLE "pages_breadcrumbs" CASCADE;
   DROP TABLE "pages" CASCADE;
   DROP TABLE "pages_locales" CASCADE;
@@ -2072,6 +2210,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "_pages_v_blocks_quote_locales" CASCADE;
   DROP TABLE "_pages_v_blocks_cta" CASCADE;
   DROP TABLE "_pages_v_blocks_content" CASCADE;
+  DROP TABLE "_pages_v_blocks_pull_quote" CASCADE;
   DROP TABLE "_pages_v_version_breadcrumbs" CASCADE;
   DROP TABLE "_pages_v" CASCADE;
   DROP TABLE "_pages_v_locales" CASCADE;

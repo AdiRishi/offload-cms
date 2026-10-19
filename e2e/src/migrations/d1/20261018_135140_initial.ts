@@ -93,6 +93,20 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`pages_blocks_content_order_idx\` ON \`pages_blocks_content\` (\`_order\`);`)
   await db.run(sql`CREATE INDEX \`pages_blocks_content_parent_id_idx\` ON \`pages_blocks_content\` (\`_parent_id\`);`)
   await db.run(sql`CREATE INDEX \`pages_blocks_content_path_idx\` ON \`pages_blocks_content\` (\`_path\`);`)
+  await db.run(sql`CREATE TABLE \`pages_blocks_pull_quote\` (
+  	\`_order\` integer NOT NULL,
+  	\`_parent_id\` integer NOT NULL,
+  	\`_path\` text NOT NULL,
+  	\`id\` text PRIMARY KEY NOT NULL,
+  	\`quote\` text,
+  	\`attribution\` text,
+  	\`block_name\` text,
+  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`pages_blocks_pull_quote_order_idx\` ON \`pages_blocks_pull_quote\` (\`_order\`);`)
+  await db.run(sql`CREATE INDEX \`pages_blocks_pull_quote_parent_id_idx\` ON \`pages_blocks_pull_quote\` (\`_parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`pages_blocks_pull_quote_path_idx\` ON \`pages_blocks_pull_quote\` (\`_path\`);`)
   await db.run(sql`CREATE TABLE \`pages_breadcrumbs\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -207,6 +221,21 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_pages_v_blocks_content_order_idx\` ON \`_pages_v_blocks_content\` (\`_order\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_blocks_content_parent_id_idx\` ON \`_pages_v_blocks_content\` (\`_parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_blocks_content_path_idx\` ON \`_pages_v_blocks_content\` (\`_path\`);`)
+  await db.run(sql`CREATE TABLE \`_pages_v_blocks_pull_quote\` (
+  	\`_order\` integer NOT NULL,
+  	\`_parent_id\` integer NOT NULL,
+  	\`_path\` text NOT NULL,
+  	\`id\` integer PRIMARY KEY NOT NULL,
+  	\`quote\` text,
+  	\`attribution\` text,
+  	\`_uuid\` text,
+  	\`block_name\` text,
+  	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_pages_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
+  );
+  `)
+  await db.run(sql`CREATE INDEX \`_pages_v_blocks_pull_quote_order_idx\` ON \`_pages_v_blocks_pull_quote\` (\`_order\`);`)
+  await db.run(sql`CREATE INDEX \`_pages_v_blocks_pull_quote_parent_id_idx\` ON \`_pages_v_blocks_pull_quote\` (\`_parent_id\`);`)
+  await db.run(sql`CREATE INDEX \`_pages_v_blocks_pull_quote_path_idx\` ON \`_pages_v_blocks_pull_quote\` (\`_path\`);`)
   await db.run(sql`CREATE TABLE \`_pages_v_version_breadcrumbs\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -472,6 +501,54 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`variants_thumbnail_filename\` text,
   	\`variants_thumbnail_prefix\` text,
   	\`variants_thumbnail__objectkey\` text,
+  	\`variants_square_url\` text,
+  	\`variants_square_width\` numeric,
+  	\`variants_square_height\` numeric,
+  	\`variants_square_mime_type\` text,
+  	\`variants_square_filesize\` numeric,
+  	\`variants_square_filename\` text,
+  	\`variants_square_prefix\` text,
+  	\`variants_square__objectkey\` text,
+  	\`variants_small_url\` text,
+  	\`variants_small_width\` numeric,
+  	\`variants_small_height\` numeric,
+  	\`variants_small_mime_type\` text,
+  	\`variants_small_filesize\` numeric,
+  	\`variants_small_filename\` text,
+  	\`variants_small_prefix\` text,
+  	\`variants_small__objectkey\` text,
+  	\`variants_card_url\` text,
+  	\`variants_card_width\` numeric,
+  	\`variants_card_height\` numeric,
+  	\`variants_card_mime_type\` text,
+  	\`variants_card_filesize\` numeric,
+  	\`variants_card_filename\` text,
+  	\`variants_card_prefix\` text,
+  	\`variants_card__objectkey\` text,
+  	\`variants_medium_url\` text,
+  	\`variants_medium_width\` numeric,
+  	\`variants_medium_height\` numeric,
+  	\`variants_medium_mime_type\` text,
+  	\`variants_medium_filesize\` numeric,
+  	\`variants_medium_filename\` text,
+  	\`variants_medium_prefix\` text,
+  	\`variants_medium__objectkey\` text,
+  	\`variants_large_url\` text,
+  	\`variants_large_width\` numeric,
+  	\`variants_large_height\` numeric,
+  	\`variants_large_mime_type\` text,
+  	\`variants_large_filesize\` numeric,
+  	\`variants_large_filename\` text,
+  	\`variants_large_prefix\` text,
+  	\`variants_large__objectkey\` text,
+  	\`variants_og_url\` text,
+  	\`variants_og_width\` numeric,
+  	\`variants_og_height\` numeric,
+  	\`variants_og_mime_type\` text,
+  	\`variants_og_filesize\` numeric,
+  	\`variants_og_filename\` text,
+  	\`variants_og_prefix\` text,
+  	\`variants_og__objectkey\` text,
   	FOREIGN KEY (\`_h_folders_id\`) REFERENCES \`folders\`(\`id\`) ON UPDATE no action ON DELETE set null
   );
   `)
@@ -481,6 +558,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE UNIQUE INDEX \`media_filename_idx\` ON \`media\` (\`filename\`);`)
   await db.run(sql`CREATE INDEX \`media_original_original_filename_idx\` ON \`media\` (\`original_filename\`);`)
   await db.run(sql`CREATE INDEX \`media_variants_thumbnail_variants_thumbnail_filename_idx\` ON \`media\` (\`variants_thumbnail_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_square_variants_square_filename_idx\` ON \`media\` (\`variants_square_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_small_variants_small_filename_idx\` ON \`media\` (\`variants_small_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_card_variants_card_filename_idx\` ON \`media\` (\`variants_card_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_medium_variants_medium_filename_idx\` ON \`media\` (\`variants_medium_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_large_variants_large_filename_idx\` ON \`media\` (\`variants_large_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_og_variants_og_filename_idx\` ON \`media\` (\`variants_og_filename\`);`)
   await db.run(sql`CREATE TABLE \`media_locales\` (
   	\`caption\` text,
   	\`id\` integer PRIMARY KEY NOT NULL,
@@ -541,6 +624,54 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`version_variants_thumbnail_filename\` text,
   	\`version_variants_thumbnail_prefix\` text,
   	\`version_variants_thumbnail__objectkey\` text,
+  	\`version_variants_square_url\` text,
+  	\`version_variants_square_width\` numeric,
+  	\`version_variants_square_height\` numeric,
+  	\`version_variants_square_mime_type\` text,
+  	\`version_variants_square_filesize\` numeric,
+  	\`version_variants_square_filename\` text,
+  	\`version_variants_square_prefix\` text,
+  	\`version_variants_square__objectkey\` text,
+  	\`version_variants_small_url\` text,
+  	\`version_variants_small_width\` numeric,
+  	\`version_variants_small_height\` numeric,
+  	\`version_variants_small_mime_type\` text,
+  	\`version_variants_small_filesize\` numeric,
+  	\`version_variants_small_filename\` text,
+  	\`version_variants_small_prefix\` text,
+  	\`version_variants_small__objectkey\` text,
+  	\`version_variants_card_url\` text,
+  	\`version_variants_card_width\` numeric,
+  	\`version_variants_card_height\` numeric,
+  	\`version_variants_card_mime_type\` text,
+  	\`version_variants_card_filesize\` numeric,
+  	\`version_variants_card_filename\` text,
+  	\`version_variants_card_prefix\` text,
+  	\`version_variants_card__objectkey\` text,
+  	\`version_variants_medium_url\` text,
+  	\`version_variants_medium_width\` numeric,
+  	\`version_variants_medium_height\` numeric,
+  	\`version_variants_medium_mime_type\` text,
+  	\`version_variants_medium_filesize\` numeric,
+  	\`version_variants_medium_filename\` text,
+  	\`version_variants_medium_prefix\` text,
+  	\`version_variants_medium__objectkey\` text,
+  	\`version_variants_large_url\` text,
+  	\`version_variants_large_width\` numeric,
+  	\`version_variants_large_height\` numeric,
+  	\`version_variants_large_mime_type\` text,
+  	\`version_variants_large_filesize\` numeric,
+  	\`version_variants_large_filename\` text,
+  	\`version_variants_large_prefix\` text,
+  	\`version_variants_large__objectkey\` text,
+  	\`version_variants_og_url\` text,
+  	\`version_variants_og_width\` numeric,
+  	\`version_variants_og_height\` numeric,
+  	\`version_variants_og_mime_type\` text,
+  	\`version_variants_og_filesize\` numeric,
+  	\`version_variants_og_filename\` text,
+  	\`version_variants_og_prefix\` text,
+  	\`version_variants_og__objectkey\` text,
   	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null,
@@ -554,6 +685,12 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_media_v_version_version_filename_idx\` ON \`_media_v\` (\`version_filename\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_version_original_version_original_filename_idx\` ON \`_media_v\` (\`version_original_filename\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_version_variants_thumbnail_version_variants_thu_idx\` ON \`_media_v\` (\`version_variants_thumbnail_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_square_version_variants_square_idx\` ON \`_media_v\` (\`version_variants_square_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_small_version_variants_small_f_idx\` ON \`_media_v\` (\`version_variants_small_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_card_version_variants_card_fil_idx\` ON \`_media_v\` (\`version_variants_card_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_medium_version_variants_medium_idx\` ON \`_media_v\` (\`version_variants_medium_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_large_version_variants_large_f_idx\` ON \`_media_v\` (\`version_variants_large_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_og_version_variants_og_filenam_idx\` ON \`_media_v\` (\`version_variants_og_filename\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_created_at_idx\` ON \`_media_v\` (\`created_at\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_updated_at_idx\` ON \`_media_v\` (\`updated_at\`);`)
   await db.run(sql`CREATE TABLE \`_media_v_locales\` (
@@ -2070,6 +2207,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   await db.run(sql`DROP TABLE \`pages_blocks_quote\`;`)
   await db.run(sql`DROP TABLE \`pages_blocks_cta\`;`)
   await db.run(sql`DROP TABLE \`pages_blocks_content\`;`)
+  await db.run(sql`DROP TABLE \`pages_blocks_pull_quote\`;`)
   await db.run(sql`DROP TABLE \`pages_breadcrumbs\`;`)
   await db.run(sql`DROP TABLE \`pages_locales\`;`)
   await db.run(sql`DROP TABLE \`_pages_v_version_breadcrumbs\`;`)
@@ -2077,6 +2215,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   await db.run(sql`DROP TABLE \`_pages_v_blocks_quote\`;`)
   await db.run(sql`DROP TABLE \`_pages_v_blocks_cta\`;`)
   await db.run(sql`DROP TABLE \`_pages_v_blocks_content\`;`)
+  await db.run(sql`DROP TABLE \`_pages_v_blocks_pull_quote\`;`)
   await db.run(sql`DROP TABLE \`_pages_v_locales\`;`)
   await db.run(sql`DROP TABLE \`_pages_v\`;`)
   await db.run(sql`DROP TABLE \`header_navigation\`;`)
