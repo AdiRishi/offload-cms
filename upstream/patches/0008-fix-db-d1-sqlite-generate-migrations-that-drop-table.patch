@@ -1,0 +1,184 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 00:22:28 +1100
+Subject: [PATCH] fix(db-d1-sqlite): generate migrations that drop tables in an
+ order D1 accepts
+
+On D1, payload migrate:down on a generated migration that created a
+collection with versions stops with "no such table: main.pages" and leaves
+the database half migrated. D1 runs a migration without a transaction, so the
+"Rolling back" in the log rolls nothing back, and the next migrate or
+migrate:down fails on the tables that are already gone.
+
+drizzle-kit writes DROP TABLE statements in the order of the snapshot the
+migration starts from, and Payload builds a collection's table before its
+version tables. D1 always enforces foreign keys and ignores PRAGMA
+foreign_keys = OFF. Dropping a table fails when another table that references
+it also references a table that is already dropped, as _pages_v_rels does for
+_pages_v and pages, and PRAGMA defer_foreign_keys = on doesn't prevent that.
+
+The D1 adapter's drizzle-kit now puts the snapshot in drop order first, so a
+generated migration drops each table before the tables it references. The
+fix has to be in the generated SQL: a migration is code that the adapter runs
+statement by statement, and no PRAGMA lets D1 drop the tables in the old
+order. Migrations generated before this change keep their order. The libSQL
+adapter keeps drizzle-kit's order.
+
+Offload-Patch: d1-migration-drop-order
+Drop-When: the pinned release generates SQLite migrations that drop each table before the tables it references
+Tests: pnpm exec vitest run --project unit packages/db-d1-sqlite/src/requireDrizzleKit.spec.ts; e2e suite (e2e/scripts/prepare.ts runs migrate:down on D1)
+---
+ packages/db-d1-sqlite/src/index.ts            |  2 +-
+ .../src/requireDrizzleKit.spec.ts             | 77 +++++++++++++++++++
+ .../db-d1-sqlite/src/requireDrizzleKit.ts     | 38 +++++++++
+ 3 files changed, 116 insertions(+), 1 deletion(-)
+ create mode 100644 packages/db-d1-sqlite/src/requireDrizzleKit.spec.ts
+ create mode 100644 packages/db-d1-sqlite/src/requireDrizzleKit.ts
+
+diff --git a/packages/db-d1-sqlite/src/index.ts b/packages/db-d1-sqlite/src/index.ts
+index 1f0a84c5d..5c03e0ede 100644
+--- a/packages/db-d1-sqlite/src/index.ts
++++ b/packages/db-d1-sqlite/src/index.ts
+@@ -48,7 +48,6 @@ import {
+   deleteWhere,
+   init,
+   insert,
+-  requireDrizzleKit,
+ } from '@payloadcms/drizzle/sqlite'
+ import { like, notLike } from 'drizzle-orm'
+ import { createDatabaseAdapter, defaultBeginTransaction, findMigrationDir } from 'payload'
+@@ -59,6 +58,7 @@ import type { Args, SQLiteD1Adapter } from './types.js'
+ import { connect } from './connect.js'
+ import { dropDatabase } from './dropDatabase.js'
+ import { execute } from './execute.js'
++import { requireDrizzleKit } from './requireDrizzleKit.js'
+ 
+ const filename = fileURLToPath(import.meta.url)
+ 
+diff --git a/packages/db-d1-sqlite/src/requireDrizzleKit.spec.ts b/packages/db-d1-sqlite/src/requireDrizzleKit.spec.ts
+new file mode 100644
+index 000000000..d6c91d218
+--- /dev/null
++++ b/packages/db-d1-sqlite/src/requireDrizzleKit.spec.ts
+@@ -0,0 +1,77 @@
++import type { PlatformProxy } from 'wrangler'
++
++import { defaultDrizzleSnapshot } from '@payloadcms/drizzle/sqlite'
++import { sql } from 'drizzle-orm'
++import { type AnyD1Database, drizzle } from 'drizzle-orm/d1'
++import { integer, sqliteTable } from 'drizzle-orm/sqlite-core'
++import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
++import { tmpdir } from 'node:os'
++import path from 'node:path'
++import { afterAll, beforeAll, describe, expect, it } from 'vitest'
++
++import { requireDrizzleKit } from './requireDrizzleKit.js'
++
++// Payload's tables for a collection with versions and a relationship, in the order Payload builds them.
++const pages = sqliteTable('pages', { id: integer('id').primaryKey() })
++const pagesVersions = sqliteTable('_pages_v', {
++  id: integer('id').primaryKey(),
++  parent: integer('parent_id').references(() => pages.id, { onDelete: 'set null' }),
++})
++const pagesVersionsRels = sqliteTable('_pages_v_rels', {
++  id: integer('id').primaryKey(),
++  pagesID: integer('pages_id').references(() => pages.id, { onDelete: 'cascade' }),
++  parent: integer('parent_id').references(() => pagesVersions.id, { onDelete: 'cascade' }),
++})
++
++describe('requireDrizzleKit', () => {
++  let configDir: string
++  let platform: PlatformProxy<{ DB: AnyD1Database }>
++
++  beforeAll(async () => {
++    configDir = mkdtempSync(path.join(tmpdir(), 'd1-drizzle-kit-'))
++    writeFileSync(
++      path.join(configDir, 'wrangler.json'),
++      JSON.stringify({
++        compatibility_date: '2026-01-01',
++        d1_databases: [{ binding: 'DB', database_id: 'drizzle-kit', database_name: 'test' }],
++        name: 'd1-drizzle-kit',
++      }),
++    )
++    const { getPlatformProxy } = await import('wrangler')
++    platform = await getPlatformProxy({
++      configPath: path.join(configDir, 'wrangler.json'),
++      persist: false,
++    })
++  })
++
++  afterAll(async () => {
++    await platform.dispose()
++    rmSync(configDir, { force: true, recursive: true })
++  })
++
++  it('generates a down migration that D1 runs on tables with rows', async () => {
++    const { generateDrizzleJson, generateMigration } = requireDrizzleKit()
++    const schema = await generateDrizzleJson({
++      pages,
++      _pages_v: pagesVersions,
++      _pages_v_rels: pagesVersionsRels,
++    })
++    const db = drizzle(platform.env.DB)
++
++    for (const statement of await generateMigration(defaultDrizzleSnapshot, schema)) {
++      await db.run(sql.raw(statement))
++    }
++    await db.run(sql`INSERT INTO pages VALUES (1)`)
++    await db.run(sql`INSERT INTO _pages_v VALUES (1, 1)`)
++    await db.run(sql`INSERT INTO _pages_v_rels VALUES (1, 1, 1)`)
++
++    for (const statement of await generateMigration(schema, defaultDrizzleSnapshot)) {
++      await db.run(sql.raw(statement))
++    }
++
++    const tables = await db.all<{ name: string }>(
++      sql`SELECT name FROM sqlite_master WHERE type = 'table'`,
++    )
++    expect(tables.map(({ name }) => name)).toEqual(['_cf_METADATA'])
++  })
++})
+diff --git a/packages/db-d1-sqlite/src/requireDrizzleKit.ts b/packages/db-d1-sqlite/src/requireDrizzleKit.ts
+new file mode 100644
+index 000000000..7d0543d77
+--- /dev/null
++++ b/packages/db-d1-sqlite/src/requireDrizzleKit.ts
+@@ -0,0 +1,38 @@
++import type { RequireDrizzleKit } from '@payloadcms/drizzle'
++
++import { requireDrizzleKit as requireSQLiteDrizzleKit } from '@payloadcms/drizzle/sqlite'
++
++import { dropOrder } from './dropOrder.js'
++
++type Snapshot = {
++  tables: Record<string, { foreignKeys: Record<string, { tableTo: string }> }>
++}
++
++const inDropOrder = (snapshot: Snapshot): Snapshot => {
++  const order = dropOrder(
++    Object.fromEntries(
++      Object.entries(snapshot.tables).map(([name, table]) => [
++        name,
++        Object.values(table.foreignKeys).map(({ tableTo }) => tableTo),
++      ]),
++    ),
++  )
++
++  return {
++    ...snapshot,
++    tables: Object.fromEntries(order.map((name) => [name, snapshot.tables[name]!])),
++  }
++}
++
++/**
++ * drizzle-kit drops tables in the order of the snapshot that a migration starts from. Putting that
++ * snapshot in drop order makes the DROP TABLE statements of a generated migration run on D1.
++ */
++export const requireDrizzleKit: RequireDrizzleKit = () => {
++  const drizzleKit = requireSQLiteDrizzleKit()
++
++  return {
++    ...drizzleKit,
++    generateMigration: (prev, cur) => drizzleKit.generateMigration(inDropOrder(prev), cur),
++  }
++}

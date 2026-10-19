@@ -21,6 +21,14 @@ D1 allows at most 100 columns in a table and 100 bound parameters in a statement
 
 Payload binds every column of a document twice when it saves an update, and binds every stored file name once per filename column when it deletes an upload. On D1, either can pass 100 parameters. Two patches keep them within the limit: [one column, one parameter](/patches/d1-upsert-bound-parameters) for updates and [batched file lookups](/patches/d1-file-lookup-bound-parameters) for deletes. An update can still fail on a table at the 100-column limit when the update has a `where` condition, because the condition binds its own values.
 
+D1 runs a migration without a transaction. When a migration fails partway, Payload logs "Rolling back", but the statements that already ran stay applied, and the next `migrate` or `migrate:down` can fail on what they changed. Run `migrate:down` against a local copy of the data before you run it on a deployed database. To undo a failed migration on a deployed database, restore the database with [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/):
+
+```bash
+pnpm wrangler d1 time-travel restore <database> --timestamp=<a time before the migration>
+```
+
+D1 always enforces foreign keys, and it ignores `PRAGMA foreign_keys = OFF`. A migration that drops a table before the tables that reference it can stop with "no such table". The [migration drop order patch](/patches/d1-migration-drop-order) makes `payload migrate:create` write the `DROP TABLE` statements in that order. A migration created with an earlier Offload release can have them in the wrong order. Fix its `down` by moving the statements for a collection's version and relationship tables, such as `_pages_v_rels` and `_pages_v`, above the statement for the collection's own table, `pages`.
+
 ## Passwords
 
 A deployed Worker rejects PBKDF2 with more than 100,000 iterations, and Payload uses 600,000. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes with 100,000 iterations on Workers, which is below OWASP's recommendation of 600,000 for PBKDF2-SHA256.
