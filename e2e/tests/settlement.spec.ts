@@ -275,7 +275,9 @@ test("a failed payment's late webhook doesn't make the payment that settled look
   const { cart } = await shirtInCart(api, anonymous.request);
   const { orderID } = await initiateRazorpay(anonymous.request, cart);
 
-  // The customer's first attempt fails, the second succeeds, and the browser confirms it.
+  // The customer's first attempt fails and the second succeeds. The browser confirms the second
+  // while the first one's failure webhook arrives, so the webhook may read the transaction while
+  // it is still pending.
   const failed = await razorpay.pay(anonymous.request, orderID, {
     outcome: "failed",
     deliver: false,
@@ -284,14 +286,14 @@ test("a failed payment's late webhook doesn't make the payment that settled look
     outcome: "captured",
     deliver: false,
   });
-  const confirmed = await confirmOrder(anonymous.request, "razorpay", cart, { ...paid.checkout });
-  expect(confirmed.status(), await confirmed.text()).toBe(200);
-
-  // Then the webhooks arrive: the failure first, late, then the capture.
   const failure = sent(failed.deliveries.find((delivery) => delivery.event === "payment.failed"));
   const capture = sent(paid.deliveries.find((delivery) => delivery.event === "payment.captured"));
-  // The failure is handled before the answer, and must not touch the settled transaction.
-  expect((await razorpay.send(anonymous.request, failure.id)).response?.status).toBe(200);
+  const [confirmed, failureAnswer] = await Promise.all([
+    confirmOrder(anonymous.request, "razorpay", cart, { ...paid.checkout }),
+    razorpay.send(anonymous.request, failure.id),
+  ]);
+  expect(confirmed.status(), await confirmed.text()).toBe(200);
+  expect(failureAnswer.response?.status).toBe(200);
   expect((await razorpayTransactionOf(api, orderID)).razorpay).toMatchObject({
     paymentID: paid.payment.id,
   });
