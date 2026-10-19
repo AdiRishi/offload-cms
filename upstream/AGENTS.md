@@ -1,12 +1,15 @@
 # upstream
 
-`@repo/upstream` is Offload's fork of Payload: the pinned release, the patches on top of it, and the `upstream` CLI that manages both.
+`@repo/upstream` pins the Payload release that Offload builds on, holds the patches applied to it, and has the `upstream` CLI that manages both.
 
-- `payload.json` pins the Payload repository, tag and commit, and the Offload `revision` on top of that tag. A release is `<tag>-offload.<revision>`. Bump `revision` for every change that should publish, and reset it to 0 on a new tag; `pnpm upstream upgrade` does that.
-- `patches/` holds one `git format-patch` file per change to Payload. They are output of `pnpm upstream export`, so never edit them by hand.
-- `payload/` is the checkout: Payload at the pinned commit with the patches applied on branch `offload`. `pnpm upstream checkout` creates it, and it is gitignored. It has its own git repository, pnpm workspace and Turborepo config.
-- `src/` is the CLI. `pin.ts` is the package's public entry, which `release` and `docs` import for the version and package names.
+`payload/` is a separate git repository: Payload at the pinned commit, with the patches applied as commits on branch `offload`. `pnpm upstream checkout` creates it. It has its own pnpm workspace and Turborepo config.
 
-To change Payload, commit in `payload/` with the message format in `docs/content/contributing/changing-payload.mdx`, then run `pnpm upstream export`. It rewrites `patches/` and the patch pages in `docs/content/patches/` from the commit messages, so the commit message is the only place a patch's intent, upstream link, drop condition and tests are written.
+## Change Payload
 
-`pnpm build` runs `upstream build`, which refuses to build a checkout that isn't the pin plus the patches. Export your commits, or reset the checkout with `pnpm upstream checkout --force`.
+1. Commit the change in `payload/`. The commit message is the only record of the patch's intent, so write it in the format that `docs/content/contributing/making-changes.mdx` describes.
+2. Run `pnpm upstream export`. It rewrites `patches/` and the patch pages in `docs/content/patches/` from the commits, so change those through a commit and an export.
+3. Bump `revision` in `payload.json` when the change should publish. A push to `main` with a new revision releases to GitHub Packages once CI passes.
+
+`pnpm build` refuses a checkout that differs from the pin plus the patches. Export your commits first, or reset the checkout with `pnpm upstream checkout --force`.
+
+To move to a newer Payload release, use the `upgrade-payload` skill.

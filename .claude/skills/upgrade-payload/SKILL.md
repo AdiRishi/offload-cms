@@ -42,7 +42,7 @@ Done when the build and every `Tests` command pass.
 ## 4. Verify Offload end to end
 
 1. Apply the site-facing breaking changes from step 1 to `packages/` and `e2e`.
-2. Run `pnpm release e2e`. It installs the new release into `e2e`; schema changes can fail it until step 3.
+2. Run `pnpm release e2e`. It installs the new release into `e2e`. A schema change can fail this run, and step 3 fixes that.
 3. In `e2e`, run `pnpm payload migrate:create` and `CLOUDFLARE_ENV=postgres pnpm payload migrate:create`. Each generates a migration only when the schema changed.
 4. Run `pnpm release e2e` and `pnpm release e2e --postgres` from the root.
 
@@ -50,9 +50,9 @@ Done when both suites pass.
 
 ## 5. Verify on Cloudflare
 
-Some behaviour exists only on deployed Workers; password hashing limits are the known case. The suite runs only locally. If a staging Worker is configured, deploy `e2e` to it, then log in to its admin and publish a page.
+Some behaviour exists only on a deployed Worker. The Workers limit on password hashing is the known case, and the suite runs only locally. From `e2e`, run `pnpm deploy:staging`. Then log in to the staging admin with the credentials in `e2e/.staging-admin.json` and publish a page.
 
-Done when that works on staging, or when the report says staging is not configured.
+Done when the login and the publish work on staging, or when the report says why staging could not run.
 
 ## 6. Report
 

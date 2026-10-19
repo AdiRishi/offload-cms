@@ -1,14 +1,12 @@
 # Offload
 
-Offload is upstream Payload v4 plus the patch series in `upstream/patches`, published as `@adirishi/offload-*`. The documentation site in `docs/` has the layout and commands, in `docs/content/contributing/`.
+Offload republishes Payload CMS v4 as `@adirishi/offload-*`, with a short patch series and packages that run Payload sites on Cloudflare Workers.
 
-- `upstream/AGENTS.md` explains the Payload fork. Change Payload by committing in `upstream/payload`, then run `pnpm upstream export`. `upstream/patches` and `docs/content/patches/[0-9]*.md` are export output.
-- Put new behaviour in site code, or in a package in `packages/`, whenever Payload's config or plugin API can express it. A patch is for behaviour with no extension point.
-- `upstream/` and `release/` are workspace packages whose CLIs Node runs straight from TypeScript. Every TypeScript workspace package extends a config from `@repo/tsconfig`. A new published package in `packages/` must also be a dependency of `release/package.json`.
-- Every dependency of a root workspace package names `catalog:`, with its version in `pnpm-workspace.yaml`. Peer ranges and `e2e/` keep their own versions.
-- `docs/` is a Blume site; write pages as Markdown or MDX in `docs/content`. Read the Blume skill bundled at `docs/node_modules/blume/skills/blume/SKILL.md` before changing it. `pnpm docs:dev` serves it locally.
-- `e2e` installs Offload from a registry. Test a change to `packages/` or to a patch with `pnpm release e2e` and `pnpm release e2e --postgres`, which publish the working tree to a throwaway registry first. The suite covers what Offload changes and the main editor flows, not Payload's own features.
-- Finish with `pnpm check`, plus `pnpm format:fix` and `pnpm lint:fix` when it reports problems. CI runs `pnpm check` and the e2e suite on every push. Bumping `revision` in `upstream/payload.json` publishes a release to GitHub Packages once CI passes on `main`.
+- This is a pnpm workspace. Each external dependency names `catalog:`, and its version lives in `pnpm-workspace.yaml`. Peer ranges keep their own versions.
+- Put new behaviour in a package in `packages/` when Payload's config or plugin API can express it. Patch Payload only when no extension point exists. `upstream/AGENTS.md` explains how a patch is made.
+- Test a change to `packages/` or to a patch with `pnpm release e2e` and `pnpm release e2e --postgres`. Both publish the working tree to a throwaway registry and run the suite in `e2e/`.
+- Finish with `pnpm check`. `pnpm format:fix` and `pnpm lint:fix` fix most of what it reports.
+- The contributor docs in `docs/content/contributing/` cover the layout, testing, and releases.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

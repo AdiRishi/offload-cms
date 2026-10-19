@@ -22,7 +22,7 @@
       "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-e2e" }],
     },
     // A real deployment on Cloudflare, for behaviour that local workerd doesn't reproduce.
-    // Deploy with CLOUDFLARE_ENV=staging (see README).
+    // Deploy with `pnpm deploy:staging`.
     "staging": {
       "account_id": "34c911069f69b7cc1f38573958c3db45",
       "d1_databases": [
