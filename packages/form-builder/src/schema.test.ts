@@ -78,7 +78,7 @@ test("accepts a submission that leaves out its optional fields", () => {
 });
 
 test("reports a required field that the submission leaves out as required", () => {
-  const { email, ...withoutEmail } = complete;
+  const { email: _email, ...withoutEmail } = complete;
 
   assert.deepEqual(errorsOf(withoutEmail).email, ["This field is required."]);
 });
