@@ -27,6 +27,8 @@ A change goes in the first place that can hold it:
 
 The proof of concept that started Offload needed ten fixes to run Payload on Workers. Eight fit in a Vite preset and a Worker entry, which became `@adirishi/offload-cloudflare`. The ninth, the GraphQL route, is one route file. Only password hashing needed a change inside Payload.
 
+One kind of patch adds no behaviour of Offload's own: a backport of an upstream package that Payload hasn't released yet. The [Cloudflare Images transformer](/patches/transformer-cloudflare) is one. Upload transformers are an extension point, so a package in `packages/` could hold it, but that copy would fork code that upstream maintains, and it would publish under the name that upstream's package gets. The backport publishes like every other Payload package and goes away when the pinned release includes it.
+
 Patches are the expensive layer. Each one must be carried across every Payload upgrade, and each one is a way Offload differs from the Payload that Payload's docs describe. So a patch says when it can go: its `Drop-When` names the upstream fix that makes it unnecessary. The series should shrink over time.
 
 ## Patches are files, not a fork branch

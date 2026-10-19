@@ -1,0 +1,2913 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Nate Lentz <nlentz@figma.com>
+Date: Fri, 9 Oct 2026 13:25:47 -0400
+Subject: [PATCH] feat(transformer-cloudflare): add Cloudflare Images
+ transformer
+
+Payload 4 moved image processing out of core into upload transformers, and
+the only released one, transformer-sharp, can't run on Workers. Without a
+transformer, an Offload site stores each upload as it arrives, with no
+variants, crop, focal point or format conversion. This backports upstream's
+draft Cloudflare Images transformer unchanged. It processes uploads and
+serves resized images through a Worker's Images binding, and adds itself
+to Payload's publish list, so Offload publishes it as
+@adirishi/offload-transformer-cloudflare.
+
+Offload-Patch: transformer-cloudflare
+Upstream: https://github.com/payloadcms/payload/pull/18647
+Drop-When: the pinned release includes @payloadcms/transformer-cloudflare
+Tests: pnpm --filter @payloadcms/transformer-cloudflare exec vitest run; e2e suite (image variants test)
+---
+ docs/upload/transformers.mdx                  |  53 +-
+ package.json                                  |   1 +
+ packages/transformer-cloudflare/.swcrc        |  15 +
+ packages/transformer-cloudflare/README.md     | 252 +++++++
+ packages/transformer-cloudflare/package.json  |  75 ++
+ packages/transformer-cloudflare/src/client.ts | 154 +++++
+ .../src/cloudflareTransformer.spec.ts         | 645 ++++++++++++++++++
+ .../src/cloudflareTransformer.ts              | 109 +++
+ .../src/handleRequest.ts                      | 102 +++
+ packages/transformer-cloudflare/src/index.ts  |  17 +
+ .../src/initCollections.ts                    | 155 +++++
+ .../src/parseDynamicTransform.ts              | 125 ++++
+ .../src/prepareUpload.ts                      | 200 ++++++
+ .../src/transformation.ts                     |  41 ++
+ packages/transformer-cloudflare/src/types.ts  | 161 +++++
+ .../transformer-cloudflare/src/validation.ts  | 215 ++++++
+ .../transformer-cloudflare/src/worker.spec.ts | 214 ++++++
+ packages/transformer-cloudflare/src/worker.ts | 140 ++++
+ packages/transformer-cloudflare/tsconfig.json |   4 +
+ pnpm-lock.yaml                                |   9 +
+ tools/releaser/src/lib/publishList.ts         |   1 +
+ tsconfig.json                                 |   3 +
+ 22 files changed, 2690 insertions(+), 1 deletion(-)
+ create mode 100644 packages/transformer-cloudflare/.swcrc
+ create mode 100644 packages/transformer-cloudflare/README.md
+ create mode 100644 packages/transformer-cloudflare/package.json
+ create mode 100644 packages/transformer-cloudflare/src/client.ts
+ create mode 100644 packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts
+ create mode 100644 packages/transformer-cloudflare/src/cloudflareTransformer.ts
+ create mode 100644 packages/transformer-cloudflare/src/handleRequest.ts
+ create mode 100644 packages/transformer-cloudflare/src/index.ts
+ create mode 100644 packages/transformer-cloudflare/src/initCollections.ts
+ create mode 100644 packages/transformer-cloudflare/src/parseDynamicTransform.ts
+ create mode 100644 packages/transformer-cloudflare/src/prepareUpload.ts
+ create mode 100644 packages/transformer-cloudflare/src/transformation.ts
+ create mode 100644 packages/transformer-cloudflare/src/types.ts
+ create mode 100644 packages/transformer-cloudflare/src/validation.ts
+ create mode 100644 packages/transformer-cloudflare/src/worker.spec.ts
+ create mode 100644 packages/transformer-cloudflare/src/worker.ts
+ create mode 100644 packages/transformer-cloudflare/tsconfig.json
+
+diff --git a/docs/upload/transformers.mdx b/docs/upload/transformers.mdx
+index 28c6eef30..2cc17b792 100644
+--- a/docs/upload/transformers.mdx
++++ b/docs/upload/transformers.mdx
+@@ -11,7 +11,7 @@ A file transformer is a small, ordered stage in Payload's upload pipeline. Trans
+ - Process a file's bytes at upload time (resizing an image, converting a format, and so on)
+ - Serve a dynamically-transformed variant of an already-stored file at request time (for example, resizing an image on the fly based on query parameters)
+ 
+-Payload core owns transformer configuration, ordering, access control, and storage retrieval. Transformer packages own the actual byte manipulation. `@payloadcms/transformer-sharp` is Payload's official transformer, and covers the image-resizing behavior that shipped as part of core in Payload 3.x.
++Payload core owns transformer configuration, ordering, access control, and storage retrieval. Transformer packages own the actual byte manipulation. `@payloadcms/transformer-sharp` covers the image-resizing behavior that shipped as part of core in Payload 3.x. `@payloadcms/transformer-cloudflare` processes images using Cloudflare Images, through a Workers binding or a remote companion Worker.
+ 
+ <Banner type="info">
+   **Note:** If you only need Sharp-based image resizing at upload time — the
+@@ -402,3 +402,54 @@ The transformer boundary intentionally does not include:
+ - **A background jobs queue.** All transformation happens synchronously, in the request/upload path. A future version may accept a job-shaped input for expensive, queueable transforms, but no such queue exists today.
+ 
+ None of the above is implemented as a stub or a partial feature — they are simply not built yet.
++
++## `@payloadcms/transformer-cloudflare`
++
++The Cloudflare transformer supports upload-time processing and opt-in dynamic
++resizing. Its configuration selects a direct Images binding for Payload hosted
++on Workers, or an authenticated companion Worker for Payload hosted elsewhere.
++Both modes process bytes, so private originals do not need public source URLs.
++
++```ts
++import { cloudflareTransformer } from '@payloadcms/transformer-cloudflare'
++
++cloudflareTransformer({
++  transport: { mode: 'binding', binding: env.IMAGES },
++  dynamic: true,
++  collections: {
++    media: {
++      formatOptions: { format: 'webp', quality: 80 },
++      variants: [{ name: 'thumbnail', width: 400, height: 300 }],
++    },
++  },
++})
++
++// Node/Vercel: deploy the package's companion Worker first.
++cloudflareTransformer({
++  transport: {
++    mode: 'remote',
++    url: process.env.CLOUDFLARE_TRANSFORMER_URL!,
++    token: process.env.CLOUDFLARE_TRANSFORMER_TOKEN!,
++  },
++  dynamic: true,
++})
++```
++
++The companion Worker uses `createCloudflareImagesHandler` from
++`@payloadcms/transformer-cloudflare/worker`, an Images binding, and the same server
++secret. The remote URL points to that Worker, not `api.cloudflare.com`.
++
++Dynamic requests recognize `width`, `height`, and `withoutEnlargement`.
++Cloudflare-specific fit, gravity, output format, quality, and dimension limits
++are configured on the transformer. Source files are retrieved through Payload's
++authorized file pipeline. Transformed responses use `Cache-Control: private,
++no-store` and continue through later eligible transformers.
++
++Upload settings follow the same `collections` shape as Sharp: `variants`,
++`resizeOptions`, `formatOptions`, `crop`, and `focalPoint`. Variants derive from
++the processed main file, with metadata from their actual output bytes. JPEG, PNG,
++GIF, WebP, and AVIF are supported; inputs and outputs are limited to 20 MiB.
++Dynamic pixel limits are per frame, not the sum of all animation frames.
++
++See the [package README](https://github.com/payloadcms/payload/tree/main/packages/transformer-cloudflare)
++for the full configuration and companion Worker setup.
+diff --git a/package.json b/package.json
+index 4591a6014..c055b1f6b 100644
+--- a/package.json
++++ b/package.json
+@@ -65,6 +65,7 @@
+     "build:storage-vercel-blob": "turbo build --filter \"@payloadcms/storage-vercel-blob\"",
+     "build:tests": "pnpm --filter payload-test-suite run typecheck",
+     "build:tools": "turbo build --filter=./tools/*",
++    "build:transformer-cloudflare": "turbo build --filter \"@payloadcms/transformer-cloudflare\"",
+     "build:transformer-sharp": "turbo build --filter \"@payloadcms/transformer-sharp\"",
+     "build:translations": "turbo build --filter \"@payloadcms/translations\"",
+     "build:ui": "turbo build --filter \"@payloadcms/ui\"",
+diff --git a/packages/transformer-cloudflare/.swcrc b/packages/transformer-cloudflare/.swcrc
+new file mode 100644
+index 000000000..14463f4b0
+--- /dev/null
++++ b/packages/transformer-cloudflare/.swcrc
+@@ -0,0 +1,15 @@
++{
++  "$schema": "https://json.schemastore.org/swcrc",
++  "sourceMaps": true,
++  "jsc": {
++    "target": "esnext",
++    "parser": {
++      "syntax": "typescript",
++      "tsx": true,
++      "dts": true
++    }
++  },
++  "module": {
++    "type": "es6"
++  }
++}
+diff --git a/packages/transformer-cloudflare/README.md b/packages/transformer-cloudflare/README.md
+new file mode 100644
+index 000000000..83ba9fa23
+--- /dev/null
++++ b/packages/transformer-cloudflare/README.md
+@@ -0,0 +1,252 @@
++# Cloudflare Images transformer for Payload
++
++`@payloadcms/transformer-cloudflare` processes image uploads and serves dynamic
++image transformations through Cloudflare Images. Choose a direct Workers Images
++binding or an authenticated companion Worker through config. Both modes support
++private source files, upload-time variants, and the same request-time parameters.
++The transformer never stores images in Cloudflare Images; Payload and your storage
++adapter remain responsible for persistence.
++
++## Install
++
++```sh
++pnpm add @payloadcms/transformer-cloudflare
++```
++
++## Payload running on Cloudflare Workers
++
++Add an Images binding to your application's Wrangler configuration:
++
++```jsonc
++{
++  "images": { "binding": "IMAGES" },
++}
++```
++
++Pass the binding when creating the Payload config. If your framework exposes
++bindings only inside a request, use the lazy resolver instead. It receives the
++Payload request and is called only when image processing actually runs.
++
++```ts
++import { cloudflareTransformer } from '@payloadcms/transformer-cloudflare'
++import { buildConfig } from 'payload'
++
++export default buildConfig({
++  collections: [
++    /* your upload collections */
++  ],
++  upload: {
++    transformers: [
++      cloudflareTransformer({
++        transport: { mode: 'binding', binding: env.IMAGES },
++        dynamic: true,
++      }),
++    ],
++  },
++})
++
++// A framework-specific runtime context can also be resolved lazily:
++cloudflareTransformer({
++  transport: {
++    mode: 'binding',
++    binding: async ({ req }) => getRuntimeBindings({ req }).IMAGES,
++  },
++  dynamic: true,
++})
++```
++
++`env` and `getRuntimeBindings` above represent your framework's environment access;
++the package does not import a Next.js, OpenNext, or TanStack runtime.
++
++## Payload running on Node or Vercel
++
++Cloudflare's URL transformations fetch source URLs. To process private or newly
++uploaded bytes from outside Workers, deploy this package's companion handler in a
++small Worker with an Images binding, then configure its URL and shared secret.
++Remote mode sends the bytes to that Worker; it does not call a stateless byte
++transformation endpoint on `api.cloudflare.com`.
++
++Worker source (`src/index.ts`):
++
++```ts
++import type { CloudflareImagesBinding } from '@payloadcms/transformer-cloudflare'
++
++import { createCloudflareImagesHandler } from '@payloadcms/transformer-cloudflare/worker'
++
++type Env = {
++  IMAGES: CloudflareImagesBinding
++  TRANSFORMER_TOKEN: string
++}
++
++export default {
++  fetch(request: Request, env: Env): Promise<Response> {
++    return createCloudflareImagesHandler({
++      binding: env.IMAGES,
++      token: env.TRANSFORMER_TOKEN,
++    })(request)
++  },
++}
++```
++
++Worker Wrangler configuration:
++
++```jsonc
++{
++  "name": "payload-image-transformer",
++  "main": "src/index.ts",
++  "compatibility_date": "2026-10-07",
++  "images": { "binding": "IMAGES" },
++}
++```
++
++Install this package in the Worker project, set a strong shared secret with
++`pnpm exec wrangler secret put TRANSFORMER_TOKEN`, and deploy the Worker. Set the
++same secret in Payload's server environment. Keep it out of browser bundles.
++The `./worker` entry has no runtime dependency on Payload or Sharp.
++
++Payload configuration:
++
++```ts
++cloudflareTransformer({
++  transport: {
++    mode: 'remote',
++    url: process.env.CLOUDFLARE_TRANSFORMER_URL!,
++    token: process.env.CLOUDFLARE_TRANSFORMER_TOKEN!,
++    timeout: 30_000, // default, per call
++  },
++  dynamic: true,
++})
++```
++
++The remote endpoint requires HTTPS, authenticates before reading the request body,
++and accepts only bounded image uploads and the supported transformation options.
++The client refuses redirects and validates response types. A custom `transport.fetch`
++can be supplied for an alternative HTTP client or a Worker service binding.
++
++## Dynamic transformation
++
++Dynamic transformations are disabled by default. Enable them for every upload
++collection with `dynamic: true`, or restrict them:
++
++```ts
++cloudflareTransformer({
++  transport: { mode: 'binding', binding: env.IMAGES },
++  dynamic: {
++    collections: ['media'],
++    fit: 'cover',
++    gravity: 'auto',
++    format: 'webp',
++    quality: 80,
++    anim: true,
++    maxWidth: 4096,
++    maxHeight: 4096,
++    maxPixels: 16_777_216,
++    withoutEnlargement: false,
++  },
++})
++```
++
++```text
++/api/media/file/photo.png?width=400
++/api/media/file/photo.png?width=400&height=300
++/api/media/file/photo.png?width=400&withoutEnlargement=true
++```
++
++These are the same parameters Sharp and Cloudinary recognize. Cloudflare-specific
++options come from server config, not unrestricted query parameters. Invalid,
++duplicate, or excessive resize parameters return `400` before source retrieval.
++Single-dimension requests also check the dimension implied by the source aspect
++ratio. Range requests return `416`; HEAD returns transformed headers without a body.
++
++By default, two dimensions use `cover`, and one dimension preserves the aspect
++ratio. `withoutEnlargement` maps `cover` to `crop` and `contain` to `scale-down`.
++Explicit `crop` and `scale-down` never upscale. When `dynamic.format` is omitted,
++the source format is retained. `format` accepts `jpeg`, `png`, `gif`, `webp`, and
++`avif`; `quality` accepts integers from 1 to 100. Animation is retained where the
++output format supports it unless `anim: false` is configured. `maxPixels` bounds
++pixels per frame; it does not count animation frames.
++
++Source retrieval uses Payload's lazy `getSourceFile()` after validation and access
++checks, so private originals need no public URL. Each successful transform returns
++`continue`, allowing another eligible transformer to consume the result. Responses
++use `Cache-Control: private, no-store` to keep protected files out of shared caches.
++This package does not automatically cache derivatives.
++
++## Upload-time processing
++
++Configure upload processing per collection on the transformer, as with Sharp and
++Cloudinary:
++
++```ts
++cloudflareTransformer({
++  transport: { mode: 'remote', url: 'https://images.example.com', token: secret },
++  collections: {
++    media: {
++      crop: true,
++      focalPoint: true,
++      resizeOptions: { width: 2048, withoutEnlargement: true },
++      formatOptions: { format: 'webp', quality: 80 },
++      variants: [
++        { name: 'thumbnail', width: 400, height: 300 },
++        { name: 'card', width: 768, height: 1024, gravity: 'auto' },
++        { name: 'small', width: 200, withoutEnlargement: true },
++      ],
++    },
++  },
++})
++```
++
++The main file runs through the pipeline once. Variants derive from that main file,
++including the selected Admin crop and any main resize. Metadata is read from the
++actual output files, and variants are persisted under `variants.<name>`. Variants
++can override format and quality with their own `formatOptions`. Custom
++`generateImageName` callbacks receive the actual dimensions and output extension.
++Variant names must contain only letters, digits, underscores, or hyphens, and must
++be unique and not collide with built-in upload fields.
++
++The default fit is `cover` when both dimensions are provided and `contain` when
++only one is provided. An undersized source omits a variant by default: both source
++dimensions must be smaller for a two-dimension variant, or the specified axis must
++be smaller for a single-dimension variant. `withoutEnlargement: false` permits
++upscaling; `true` produces a smaller result instead of omitting it.
++
++Admin focal points map to Cloudflare's `box-center` gravity. An explicit variant
++`gravity` takes precedence. `crop` and `focalPoint` use the existing Admin controls;
++startup publishes their configuration and variant names to Payload without
++mutating authored collections. A collection can have upload settings on only one
++transformer instance; different collections can use different providers.
++
++`resizeOptions` additionally supports `background`, `blur`, `brightness`,
++`contrast`, `flip`, `gamma`, `rotate`, `saturation`, `sharpen`, and pixel `trim`
++rectangles. The fit modes supported by this package are `cover`, `contain`, `crop`,
++and `scale-down`. Other Cloudflare features such as overlays and AI segmentation
++are outside this package's configuration surface.
++
++## Limits and development
++
++- Supported inputs: JPEG, PNG, GIF, WebP, and AVIF. SVG and TIFF are not routed.
++- Each input and transformed output is limited to 20 MiB. Both modes buffer output
++  bytes to validate response size; remote mode also buffers the multipart request.
++- Remote mode makes a separate metadata or transformation call as needed. Metadata
++  probing is free in the Images binding, but still incurs network latency remotely.
++- Binding calls are not automatically cached. Cloudflare bills transformations
++  according to its Images subscription and usage rules.
++- The local Wrangler Images emulator supports a subset of production features.
++  Exercise crop, focal point, gravity, and animation against the remote binding
++  before production use.
++
++See [Cloudflare's Images binding documentation](https://developers.cloudflare.com/images/optimization/binding/)
++and [Cloudflare Images pricing](https://developers.cloudflare.com/images/pricing/).
++
++### Accessibility verification
++
++This package uses existing Admin crop/focal-point controls and does not introduce
++markup, labels, focus handling, or keyboard behavior. WCAG 2.2 A/AA criteria
++assessed for potential effects are 1.1.1 (image alternatives), 1.3.1 (relationships),
++2.1.1 (keyboard), 2.4.3 (focus order), 2.4.7 (visible focus), 2.4.11 (focus not
++obscured), and 4.1.2 (name, role, value). Unit tests cover configuration projection,
++crop coordinates, focal-point translation, and output metadata; they are not
++browser or WCAG conformance evidence. Before release, manually verify crop and
++focal-point selection, keyboard and focus behavior, and meaningful image content
++with the production Admin and a live Cloudflare binding. No screen-reader or axe
++run has been performed for this package.
+diff --git a/packages/transformer-cloudflare/package.json b/packages/transformer-cloudflare/package.json
+new file mode 100644
+index 000000000..7bd2db454
+--- /dev/null
++++ b/packages/transformer-cloudflare/package.json
+@@ -0,0 +1,75 @@
++{
++  "name": "@payloadcms/transformer-cloudflare",
++  "version": "4.0.0-beta.0",
++  "description": "Cloudflare Images transformer for Payload using a Workers binding or an authenticated remote Worker",
++  "homepage": "https://payloadcms.com",
++  "repository": {
++    "type": "git",
++    "url": "https://github.com/payloadcms/payload.git",
++    "directory": "packages/transformer-cloudflare"
++  },
++  "license": "MIT",
++  "author": "Payload <dev@payloadcms.com> (https://payloadcms.com)",
++  "maintainers": [
++    {
++      "name": "Payload",
++      "email": "info@payloadcms.com",
++      "url": "https://payloadcms.com"
++    }
++  ],
++  "sideEffects": false,
++  "type": "module",
++  "exports": {
++    ".": {
++      "import": "./src/index.ts",
++      "types": "./src/index.ts",
++      "default": "./src/index.ts"
++    },
++    "./worker": {
++      "import": "./src/worker.ts",
++      "types": "./src/worker.ts",
++      "default": "./src/worker.ts"
++    }
++  },
++  "main": "./src/index.ts",
++  "types": "./src/index.ts",
++  "files": [
++    "dist"
++  ],
++  "scripts": {
++    "build": "pnpm build:types && pnpm build:swc",
++    "build:clean": "find . \\( -type d \\( -name build -o -name dist -o -name .cache \\) -o -type f -name tsconfig.tsbuildinfo \\) -exec rm -rf {} + && pnpm build",
++    "build:debug": "pnpm build",
++    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths",
++    "build:types": "tsc --emitDeclarationOnly --outDir dist",
++    "clean": "rimraf -g {dist,*.tsbuildinfo}",
++    "lint": "eslint .",
++    "lint:fix": "eslint . --fix"
++  },
++  "devDependencies": {
++    "payload": "workspace:*",
++    "sharp": "0.35.4"
++  },
++  "peerDependencies": {
++    "payload": "workspace:*"
++  },
++  "engines": {
++    "node": ">=24.15.0"
++  },
++  "publishConfig": {
++    "exports": {
++      ".": {
++        "import": "./dist/index.js",
++        "types": "./dist/index.d.ts",
++        "default": "./dist/index.js"
++      },
++      "./worker": {
++        "import": "./dist/worker.js",
++        "types": "./dist/worker.d.ts",
++        "default": "./dist/worker.js"
++      }
++    },
++    "main": "./dist/index.js",
++    "types": "./dist/index.d.ts"
++  }
++}
+diff --git a/packages/transformer-cloudflare/src/client.ts b/packages/transformer-cloudflare/src/client.ts
+new file mode 100644
+index 000000000..39112143f
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/client.ts
+@@ -0,0 +1,154 @@
++import type { CloudflareImageInfo, CloudflareTransport, ImagesClient } from './types.js'
++
++import {
++  assertPositiveInteger,
++  MAX_IMAGE_BYTES,
++  parseRecord,
++  readBody,
++  validateOutput,
++  validateTransformation,
++} from './validation.js'
++
++export function createImagesClient({
++  transport,
++}: {
++  transport: CloudflareTransport
++}): ImagesClient {
++  if (transport.mode === 'binding') {
++    if (!transport.binding) {
++      throw new Error('A Cloudflare Images binding is required.')
++    }
++    const getBinding = async ({ req }: Parameters<ImagesClient['info']>[0]) =>
++      typeof transport.binding === 'function' ? transport.binding({ req }) : transport.binding
++
++    return {
++      info: async (args) => {
++        assertInput({ file: args.file })
++        const binding = await getBinding(args)
++
++        return binding.info(args.file.stream())
++      },
++      transform: async (args) => {
++        assertInput({ file: args.file })
++        validateOutput({ value: args.output })
++        const binding = await getBinding(args)
++        let handle = binding.input(args.file.stream())
++
++        for (const transform of args.transforms) {
++          validateTransformation({ value: transform })
++          handle = handle.transform(transform)
++        }
++        const result = await handle.output(args.output)
++
++        return normalizeResponse({ format: args.output.format, response: result.response() })
++      },
++    }
++  }
++  const url = new URL(transport.url)
++
++  if (
++    url.protocol !== 'https:' ||
++    url.username ||
++    url.password ||
++    url.hash ||
++    !transport.token.trim() ||
++    /[\r\n]/.test(transport.token)
++  ) {
++    throw new Error('Cloudflare remote transport requires an HTTPS URL and a non-empty token.')
++  }
++  const timeout = transport.timeout ?? 30_000
++
++  assertPositiveInteger({ name: 'Cloudflare remote timeout', value: timeout })
++  const fetch = transport.fetch ?? globalThis.fetch
++  const send = async ({
++    file,
++    operation,
++    options,
++  }: {
++    file: File
++    operation: 'info' | 'transform'
++    options?: unknown
++  }) => {
++    assertInput({ file })
++    const form = new FormData()
++
++    form.set('file', file)
++    form.set('operation', operation)
++    if (options) {
++      form.set('options', JSON.stringify(options))
++    }
++    const response = await fetch(url, {
++      body: form,
++      headers: { Authorization: `Bearer ${transport.token}` },
++      method: 'POST',
++      redirect: 'error',
++      signal: AbortSignal.timeout(timeout),
++    })
++
++    if (!response.ok) {
++      await response.body?.cancel()
++      throw new Error(`Cloudflare Images request failed (${response.status}).`)
++    }
++
++    return response
++  }
++
++  return {
++    info: async ({ file }) => {
++      const response = await send({ file, operation: 'info' })
++      const bytes = await readBody({ body: response.body, maxBytes: 4096 })
++      const info = parseRecord({ value: JSON.parse(new TextDecoder().decode(bytes)) })
++      if (info.format !== 'image/svg+xml') {
++        assertPositiveInteger({ name: 'Cloudflare image width', value: info.width })
++        assertPositiveInteger({ name: 'Cloudflare image height', value: info.height })
++        if (
++          typeof info.format !== 'string' ||
++          typeof info.fileSize !== 'number' ||
++          !Number.isFinite(info.fileSize) ||
++          info.fileSize < 0
++        ) {
++          throw new Error('Cloudflare Images returned invalid image metadata.')
++        }
++      }
++
++      return info as CloudflareImageInfo
++    },
++    transform: async ({ file, output, transforms }) => {
++      validateOutput({ value: output })
++      for (const transform of transforms) {
++        validateTransformation({ value: transform })
++      }
++      const response = await send({ file, operation: 'transform', options: { output, transforms } })
++
++      return normalizeResponse({ format: output.format, response })
++    },
++  }
++}
++
++async function normalizeResponse({
++  format,
++  response,
++}: {
++  format: string
++  response: Response
++}): Promise<Response> {
++  if (!response.ok || response.headers.get('content-type')?.split(';')[0] !== format) {
++    await response.body?.cancel()
++    throw new Error('Cloudflare Images returned an invalid transformation response.')
++  }
++  const bytes = await readBody({ body: response.body })
++
++  return new Response(bytes, {
++    headers: {
++      'Cache-Control': 'private, no-store',
++      'Content-Length': String(bytes.length),
++      'Content-Type': format,
++    },
++  })
++}
++
++function assertInput({ file }: { file: File }): void {
++  if (file.size > MAX_IMAGE_BYTES || file.size === 0) {
++    throw new Error('Cloudflare Images requires a non-empty image of at most 20 MiB.')
++  }
++}
+diff --git a/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts b/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts
+new file mode 100644
+index 000000000..eb9c85788
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts
+@@ -0,0 +1,645 @@
++import type { Config, PayloadRequest } from 'payload'
++
++import sharp from 'sharp'
++import { describe, expect, it, vi } from 'vitest'
++
++import { getUploadTransformerInternal } from 'payload/internal'
++
++import { cloudflareTransformer } from './cloudflareTransformer.js'
++import { createCloudflareImagesHandler } from './worker.js'
++import { transformUploadFile } from '../../payload/src/uploads/transformers/transformUploadFile.js'
++import { finalizeFileResponse } from '../../payload/src/uploads/transformers/finalizeFileResponse.js'
++
++// Only the external Images service is substituted. Real bytes, Request/Response,
++// File streams, remote protocol, upload planning, and Payload's pipeline all run.
++function createImages() {
++  const info = vi.fn(async (stream: ReadableStream<Uint8Array>) => {
++    const bytes = Buffer.from(await new Response(stream).arrayBuffer())
++    const metadata = await sharp(bytes).metadata()
++
++    return {
++      fileSize: bytes.length,
++      format: `image/${metadata.format}`,
++      height: metadata.height!,
++      width: metadata.width!,
++    }
++  })
++  const transformOptions: Record<string, any>[] = []
++  const input = vi.fn((stream: ReadableStream<Uint8Array>) => {
++    const transforms: Record<string, any>[] = []
++    const handle = {
++      transform: (options: Record<string, any>) => {
++        transforms.push(options)
++        transformOptions.push(options)
++        return handle
++      },
++      output: async (options: { format: string; quality?: number }) => {
++        let bytes = Buffer.from(await new Response(stream).arrayBuffer())
++
++        for (const transform of transforms) {
++          let image = sharp(bytes)
++
++          if (transform.trim && typeof transform.trim === 'object') {
++            const metadata = await image.metadata()
++            const left = transform.trim.left ?? 0
++            const top = transform.trim.top ?? 0
++
++            // Cloudflare trim.width/height are coordinates from the original
++            // left/top edge, not extract rectangle sizes.
++            image = image.extract({
++              left,
++              top,
++              width: (transform.trim.width ?? metadata.width! - (transform.trim.right ?? 0)) - left,
++              height:
++                (transform.trim.height ?? metadata.height! - (transform.trim.bottom ?? 0)) - top,
++            })
++          }
++          if (transform.width || transform.height) {
++            image = image.resize({
++              width: transform.width,
++              height: transform.height,
++              fit:
++                transform.fit === 'crop'
++                  ? 'cover'
++                  : transform.fit === 'scale-down'
++                    ? 'inside'
++                    : (transform.fit ?? 'cover'),
++              withoutEnlargement: ['crop', 'scale-down'].includes(transform.fit),
++            })
++          }
++          bytes = await image.toBuffer()
++        }
++        const bytesOut = await sharp(bytes)
++          .toFormat(options.format.slice(6) as 'png', { quality: options.quality })
++          .toBuffer()
++
++        return {
++          response: () => new Response(bytesOut, { headers: { 'Content-Type': options.format } }),
++        }
++      },
++    }
++
++    return handle
++  })
++
++  return { info, input, transformOptions }
++}
++
++async function imageFile({ width = 800, height = 600 } = {}) {
++  const bytes = await sharp({ create: { width, height, channels: 3, background: '#e00000' } })
++    .png()
++    .toBuffer()
++
++  return new File([bytes], 'photo.png', { type: 'image/png' })
++}
++
++function request({ query = '', method = 'GET', headers = {} } = {}): PayloadRequest {
++  return {
++    headers: new Headers(headers),
++    method,
++    searchParams: new URLSearchParams(query),
++    payload: { collections: { media: { config: { upload: {} } } } },
++  } as unknown as PayloadRequest
++}
++
++function config(): Config {
++  return { collections: [{ slug: 'media', fields: [], upload: true }] } as unknown as Config
++}
++
++async function dimensions(response: Response | File) {
++  const metadata = await sharp(Buffer.from(await response.arrayBuffer())).metadata()
++
++  return { height: metadata.height, width: metadata.width }
++}
++
++function dynamicArgs({
++  file,
++  req,
++  getSourceFile = vi.fn(async () => new Response(file.stream())),
++}: {
++  file: File
++  req: PayloadRequest
++  getSourceFile?: () => Promise<Response>
++}) {
++  return {
++    collectionSlug: 'media',
++    documentID: '1',
++    filename: file.name,
++    getSourceFile,
++    mimeType: file.type,
++    req,
++  }
++}
++
++describe('Cloudflare transformer transports', () => {
++  it.each(['binding', 'remote'] as const)(
++    'should resize authenticated source bytes with the %s transport',
++    async (mode) => {
++      const binding = createImages()
++      const handler = createCloudflareImagesHandler({ binding, token: 'worker-secret' })
++      const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) =>
++        handler(new Request(url, init)),
++      )
++      const transformer = cloudflareTransformer({
++        transport:
++          mode === 'binding'
++            ? { mode, binding }
++            : { mode, url: 'https://images.example.com', token: 'worker-secret', fetch },
++        dynamic: true,
++      })
++      const file = await imageFile()
++      const result = await transformer.handleRequest!(
++        dynamicArgs({ file, req: request({ query: 'width=200&height=150' }) }),
++      )
++
++      expect(result.status).toBe('continue')
++      expect(await dimensions(result.response!)).toEqual({ height: 150, width: 200 })
++      expect(result.response!.headers.get('cache-control')).toBe('private, no-store')
++      if (mode === 'remote') {
++        expect(fetch).toHaveBeenCalled()
++        expect(String(fetch.mock.calls[0]![0])).not.toContain('photo.png')
++      }
++    },
++  )
++
++  it('should reject an unauthenticated remote request before processing its body', async () => {
++    const binding = createImages()
++    const handler = createCloudflareImagesHandler({ binding, token: 'worker-secret' })
++    const response = await handler(
++      new Request('https://images.example.com', { method: 'POST', body: 'bad input' }),
++    )
++
++    expect(response.status).toBe(401)
++    expect(binding.input).not.toHaveBeenCalled()
++    expect(binding.info).not.toHaveBeenCalled()
++  })
++
++  it('should fail at startup for insecure remote transport settings', () => {
++    expect(() =>
++      cloudflareTransformer({
++        transport: { mode: 'remote', url: 'http://images.example.com', token: 'secret' },
++      }),
++    ).toThrow()
++    expect(() =>
++      cloudflareTransformer({
++        transport: { mode: 'remote', url: 'https://images.example.com', token: '' },
++      }),
++    ).toThrow()
++  })
++
++  it('should propagate a remote failure without exposing the token or response body', async () => {
++    const transformer = cloudflareTransformer({
++      transport: {
++        mode: 'remote',
++        url: 'https://images.example.com',
++        token: 'secret',
++        fetch: async () => new Response('private details', { status: 500 }),
++      },
++      collections: { media: { resizeOptions: { width: 100 } } },
++    })
++    const file = await imageFile()
++
++    await expect(
++      transformer.transformFile!({
++        collectionSlug: 'media',
++        file,
++        options: undefined,
++        req: request(),
++      }),
++    ).rejects.toThrow('Cloudflare Images request failed (500)')
++  })
++})
++
++describe('Cloudflare dynamic requests', () => {
++  it.each([
++    'width=0',
++    'width=20&width=30',
++    'height=1e3',
++    'withoutEnlargement=true',
++    'width=5000',
++    'width=100&height=100',
++  ])(
++    'should reject invalid or excessive dimensions (%s) before reading the source',
++    async (query) => {
++      const binding = createImages()
++      const transformer = cloudflareTransformer({
++        transport: { mode: 'binding', binding },
++        dynamic: { maxPixels: 9000 },
++      })
++      const file = await imageFile()
++      const getSourceFile = vi.fn()
++      const result = await transformer.handleRequest!(
++        dynamicArgs({ file, getSourceFile, req: request({ query }) }),
++      )
++
++      expect(result.response!.status).toBe(400)
++      expect(getSourceFile).not.toHaveBeenCalled()
++      expect(binding.input).not.toHaveBeenCalled()
++    },
++  )
++
++  it('should enforce the output limit when a single dimension implies an excessive other dimension', async () => {
++    const binding = createImages()
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding },
++      dynamic: { maxHeight: 1000 },
++    })
++    const file = await imageFile({ width: 10, height: 200 })
++    const result = await transformer.handleRequest!(
++      dynamicArgs({ file, req: request({ query: 'width=100' }) }),
++    )
++
++    expect(result.response!.status).toBe(400)
++    expect(binding.input).not.toHaveBeenCalled()
++  })
++
++  it('should leave ordinary requests and disabled collections unrouted', () => {
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: createImages() },
++      dynamic: { collections: ['media'] },
++    })
++    const args = {
++      collectionSlug: 'media',
++      mimeType: 'image/png',
++      operation: 'request' as const,
++      req: request(),
++    }
++
++    expect(transformer.canTransform!(args)).toBe(false)
++    expect(
++      transformer.canTransform!({
++        ...args,
++        collectionSlug: 'other',
++        req: request({ query: 'width=100' }),
++      }),
++    ).toBe(false)
++  })
++
++  it('should disable dynamic transformation by default', () => {
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: createImages() },
++    })
++
++    expect(
++      transformer.canTransform!({
++        collectionSlug: 'media',
++        mimeType: 'image/png',
++        operation: 'request',
++        req: request({ query: 'width=100' }),
++      }),
++    ).toBe(false)
++  })
++
++  it('should preserve source errors without calling Images', async () => {
++    const binding = createImages()
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding },
++      dynamic: true,
++    })
++    const file = await imageFile()
++    const source = new Response(null, { status: 404 })
++    const result = await transformer.handleRequest!(
++      dynamicArgs({
++        file,
++        req: request({ query: 'width=100' }),
++        getSourceFile: async () => source,
++      }),
++    )
++
++    expect(result.response).toBe(source)
++    expect(binding.input).not.toHaveBeenCalled()
++  })
++
++  it('should retain HEAD response bytes for later stages and let Payload strip the final body', async () => {
++    const first = cloudflareTransformer({
++      slug: 'first',
++      transport: { mode: 'binding', binding: createImages() },
++      dynamic: { format: 'webp' },
++    })
++    const second = cloudflareTransformer({
++      slug: 'second',
++      transport: { mode: 'binding', binding: createImages() },
++      dynamic: { format: 'jpeg' },
++    })
++    const file = await imageFile()
++    const req = request({ method: 'HEAD', query: 'width=100' })
++
++    req.payload.config = { cors: [] } as never
++    const initial = await first.handleRequest!(dynamicArgs({ file, req }))
++    const result = await second.handleRequest!(
++      dynamicArgs({ file, req, getSourceFile: async () => initial.response! }),
++    )
++    const final = finalizeFileResponse({
++      collection: { config: { upload: {} } } as never,
++      req,
++      response: result.response!,
++    })
++
++    expect(final.headers.get('content-type')).toBe('image/jpeg')
++    expect(await final.text()).toBe('')
++  })
++
++  it('should reject range requests before fetching the source', async () => {
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: createImages() },
++      dynamic: true,
++    })
++    const file = await imageFile()
++    const getSourceFile = vi.fn()
++    const result = await transformer.handleRequest!(
++      dynamicArgs({
++        file,
++        getSourceFile,
++        req: request({ query: 'width=100', headers: { range: 'bytes=0-10' } }),
++      }),
++    )
++
++    expect(result.response!.status).toBe(416)
++    expect(getSourceFile).not.toHaveBeenCalled()
++  })
++})
++
++describe('Cloudflare upload processing', () => {
++  it('should convert the main file and continue to subsequent transformers', async () => {
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: createImages() },
++      collections: { media: { resizeOptions: { width: 200 }, formatOptions: { format: 'webp' } } },
++    })
++    const file = await imageFile()
++    const result = await transformUploadFile({
++      collectionSlug: 'media',
++      file,
++      options: undefined,
++      pipeline: [transformer],
++      req: request(),
++    })
++
++    expect(result.name).toBe('photo.webp')
++    expect(result.type).toBe('image/webp')
++    expect(await dimensions(result)).toEqual({ height: 150, width: 200 })
++  })
++
++  it('should keep unconfigured uploads unchanged without calling Images', async () => {
++    const binding = createImages()
++    const transformer = cloudflareTransformer({ transport: { mode: 'binding', binding } })
++    const file = await imageFile()
++    const result = await transformer.transformFile!({
++      collectionSlug: 'media',
++      file,
++      options: undefined,
++      req: request(),
++    })
++
++    expect(result).toEqual({ status: 'continue' })
++    expect(binding.input).not.toHaveBeenCalled()
++  })
++
++  it.each(['binding', 'remote'] as const)(
++    'should generate persisted variants with actual output metadata using %s',
++    async (mode) => {
++      const binding = createImages()
++      const handler = createCloudflareImagesHandler({ binding, token: 'secret' })
++      const transformer = cloudflareTransformer({
++        transport:
++          mode === 'binding'
++            ? { mode, binding }
++            : {
++                mode,
++                url: 'https://images.example.com',
++                token: 'secret',
++                fetch: async (url, init) => handler(new Request(url, init)),
++              },
++        collections: {
++          media: {
++            variants: [
++              { name: 'thumb', width: 100, height: 100 },
++              { name: 'too-large', width: 1000, height: 1000 },
++              { name: 'retained', width: 1000, height: 1000, withoutEnlargement: true },
++              {
++                name: 'custom',
++                width: 50,
++                formatOptions: { format: 'webp' },
++                generateImageName: ({ sizeName, extension }) => `${sizeName}.${extension}`,
++              },
++            ],
++          },
++        },
++      })
++      const file = await imageFile()
++      const req = request()
++      const results = await getUploadTransformerInternal(transformer)!.prepareUpload!({
++        collectionSlug: 'media',
++        file,
++        req,
++        uploadEdits: {},
++        transform: (task) =>
++          transformUploadFile({
++            collectionSlug: 'media',
++            file: task.file ?? file,
++            options: task.options,
++            pipeline: [transformer],
++            req,
++          }),
++      })
++
++      expect(results[0]!.file).toBe(file)
++      expect(results.find((r) => r.fieldPath === 'variants.thumb')).toMatchObject({
++        height: 100,
++        width: 100,
++      })
++      expect(results.find((r) => r.fieldPath === 'variants.too-large')!.file).toBeUndefined()
++      expect(results.find((r) => r.fieldPath === 'variants.retained')).toMatchObject({
++        height: 600,
++        width: 800,
++      })
++      expect(results.find((r) => r.fieldPath === 'variants.custom')!.file!.name).toBe('custom.webp')
++    },
++  )
++
++  it.each(['%', 'px'] as const)(
++    'should crop the main file and derive variants using %s coordinates',
++    async (unit) => {
++      const transformer = cloudflareTransformer({
++        transport: { mode: 'binding', binding: createImages() },
++        collections: { media: { crop: true, variants: [{ name: 'thumb', width: 100 }] } },
++      })
++      const file = await imageFile()
++      const req = request()
++      const results = await getUploadTransformerInternal(transformer)!.prepareUpload!({
++        collectionSlug: 'media',
++        file,
++        req,
++        uploadEdits: {
++          crop: {
++            height: unit === '%' ? 50 : 300,
++            unit,
++            width: unit === '%' ? 50 : 400,
++            x: unit === '%' ? 25 : 200,
++            y: unit === '%' ? 25 : 150,
++          },
++          widthInPixels: 400,
++          heightInPixels: 300,
++        },
++        transform: (task) =>
++          transformUploadFile({
++            collectionSlug: 'media',
++            file: task.file ?? file,
++            options: task.options,
++            pipeline: [transformer],
++            req,
++          }),
++      })
++
++      expect(results[0]).toMatchObject({ height: 300, width: 400 })
++      expect(results[1]).toMatchObject({ height: 75, width: 100 })
++    },
++  )
++
++  it('should publish variant metadata without mutating authored collections', () => {
++    const authored = config()
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: createImages() },
++      collections: { media: { crop: true, variants: [{ name: 'thumb', width: 100 }] } },
++    })
++    const result = transformer.init!(authored) as Config
++
++    expect(result.collections![0]!.upload).toMatchObject({
++      crop: true,
++      variants: [{ name: 'thumb' }],
++    })
++    expect(authored.collections![0]!.upload).toBe(true)
++  })
++
++  it('should reject conflicting ownership and invalid collections at startup', () => {
++    const options = {
++      transport: { mode: 'binding' as const, binding: createImages() },
++      collections: { media: { variants: [{ name: 'thumb', width: 100 }] } },
++    }
++    const first = cloudflareTransformer(options)
++    const second = cloudflareTransformer({ ...options, slug: 'second' })
++    const authored = { ...config(), upload: { transformers: [first, second] } }
++
++    expect(() => first.init!(authored)).toThrow()
++    expect(() =>
++      cloudflareTransformer({ ...options, collections: { other: {} } }).init!(config()),
++    ).toThrow()
++    expect(() =>
++      cloudflareTransformer({
++        ...options,
++        collections: { media: { variants: [{ name: 'filename', width: 100 }] } },
++      }).init!(config()),
++    ).toThrow()
++  })
++})
++
++describe('Cloudflare upload configuration contracts', () => {
++  it('should report main-file dimensions even when no resize or variants are requested', async () => {
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: createImages() },
++      collections: { media: {} },
++    })
++    const file = await imageFile()
++    const req = request()
++    const results = await getUploadTransformerInternal(transformer)!.prepareUpload!({
++      collectionSlug: 'media',
++      file,
++      req,
++      uploadEdits: {},
++      transform: (task) =>
++        transformUploadFile({
++          collectionSlug: 'media',
++          file: task.file ?? file,
++          options: task.options,
++          pipeline: [transformer],
++          req,
++        }),
++    })
++
++    expect(results[0]).toMatchObject({ file, height: 600, width: 800 })
++  })
++
++  it('should resolve the Images binding lazily with the current Payload request', async () => {
++    const resolver = vi.fn(async () => createImages())
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding: resolver },
++      dynamic: true,
++    })
++    const file = await imageFile()
++    const req = request({ query: 'width=100' })
++
++    transformer.canTransform!({
++      collectionSlug: 'media',
++      mimeType: 'image/png',
++      operation: 'request',
++      req,
++    })
++    expect(resolver).not.toHaveBeenCalled()
++    const result = await transformer.handleRequest!(dynamicArgs({ file, req }))
++
++    expect(await dimensions(result.response!)).toEqual({ height: 75, width: 100 })
++    expect(resolver).toHaveBeenCalledWith({ req })
++  })
++
++  it.each([true, false])(
++    'should respect focalPoint=%s when translating Admin focal points',
++    async (isEnabled) => {
++      const binding = createImages()
++      const transformer = cloudflareTransformer({
++        transport: { mode: 'binding', binding },
++        collections: {
++          media: { focalPoint: isEnabled, variants: [{ name: 'thumb', width: 100, height: 100 }] },
++        },
++      })
++      const file = await imageFile()
++      const req = request()
++
++      await getUploadTransformerInternal(transformer)!.prepareUpload!({
++        collectionSlug: 'media',
++        file,
++        req,
++        uploadEdits: { focalPoint: { x: 75, y: 25 } },
++        transform: (task) =>
++          transformUploadFile({
++            collectionSlug: 'media',
++            file: task.file ?? file,
++            options: task.options,
++            pipeline: [transformer],
++            req,
++          }),
++      })
++
++      expect(binding.transformOptions[0]!.gravity).toEqual(
++        isEnabled ? { mode: 'box-center', x: 0.75, y: 0.25 } : undefined,
++      )
++    },
++  )
++
++  it('should preserve explicit gravity over an Admin focal point', async () => {
++    const binding = createImages()
++    const transformer = cloudflareTransformer({
++      transport: { mode: 'binding', binding },
++      collections: {
++        media: { variants: [{ name: 'thumb', width: 100, height: 100, gravity: 'auto' }] },
++      },
++    })
++    const file = await imageFile()
++    const req = request()
++
++    await getUploadTransformerInternal(transformer)!.prepareUpload!({
++      collectionSlug: 'media',
++      file,
++      req,
++      uploadEdits: { focalPoint: { x: 75, y: 25 } },
++      transform: (task) =>
++        transformUploadFile({
++          collectionSlug: 'media',
++          file: task.file ?? file,
++          options: task.options,
++          pipeline: [transformer],
++          req,
++        }),
++    })
++
++    expect(binding.transformOptions[0]!.gravity).toBe('auto')
++  })
++})
+diff --git a/packages/transformer-cloudflare/src/cloudflareTransformer.ts b/packages/transformer-cloudflare/src/cloudflareTransformer.ts
+new file mode 100644
+index 000000000..ec2653dfd
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/cloudflareTransformer.ts
+@@ -0,0 +1,109 @@
++import type { UploadTransformer } from 'payload'
++import type { TransformerWithInternalBridge } from 'payload/internal'
++
++import { uploadTransformerInternal } from 'payload/internal'
++
++import type {
++  CloudflareDynamicOptions,
++  CloudflareTransformerOptions,
++  CloudflareUploadTask,
++} from './types.js'
++
++import { createImagesClient } from './client.js'
++import { createHandleRequest } from './handleRequest.js'
++import { initCollections, validateDynamic } from './initCollections.js'
++import { parseDynamicTransform } from './parseDynamicTransform.js'
++import { createPrepareUpload } from './prepareUpload.js'
++import { resolveOutput, resolveResize } from './transformation.js'
++
++/** Cloudflare Images processing through a local binding or an authenticated companion Worker. */
++export function cloudflareTransformer(
++  options: CloudflareTransformerOptions,
++): TransformerWithInternalBridge & UploadTransformer {
++  const client = createImagesClient({ transport: options.transport })
++  const collections = options.collections ?? {}
++  const slug = options.slug ?? 'cloudflare'
++  const dynamic: CloudflareDynamicOptions | false = options.dynamic
++    ? {
++        fit: 'cover',
++        gravity: 'center',
++        maxHeight: 4096,
++        maxPixels: 16_777_216,
++        maxWidth: 4096,
++        withoutEnlargement: false,
++        ...(options.dynamic === true ? {} : options.dynamic),
++      }
++    : false
++
++  validateDynamic({ dynamic })
++  const handlesCollection = ({ collectionSlug }: { collectionSlug: string }) =>
++    Boolean(collections[collectionSlug])
++  const transformer: TransformerWithInternalBridge & UploadTransformer = {
++    slug,
++    canTransform: ({ collectionSlug, operation, req }) =>
++      operation === 'upload'
++        ? handlesCollection({ collectionSlug })
++        : Boolean(
++            dynamic &&
++              (!dynamic.collections || dynamic.collections.includes(collectionSlug)) &&
++              parseDynamicTransform({
++                limits: {
++                  maxHeight: dynamic.maxHeight!,
++                  maxPixels: dynamic.maxPixels!,
++                  maxWidth: dynamic.maxWidth!,
++                },
++                searchParams: req.searchParams ?? new URLSearchParams(),
++              }).isRouted,
++          ),
++    mimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'],
++    ...(dynamic ? { handleRequest: createHandleRequest({ client, dynamic }) } : {}),
++    init: (config) => initCollections({ collections, config, dynamic, transformer }),
++    transformFile: async ({ collectionSlug, file, options: taskOptions, req }) => {
++      const config = collections[collectionSlug]
++      let task: CloudflareUploadTask | undefined
++
++      if (taskOptions !== undefined) {
++        if (
++          !taskOptions ||
++          typeof taskOptions !== 'object' ||
++          !('transformerSlug' in taskOptions) ||
++          taskOptions.transformerSlug !== slug
++        ) {
++          return { status: 'continue' }
++        }
++        task = taskOptions as CloudflareUploadTask
++      }
++      const transforms =
++        task?.transforms ??
++        (config?.resizeOptions ? [resolveResize({ options: config.resizeOptions })] : [])
++      const formatOptions = task?.formatOptions ?? config?.formatOptions
++
++      if (!transforms.length && !formatOptions) {
++        return { status: 'continue' }
++      }
++      const response = await client.transform({
++        file,
++        output: resolveOutput({ formatOptions, mimeType: file.type }),
++        req,
++        transforms,
++      })
++      const mimeType = response.headers.get('content-type')!
++      const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType.slice(6)
++      const name = `${file.name.replace(/\.[^.]+$/, '')}.${extension}`
++
++      return {
++        file: new File([await response.arrayBuffer()], name, {
++          type: mimeType,
++          lastModified: file.lastModified,
++        }),
++        status: 'continue',
++      }
++    },
++    [uploadTransformerInternal]: {
++      handlesCollection,
++      prepareUpload: createPrepareUpload({ slug, client, collections }),
++    },
++  }
++
++  return transformer
++}
+diff --git a/packages/transformer-cloudflare/src/handleRequest.ts b/packages/transformer-cloudflare/src/handleRequest.ts
+new file mode 100644
+index 000000000..69c8640ed
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/handleRequest.ts
+@@ -0,0 +1,102 @@
++import type { UploadTransformer } from 'payload'
++
++import type { CloudflareDynamicOptions, ImagesClient } from './types.js'
++
++import { parseDynamicTransform } from './parseDynamicTransform.js'
++import { resolveOutput, resolveResize } from './transformation.js'
++import { readBody } from './validation.js'
++
++export function createHandleRequest({
++  client,
++  dynamic,
++}: {
++  client: ImagesClient
++  dynamic: CloudflareDynamicOptions
++}): NonNullable<UploadTransformer['handleRequest']> {
++  return async ({ filename, getSourceFile, mimeType, req }) => {
++    const parsed = parseDynamicTransform({
++      limits: {
++        maxHeight: dynamic.maxHeight!,
++        maxPixels: dynamic.maxPixels!,
++        maxWidth: dynamic.maxWidth!,
++      },
++      searchParams: req.searchParams ?? new URLSearchParams(),
++    })
++
++    if (!parsed.isRouted) {
++      return { status: 'continue' }
++    }
++    if (!parsed.valid) {
++      return invalidRequest({ message: parsed.error })
++    }
++    if (req.headers?.get('range')) {
++      return { response: new Response(null, { status: 416 }), status: 'complete' }
++    }
++    const source = await getSourceFile()
++
++    if (!source.ok) {
++      return { response: source, status: 'complete' }
++    }
++    const file = new File([await readBody({ body: source.body })], filename, {
++      type: source.headers.get('content-type')?.split(';')[0] ?? mimeType,
++    })
++    const dimensions = await client.info({ file, req })
++
++    if (!('width' in dimensions)) {
++      return invalidRequest({ message: 'Cloudflare transformations require a raster image.' })
++    }
++    const transform = resolveResize({
++      options: {
++        fit: dynamic.fit,
++        gravity: dynamic.gravity,
++        height: parsed.height,
++        width: parsed.width,
++        withoutEnlargement: parsed.withoutEnlargement ?? dynamic.withoutEnlargement,
++      },
++    })
++    const hasBothDimensions = parsed.width !== undefined && parsed.height !== undefined
++    const scale =
++      parsed.width !== undefined
++        ? parsed.width / dimensions.width
++        : parsed.height! / dimensions.height
++    const effectiveScale =
++      transform.fit === 'crop' || transform.fit === 'scale-down' ? Math.min(1, scale) : scale
++    const width = hasBothDimensions ? parsed.width! : Math.ceil(dimensions.width * effectiveScale)
++    const height = hasBothDimensions
++      ? parsed.height!
++      : Math.ceil(dimensions.height * effectiveScale)
++
++    if (
++      width > dynamic.maxWidth! ||
++      height > dynamic.maxHeight! ||
++      width * height > dynamic.maxPixels!
++    ) {
++      return invalidRequest({ message: 'Requested dimensions exceed the configured maximum.' })
++    }
++    const response = await client.transform({
++      file,
++      output: resolveOutput({
++        formatOptions: dynamic.format
++          ? { anim: dynamic.anim, format: dynamic.format, quality: dynamic.quality }
++          : {
++              anim: dynamic.anim,
++              format: file.type.slice(6) as NonNullable<CloudflareDynamicOptions['format']>,
++              quality: dynamic.quality,
++            },
++        mimeType: file.type,
++      }),
++      req,
++      transforms: [transform],
++    })
++
++    // Payload removes HEAD bodies after all stages have consumed their input.
++    return { response, status: 'continue' }
++  }
++}
++
++function invalidRequest({ message }: { message: string }): {
++  response: Response
++  status: 'complete'
++} {
++  return { response: Response.json({ errors: [{ message }] }, { status: 400 }), status: 'complete' }
++}
+diff --git a/packages/transformer-cloudflare/src/index.ts b/packages/transformer-cloudflare/src/index.ts
+new file mode 100644
+index 000000000..7d2b7822a
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/index.ts
+@@ -0,0 +1,17 @@
++export { cloudflareTransformer } from './cloudflareTransformer.js'
++export type {
++  CloudflareCollectionConfig,
++  CloudflareDynamicOptions,
++  CloudflareFit,
++  CloudflareFormat,
++  CloudflareFormatOptions,
++  CloudflareGravity,
++  CloudflareImageInfo,
++  CloudflareImagesBinding,
++  CloudflareImageSizeOptions,
++  CloudflareImageTransformer,
++  CloudflareOutputOptions,
++  CloudflareTransformation,
++  CloudflareTransformerOptions,
++  CloudflareTransport,
++} from './types.js'
+diff --git a/packages/transformer-cloudflare/src/initCollections.ts b/packages/transformer-cloudflare/src/initCollections.ts
+new file mode 100644
+index 000000000..106b93921
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/initCollections.ts
+@@ -0,0 +1,155 @@
++import type { Config, SanitizedUploadConfig, UploadTransformer } from 'payload'
++
++import { getUploadTransformerInternal } from 'payload/internal'
++
++import type {
++  CloudflareCollectionConfig,
++  CloudflareDynamicOptions,
++  CloudflareImageSizeOptions,
++} from './types.js'
++
++import {
++  assertPositiveInteger,
++  validateFormatOptions,
++  validateOutput,
++  validateTransformation,
++} from './validation.js'
++
++const RESERVED_NAMES = [
++  'filename',
++  'mimeType',
++  'filesize',
++  'width',
++  'height',
++  'url',
++  'thumbnailURL',
++  'variants',
++  'focalX',
++  'focalY',
++]
++
++export function initCollections({
++  collections,
++  config,
++  dynamic,
++  transformer,
++}: {
++  collections: Partial<Record<string, CloudflareCollectionConfig>>
++  config: Config
++  dynamic: CloudflareDynamicOptions | false
++  transformer: UploadTransformer
++}): Config {
++  const assertUploadCollection = ({ slug }: { slug: string }) => {
++    if (!config.collections?.some((collection) => collection.slug === slug && collection.upload)) {
++      throw new Error(
++        `cloudflareTransformer targets an unknown or non-upload collection: "${slug}".`,
++      )
++    }
++  }
++
++  if (dynamic) {
++    for (const slug of dynamic.collections ?? []) {
++      assertUploadCollection({ slug })
++    }
++  }
++  for (const [slug, options] of Object.entries(collections)) {
++    if (!options) {
++      continue
++    }
++    assertUploadCollection({ slug })
++    const owners = (config.upload?.transformers ?? []).filter(
++      (candidate) =>
++        candidate === transformer ||
++        getUploadTransformerInternal(candidate)?.handlesCollection?.({ collectionSlug: slug }),
++    )
++
++    if (owners.length > 1) {
++      throw new Error(
++        `Collection "${slug}" has upload settings on more than one transformer. Configure each collection on exactly one instance.`,
++      )
++    }
++    validateFormatOptions({ value: options.formatOptions })
++    if (options.resizeOptions) {
++      const { withoutEnlargement, ...resize } = options.resizeOptions
++
++      assertBoolean({ name: 'withoutEnlargement', value: withoutEnlargement })
++      validateTransformation({ value: resize })
++    }
++    assertBoolean({ name: 'crop', value: options.crop })
++    assertBoolean({ name: 'focalPoint', value: options.focalPoint })
++    const names = new Set<string>()
++
++    for (const size of options.variants ?? []) {
++      if (
++        typeof size.name !== 'string' ||
++        !/^[\w-]+$/.test(size.name) ||
++        names.has(size.name) ||
++        RESERVED_NAMES.includes(size.name)
++      ) {
++        throw new Error(`Invalid or duplicate Cloudflare variant name: "${size.name}".`)
++      }
++      names.add(size.name)
++      const resize = size as CloudflareImageSizeOptions
++
++      validateTransformation({
++        value: {
++          fit: resize.fit,
++          gravity: resize.gravity,
++          height: resize.height,
++          width: resize.width,
++        },
++      })
++      validateFormatOptions({ value: resize.formatOptions })
++      assertBoolean({ name: 'withoutEnlargement', value: resize.withoutEnlargement })
++    }
++  }
++
++  return {
++    ...config,
++    collections: config.collections?.map((collection) => {
++      const options = collections[collection.slug]
++
++      if (!options || !collection.upload) {
++        return collection
++      }
++      const authoredUpload = typeof collection.upload === 'object' ? collection.upload : {}
++      const upload: Partial<SanitizedUploadConfig> = {
++        ...authoredUpload,
++        crop: options.crop ?? authoredUpload.crop,
++        focalPoint: options.focalPoint ?? authoredUpload.focalPoint,
++        hasImageAdjustments: Boolean(options.resizeOptions || options.formatOptions),
++        variants: options.variants?.map(({ name, admin, generateImageName }) => ({
++          name,
++          admin,
++          generateImageName,
++        })),
++      }
++
++      return { ...collection, upload }
++    }),
++  }
++}
++
++export function validateDynamic({ dynamic }: { dynamic: CloudflareDynamicOptions | false }): void {
++  if (!dynamic) {
++    return
++  }
++  for (const key of ['maxWidth', 'maxHeight', 'maxPixels'] as const) {
++    assertPositiveInteger({ name: key, value: dynamic[key] })
++  }
++  assertBoolean({ name: 'withoutEnlargement', value: dynamic.withoutEnlargement })
++  validateTransformation({ value: { fit: dynamic.fit, gravity: dynamic.gravity } })
++  validateOutput({
++    value: {
++      anim: dynamic.anim,
++      format: `image/${dynamic.format ?? 'png'}`,
++      quality: dynamic.quality,
++    },
++  })
++}
++
++function assertBoolean({ name, value }: { name: string; value: unknown }): void {
++  if (value !== undefined && typeof value !== 'boolean') {
++    throw new Error(`Cloudflare ${name} must be a boolean.`)
++  }
++}
+diff --git a/packages/transformer-cloudflare/src/parseDynamicTransform.ts b/packages/transformer-cloudflare/src/parseDynamicTransform.ts
+new file mode 100644
+index 000000000..46c53bdd5
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/parseDynamicTransform.ts
+@@ -0,0 +1,125 @@
++import type { DynamicTransformParseResult } from './types.js'
++
++const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/
++
++/**
++ * Strictly parses the v1 dynamic resize query parameters (`width`, `height`,
++ * `withoutEnlargement`). The presence of any of them routes the request —
++ * a malformed combination is `valid: false` (mapped to `400`), not treated as
++ * an ordinary read. Every other query key (`draft`, `depth`, `where`, `prefix`,
++ * …) is ignored.
++ */
++export function parseDynamicTransform({
++  limits,
++  searchParams,
++}: {
++  limits: { maxHeight: number; maxPixels: number; maxWidth: number }
++  searchParams: URLSearchParams
++}): DynamicTransformParseResult {
++  const widthValues = searchParams.getAll('width')
++  const heightValues = searchParams.getAll('height')
++  const withoutEnlargementValues = searchParams.getAll('withoutEnlargement')
++
++  const isRouted =
++    widthValues.length > 0 || heightValues.length > 0 || withoutEnlargementValues.length > 0
++
++  if (!isRouted) {
++    return { isRouted: false }
++  }
++
++  if (widthValues.length > 1) {
++    return { error: '`width` may only be specified once.', isRouted: true, valid: false }
++  }
++
++  if (heightValues.length > 1) {
++    return { error: '`height` may only be specified once.', isRouted: true, valid: false }
++  }
++
++  if (withoutEnlargementValues.length > 1) {
++    return {
++      error: '`withoutEnlargement` may only be specified once.',
++      isRouted: true,
++      valid: false,
++    }
++  }
++
++  if (widthValues.length === 0 && heightValues.length === 0) {
++    return {
++      error: 'At least one of `width` or `height` is required to resize.',
++      isRouted: true,
++      valid: false,
++    }
++  }
++
++  let width: number | undefined
++
++  if (widthValues.length === 1) {
++    width = parsePositiveInteger({ value: widthValues[0]! })
++
++    if (width === undefined) {
++      return { error: '`width` must be a positive integer.', isRouted: true, valid: false }
++    }
++
++    if (width > limits.maxWidth) {
++      return {
++        error: `\`width\` exceeds the configured maximum of ${limits.maxWidth}.`,
++        isRouted: true,
++        valid: false,
++      }
++    }
++  }
++
++  let height: number | undefined
++
++  if (heightValues.length === 1) {
++    height = parsePositiveInteger({ value: heightValues[0]! })
++
++    if (height === undefined) {
++      return { error: '`height` must be a positive integer.', isRouted: true, valid: false }
++    }
++
++    if (height > limits.maxHeight) {
++      return {
++        error: `\`height\` exceeds the configured maximum of ${limits.maxHeight}.`,
++        isRouted: true,
++        valid: false,
++      }
++    }
++  }
++
++  if (width !== undefined && height !== undefined && width * height > limits.maxPixels) {
++    return {
++      error: `Requested dimensions exceed the configured maximum of ${limits.maxPixels} pixels.`,
++      isRouted: true,
++      valid: false,
++    }
++  }
++
++  let withoutEnlargement: boolean | undefined
++
++  if (withoutEnlargementValues.length === 1) {
++    const raw = withoutEnlargementValues[0]
++
++    if (raw !== 'true' && raw !== 'false') {
++      return {
++        error: '`withoutEnlargement` must be "true" or "false".',
++        isRouted: true,
++        valid: false,
++      }
++    }
++
++    withoutEnlargement = raw === 'true'
++  }
++
++  return { height, isRouted: true, valid: true, width, withoutEnlargement }
++}
++
++function parsePositiveInteger({ value }: { value: string }): number | undefined {
++  if (!POSITIVE_INTEGER_PATTERN.test(value)) {
++    return undefined
++  }
++
++  const parsed = Number(value)
++
++  return Number.isSafeInteger(parsed) ? parsed : undefined
++}
+diff --git a/packages/transformer-cloudflare/src/prepareUpload.ts b/packages/transformer-cloudflare/src/prepareUpload.ts
+new file mode 100644
+index 000000000..42052700f
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/prepareUpload.ts
+@@ -0,0 +1,200 @@
++import type { ImageSize, PayloadRequest } from 'payload'
++import type { PreparedUploadTransformation, UploadTransformerInternal } from 'payload/internal'
++
++import type {
++  CloudflareCollectionConfig,
++  CloudflareImageSizeOptions,
++  CloudflareTransformation,
++  CloudflareUploadTask,
++  ImagesClient,
++} from './types.js'
++
++import { resolveResize } from './transformation.js'
++
++/** Plans the main file and persisted variants through Payload's existing pipeline. */
++export function createPrepareUpload({
++  slug,
++  client,
++  collections,
++}: {
++  client: ImagesClient
++  collections: Partial<Record<string, CloudflareCollectionConfig>>
++  slug: string
++}): NonNullable<UploadTransformerInternal['prepareUpload']> {
++  return async ({ collectionSlug, file, req, transform, uploadEdits }) => {
++    const options = collections[collectionSlug] ?? {}
++    const needsDimensions = Boolean(uploadEdits?.crop)
++    const dimensions = needsDimensions ? await client.info({ file, req }) : undefined
++    const mainTransforms: CloudflareTransformation[] = []
++    const crop = uploadEdits?.crop
++
++    if (crop && dimensions && 'width' in dimensions) {
++      const width = uploadEdits.widthInPixels
++      const height = uploadEdits.heightInPixels
++      const left = Math.floor(crop.unit === 'px' ? crop.x : (crop.x / 100) * dimensions.width)
++      const top = Math.floor(crop.unit === 'px' ? crop.y : (crop.y / 100) * dimensions.height)
++
++      if (
++        !width ||
++        !height ||
++        !Number.isSafeInteger(width) ||
++        !Number.isSafeInteger(height) ||
++        width < 1 ||
++        height < 1 ||
++        !Number.isFinite(left) ||
++        !Number.isFinite(top) ||
++        left < 0 ||
++        top < 0 ||
++        left + width > dimensions.width ||
++        top + height > dimensions.height
++      ) {
++        throw new Error('Invalid Cloudflare crop rectangle.')
++      }
++      mainTransforms.push({
++        trim: {
++          bottom: dimensions.height - top - height,
++          left,
++          right: dimensions.width - left - width,
++          top,
++        },
++      })
++    }
++    if (options.resizeOptions) {
++      mainTransforms.push(resolveResize({ options: options.resizeOptions }))
++    }
++    const mainFile = await transform({
++      fieldPath: 'filename',
++      options: {
++        formatOptions: options.formatOptions,
++        transformerSlug: slug,
++        transforms: mainTransforms,
++      } satisfies CloudflareUploadTask,
++    })
++    const results: PreparedUploadTransformation[] = [
++      await describeResult({
++        client,
++        fieldPath: 'filename',
++        file: mainFile,
++        req,
++      }),
++    ]
++
++    if (!options.variants?.length) {
++      return results
++    }
++    // Derive every variant from the cropped/resized main result, including any
++    // changes made by another eligible stage, rather than the discarded original.
++    const sourceDimensions = results[0]!
++
++    if (!sourceDimensions.width || !sourceDimensions.height) {
++      throw new Error('Cloudflare variants require raster image dimensions.')
++    }
++
++    const shouldUseFocalPoint =
++      (options.focalPoint ?? req.payload.collections[collectionSlug]?.config.upload?.focalPoint) !==
++      false
++    const focalPoint = shouldUseFocalPoint ? uploadEdits?.focalPoint : undefined
++
++    for (const rawSize of options.variants) {
++      const size = rawSize as CloudflareImageSizeOptions & ImageSize
++      const fieldPath = `variants.${size.name}` as const
++      const isTooSmall =
++        size.width && size.height
++          ? sourceDimensions.width < size.width && sourceDimensions.height < size.height
++          : size.width
++            ? sourceDimensions.width < size.width
++            : size.height
++              ? sourceDimensions.height < size.height
++              : false
++
++      if (size.withoutEnlargement === undefined && isTooSmall) {
++        results.push({ fieldPath })
++        continue
++      }
++      const resize = resolveResize({
++        options: {
++          fit: size.fit,
++          gravity: size.gravity,
++          height: size.height,
++          width: size.width,
++          withoutEnlargement: size.withoutEnlargement,
++        },
++      })
++
++      if (
++        focalPoint &&
++        !size.gravity &&
++        size.width &&
++        size.height &&
++        ['cover', 'crop'].includes(resize.fit!)
++      ) {
++        const { x = 50, y = 50 } = focalPoint
++
++        if (![x, y].every((value) => Number.isFinite(value) && value >= 0 && value <= 100)) {
++          throw new Error('Cloudflare focal point must be between 0 and 100.')
++        }
++        resize.gravity = { mode: 'box-center', x: x / 100, y: y / 100 }
++      }
++      const resultFile = await transform({
++        fieldPath,
++        file: mainFile,
++        options: {
++          formatOptions: size.formatOptions ?? options.formatOptions,
++          transformerSlug: slug,
++          transforms: [resize],
++        } satisfies CloudflareUploadTask,
++      })
++      const result = await describeResult({
++        client,
++        fieldPath,
++        file: resultFile,
++        req,
++      })
++      const extension =
++        resultFile.type.slice('image/'.length) === 'jpeg'
++          ? 'jpg'
++          : resultFile.type.slice('image/'.length)
++      const originalName = file.name.replace(/\.[^.]+$/, '')
++      const name =
++        size.generateImageName && result.width && result.height
++          ? size.generateImageName({
++              extension,
++              height: result.height,
++              originalName,
++              sizeName: size.name,
++              width: result.width,
++            })
++          : `${originalName}-${size.name}.${extension}`
++
++      result.file = new File([resultFile], name, {
++        type: resultFile.type,
++        lastModified: resultFile.lastModified,
++      })
++      results.push(result)
++    }
++
++    return results
++  }
++}
++
++async function describeResult({
++  client,
++  fieldPath,
++  file,
++  req,
++}: {
++  client: ImagesClient
++  fieldPath: PreparedUploadTransformation['fieldPath']
++  file: File
++  req: PayloadRequest
++}): Promise<PreparedUploadTransformation> {
++  const dimensions = await client.info({ file, req })
++
++  return {
++    fieldPath,
++    file,
++    height: 'height' in dimensions ? dimensions.height : undefined,
++    mimeType: file.type,
++    width: 'width' in dimensions ? dimensions.width : undefined,
++  }
++}
+diff --git a/packages/transformer-cloudflare/src/transformation.ts b/packages/transformer-cloudflare/src/transformation.ts
+new file mode 100644
+index 000000000..6fa778d4e
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/transformation.ts
+@@ -0,0 +1,41 @@
++import type {
++  CloudflareFormatOptions,
++  CloudflareOutputOptions,
++  CloudflareTransformation,
++} from './types.js'
++
++import { FORMATS } from './validation.js'
++
++export function resolveOutput({
++  formatOptions,
++  mimeType,
++}: {
++  formatOptions?: CloudflareFormatOptions
++  mimeType: string
++}): CloudflareOutputOptions {
++  const format = formatOptions?.format ?? FORMATS.find((format) => mimeType === `image/${format}`)
++
++  if (!format) {
++    throw new Error(`Unsupported Cloudflare image format: ${mimeType}.`)
++  }
++
++  return {
++    anim: formatOptions?.anim ?? true,
++    format: `image/${format}`,
++    quality: formatOptions?.quality,
++  }
++}
++
++export function resolveResize({
++  options,
++}: {
++  options: { withoutEnlargement?: boolean } & CloudflareTransformation
++}): CloudflareTransformation {
++  const { withoutEnlargement, ...transform } = options
++  const fit = options.fit ?? (options.width && options.height ? 'cover' : 'contain')
++
++  return {
++    ...transform,
++    fit: withoutEnlargement ? (fit === 'cover' || fit === 'crop' ? 'crop' : 'scale-down') : fit,
++  }
++}
+diff --git a/packages/transformer-cloudflare/src/types.ts b/packages/transformer-cloudflare/src/types.ts
+new file mode 100644
+index 000000000..921a86f8d
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/types.ts
+@@ -0,0 +1,161 @@
++import type { ImageSize, PayloadRequest, UploadCollectionSlug } from 'payload'
++
++export type CloudflareFormat = 'avif' | 'gif' | 'jpeg' | 'png' | 'webp'
++export type CloudflareFit = 'contain' | 'cover' | 'crop' | 'scale-down'
++export type CloudflareGravity =
++  | 'auto'
++  | 'bottom'
++  | 'center'
++  | 'entropy'
++  | 'face'
++  | 'left'
++  | 'right'
++  | 'top'
++  | { mode: 'box-center' | 'remainder'; x?: number; y?: number }
++
++/** The supported subset of Cloudflare's image transformation options. */
++export type CloudflareTransformation = {
++  background?: string
++  blur?: number
++  brightness?: number
++  contrast?: number
++  fit?: CloudflareFit
++  flip?: 'h' | 'hv' | 'v'
++  gamma?: number
++  gravity?: CloudflareGravity
++  height?: number
++  rotate?: 0 | 90 | 180 | 270
++  saturation?: number
++  sharpen?: number
++  trim?: {
++    bottom?: number
++    height?: number
++    left?: number
++    right?: number
++    top?: number
++    width?: number
++  }
++  width?: number
++}
++
++export type CloudflareOutputOptions = {
++  /** Preserve animated GIF/WebP/AVIF frames. @default true */
++  anim?: boolean
++  format: `image/${CloudflareFormat}`
++  quality?: number
++}
++
++export type CloudflareImageInfo =
++  | { fileSize: number; format: string; height: number; width: number }
++  | { format: 'image/svg+xml' }
++
++/** Structural types allow generated Cloudflare bindings without a runtime SDK dependency. */
++export type CloudflareImagesBinding = {
++  info: (stream: ReadableStream<Uint8Array>) => Promise<CloudflareImageInfo>
++  input: (stream: ReadableStream<Uint8Array>) => CloudflareImageTransformer
++}
++
++export type CloudflareImageTransformer = {
++  output: (options: CloudflareOutputOptions) => Promise<{ response: () => Response }>
++  transform: (options: CloudflareTransformation) => CloudflareImageTransformer
++}
++
++export type CloudflareTransport =
++  | {
++      /** Override the HTTP client, for example to call a service binding. */
++      fetch?: typeof globalThis.fetch
++      mode: 'remote'
++      /** Timeout for each remote call. @default 30000 */
++      timeout?: number
++      /** Shared secret configured on the companion Worker. */
++      token: string
++      /** HTTPS endpoint running createCloudflareImagesHandler; not api.cloudflare.com. */
++      url: string
++    }
++  | {
++      binding:
++        | ((args: {
++            req: PayloadRequest
++          }) => CloudflareImagesBinding | Promise<CloudflareImagesBinding>)
++        | CloudflareImagesBinding
++      mode: 'binding'
++    }
++
++export type CloudflareFormatOptions = {
++  anim?: boolean
++  format: CloudflareFormat
++  quality?: number
++}
++
++export type CloudflareImageSizeOptions = {
++  fit?: CloudflareFit
++  formatOptions?: CloudflareFormatOptions
++  gravity?: CloudflareGravity
++  height?: number
++  width?: number
++  /** Omit larger variants by default; false enlarges, true retains smaller images. */
++  withoutEnlargement?: boolean
++}
++
++declare module 'payload' {
++  interface RegisteredImageSizeOptions {
++    cloudflare: CloudflareImageSizeOptions
++  }
++}
++
++export type CloudflareCollectionConfig = {
++  crop?: boolean
++  focalPoint?: boolean
++  formatOptions?: CloudflareFormatOptions
++  resizeOptions?: { withoutEnlargement?: boolean } & CloudflareTransformation
++  variants?: ImageSize[]
++}
++
++export type CloudflareDynamicOptions = {
++  anim?: boolean
++  collections?: UploadCollectionSlug[]
++  /** @default 'cover' */
++  fit?: CloudflareFit
++  /** Omitted keeps the source format. */
++  format?: CloudflareFormat
++  gravity?: CloudflareGravity
++  /** @default 4096 */
++  maxHeight?: number
++  /** Per-frame output pixel limit. @default 16777216 */
++  maxPixels?: number
++  /** @default 4096 */
++  maxWidth?: number
++  quality?: number
++  /** @default false */
++  withoutEnlargement?: boolean
++}
++
++export type CloudflareTransformerOptions = {
++  collections?: Partial<Record<UploadCollectionSlug, CloudflareCollectionConfig>>
++  /** Disabled by default; true enables default limits for all upload collections. */
++  dynamic?: boolean | CloudflareDynamicOptions
++  /** @default 'cloudflare' */
++  slug?: string
++  transport: CloudflareTransport
++}
++
++export type DynamicTransformParseResult =
++  | { error: string; isRouted: true; valid: false }
++  | { height?: number; isRouted: true; valid: true; width?: number; withoutEnlargement?: boolean }
++  | { isRouted: false }
++
++export type CloudflareUploadTask = {
++  formatOptions?: CloudflareFormatOptions
++  transformerSlug: string
++  transforms: CloudflareTransformation[]
++}
++
++export type ImagesClient = {
++  info: (args: { file: File; req: PayloadRequest }) => Promise<CloudflareImageInfo>
++  transform: (args: {
++    file: File
++    output: CloudflareOutputOptions
++    req: PayloadRequest
++    transforms: CloudflareTransformation[]
++  }) => Promise<Response>
++}
+diff --git a/packages/transformer-cloudflare/src/validation.ts b/packages/transformer-cloudflare/src/validation.ts
+new file mode 100644
+index 000000000..deb1e506e
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/validation.ts
+@@ -0,0 +1,215 @@
++import type {
++  CloudflareFormatOptions,
++  CloudflareOutputOptions,
++  CloudflareTransformation,
++} from './types.js'
++
++export const MAX_IMAGE_BYTES = 20 * 1024 * 1024
++export const FORMATS = ['avif', 'gif', 'jpeg', 'png', 'webp'] as const
++const FITS = ['contain', 'cover', 'crop', 'scale-down']
++const GRAVITIES = ['auto', 'bottom', 'center', 'entropy', 'face', 'left', 'right', 'top']
++const TRANSFORM_KEYS = [
++  'background',
++  'blur',
++  'brightness',
++  'contrast',
++  'fit',
++  'flip',
++  'gamma',
++  'gravity',
++  'height',
++  'rotate',
++  'saturation',
++  'sharpen',
++  'trim',
++  'width',
++]
++
++export function validateTransformation(args: { value: unknown }): CloudflareTransformation {
++  const value = parseRecord(args)
++
++  if (Object.keys(value).some((key) => !TRANSFORM_KEYS.includes(key))) {
++    throw new Error('Unsupported Cloudflare transformation option.')
++  }
++  for (const key of ['width', 'height']) {
++    if (value[key] !== undefined) {
++      assertPositiveInteger({ name: key, value: value[key] })
++    }
++  }
++  for (const [key, max] of [
++    ['blur', 250],
++    ['brightness', Infinity],
++    ['contrast', Infinity],
++    ['gamma', Infinity],
++    ['saturation', Infinity],
++    ['sharpen', 10],
++  ] as const) {
++    const numeric = value[key]
++
++    if (
++      numeric !== undefined &&
++      (typeof numeric !== 'number' || !Number.isFinite(numeric) || numeric < 0 || numeric > max)
++    ) {
++      throw new Error(`Invalid Cloudflare ${key}.`)
++    }
++  }
++  if (
++    value.background !== undefined &&
++    (typeof value.background !== 'string' || value.background.length > 256)
++  ) {
++    throw new Error('Invalid Cloudflare background.')
++  }
++  if (value.fit !== undefined && (typeof value.fit !== 'string' || !FITS.includes(value.fit))) {
++    throw new Error('Invalid Cloudflare fit.')
++  }
++  if (
++    value.flip !== undefined &&
++    (typeof value.flip !== 'string' || !['h', 'hv', 'v'].includes(value.flip))
++  ) {
++    throw new Error('Invalid Cloudflare flip.')
++  }
++  if (value.rotate !== undefined && ![0, 90, 180, 270].includes(value.rotate as number)) {
++    throw new Error('Invalid Cloudflare rotation.')
++  }
++  if (value.gravity !== undefined) {
++    if (typeof value.gravity === 'string') {
++      if (!GRAVITIES.includes(value.gravity)) {
++        throw new Error('Invalid Cloudflare gravity.')
++      }
++    } else {
++      const gravity = parseRecord({ value: value.gravity })
++
++      if (
++        typeof gravity.mode !== 'string' ||
++        !['box-center', 'remainder'].includes(gravity.mode) ||
++        Object.keys(gravity).some((key) => !['mode', 'x', 'y'].includes(key))
++      ) {
++        throw new Error('Invalid Cloudflare gravity.')
++      }
++      for (const key of ['x', 'y']) {
++        const coordinate = gravity[key]
++
++        if (
++          coordinate !== undefined &&
++          (typeof coordinate !== 'number' ||
++            !Number.isFinite(coordinate) ||
++            coordinate < 0 ||
++            coordinate > 1)
++        ) {
++          throw new Error('Cloudflare gravity coordinates must be between 0 and 1.')
++        }
++      }
++    }
++  }
++  if (value.trim !== undefined) {
++    const trim = parseRecord({ value: value.trim })
++
++    if (
++      Object.keys(trim).some(
++        (key) => !['bottom', 'height', 'left', 'right', 'top', 'width'].includes(key),
++      )
++    ) {
++      throw new Error('Invalid Cloudflare trim.')
++    }
++    for (const [key, number] of Object.entries(trim)) {
++      if (
++        typeof number !== 'number' ||
++        !Number.isSafeInteger(number) ||
++        number < (key === 'width' || key === 'height' ? 1 : 0)
++      ) {
++        throw new Error('Invalid Cloudflare trim dimensions.')
++      }
++    }
++  }
++  return value as CloudflareTransformation
++}
++
++export function validateOutput(args: { value: unknown }): CloudflareOutputOptions {
++  const value = parseRecord(args)
++
++  if (
++    Object.keys(value).some((key) => !['anim', 'format', 'quality'].includes(key)) ||
++    !FORMATS.some((format) => value.format === `image/${format}`)
++  ) {
++    throw new Error('Invalid Cloudflare output format.')
++  }
++  if (value.anim !== undefined && typeof value.anim !== 'boolean') {
++    throw new Error('Invalid Cloudflare animation option.')
++  }
++  if (
++    value.quality !== undefined &&
++    (typeof value.quality !== 'number' ||
++      !Number.isInteger(value.quality) ||
++      value.quality < 1 ||
++      value.quality > 100)
++  ) {
++    throw new Error('Cloudflare quality must be an integer between 1 and 100.')
++  }
++  return value as CloudflareOutputOptions
++}
++
++export function validateFormatOptions({
++  value,
++}: {
++  value: CloudflareFormatOptions | undefined
++}): void {
++  if (value) {
++    validateOutput({ value: { ...value, format: `image/${value.format}` } })
++  }
++}
++
++export function assertPositiveInteger({ name, value }: { name: string; value: unknown }): void {
++  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
++    throw new Error(`${name} must be a positive integer.`)
++  }
++}
++
++export function parseRecord({ value }: { value: unknown }): Record<string, unknown> {
++  if (!value || typeof value !== 'object' || Array.isArray(value)) {
++    throw new Error('Expected a Cloudflare options object.')
++  }
++  return value as Record<string, unknown>
++}
++
++/** Bounds consumption even if the sender omits or lies about Content-Length. */
++export async function readBody({
++  body,
++  maxBytes = MAX_IMAGE_BYTES,
++}: {
++  body: null | ReadableStream<Uint8Array>
++  maxBytes?: number
++}): Promise<Uint8Array<ArrayBuffer>> {
++  if (!body) {
++    throw new Error('Cloudflare Images returned an empty body.')
++  }
++  const reader = body.getReader()
++  const chunks: Uint8Array[] = []
++  let length = 0
++
++  try {
++    while (true) {
++      const { done, value } = await reader.read()
++
++      if (done) {
++        break
++      }
++      length += value.byteLength
++      if (length > maxBytes) {
++        await reader.cancel()
++        throw new Error('Cloudflare Images payload exceeds the byte limit.')
++      }
++      chunks.push(value)
++    }
++  } finally {
++    reader.releaseLock()
++  }
++  const bytes = new Uint8Array(length)
++  let offset = 0
++
++  for (const chunk of chunks) {
++    bytes.set(chunk, offset)
++    offset += chunk.length
++  }
++
++  return bytes
++}
+diff --git a/packages/transformer-cloudflare/src/worker.spec.ts b/packages/transformer-cloudflare/src/worker.spec.ts
+new file mode 100644
+index 000000000..43a6e94da
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/worker.spec.ts
+@@ -0,0 +1,214 @@
++import { describe, expect, it, vi } from 'vitest'
++
++import { createImagesClient } from './client.js'
++import { readBody } from './validation.js'
++import { createCloudflareImagesHandler } from './worker.js'
++
++function createBinding() {
++  const handle = {
++    output: vi.fn(async () => ({
++      response: () => new Response('image', { headers: { 'Content-Type': 'image/png' } }),
++    })),
++    transform: vi.fn(() => handle),
++  }
++
++  return {
++    info: vi.fn(async () => ({ fileSize: 5, format: 'image/png', height: 30, width: 40 })),
++    input: vi.fn(() => handle),
++  }
++}
++
++function remoteRequest({
++  operation = 'transform',
++  options = JSON.stringify({ output: { format: 'image/png' }, transforms: [{ width: 100 }] }),
++  type = 'image/png',
++  token = 'secret',
++} = {}) {
++  const form = new FormData()
++
++  form.set('file', new File(['image'], 'test.png', { type }))
++  form.set('operation', operation)
++  form.set('options', options)
++
++  return new Request('https://images.example.com', {
++    body: form,
++    headers: { Authorization: `Bearer ${token}` },
++    method: 'POST',
++  })
++}
++
++describe('Cloudflare companion Worker protocol', () => {
++  it('should reject an incorrect secret before touching Images', async () => {
++    const binding = createBinding()
++    const handler = createCloudflareImagesHandler({ binding, token: 'secret' })
++    const response = await handler(remoteRequest({ token: 'wrong' }))
++
++    expect(response.status).toBe(401)
++    expect(binding.input).not.toHaveBeenCalled()
++  })
++
++  it('should accept only POST after authentication', async () => {
++    const handler = createCloudflareImagesHandler({ binding: createBinding(), token: 'secret' })
++    const response = await handler(
++      new Request('https://images.example.com', { headers: { Authorization: 'Bearer secret' } }),
++    )
++
++    expect(response.status).toBe(405)
++    expect(response.headers.get('allow')).toBe('POST')
++  })
++
++  it.each([
++    '{',
++    'null',
++    JSON.stringify({ output: { format: 'image/svg+xml' }, transforms: [] }),
++    JSON.stringify({ output: { format: 'image/png', quality: 101 }, transforms: [] }),
++    JSON.stringify({ output: { format: 'image/png' }, transforms: [{ width: 0 }] }),
++    JSON.stringify({ output: { format: 'image/png' }, transforms: [{ width: '100' }] }),
++    JSON.stringify({
++      output: { format: 'image/png' },
++      transforms: [{ gravity: { mode: 'box-center', x: 2 } }],
++    }),
++    JSON.stringify({
++      output: { format: 'image/png' },
++      transforms: [{ url: 'https://private.example.com' }],
++    }),
++    JSON.stringify({ output: { format: 'image/png' }, transforms: Array(5).fill({ width: 100 }) }),
++  ])(
++    'should reject malformed transformation options (%s) before calling Images',
++    async (options) => {
++      const binding = createBinding()
++      const handler = createCloudflareImagesHandler({ binding, token: 'secret' })
++      const response = await handler(remoteRequest({ options }))
++
++      expect(response.status).toBe(400)
++      expect(binding.input).not.toHaveBeenCalled()
++    },
++  )
++
++  it('should reject unsupported input types', async () => {
++    const binding = createBinding()
++    const handler = createCloudflareImagesHandler({ binding, token: 'secret' })
++    const response = await handler(remoteRequest({ type: 'image/svg+xml' }))
++
++    expect(response.status).toBe(400)
++    expect(binding.input).not.toHaveBeenCalled()
++  })
++
++  it('should return image metadata without creating a transformation', async () => {
++    const binding = createBinding()
++    const handler = createCloudflareImagesHandler({ binding, token: 'secret' })
++    const response = await handler(remoteRequest({ operation: 'info' }))
++
++    expect(response.status).toBe(200)
++    expect(await response.json()).toEqual({
++      fileSize: 5,
++      format: 'image/png',
++      height: 30,
++      width: 40,
++    })
++    expect(binding.input).not.toHaveBeenCalled()
++  })
++
++  it('should hide service error details from remote callers', async () => {
++    const binding = createBinding()
++
++    binding.info.mockRejectedValue(new Error('internal details'))
++    const handler = createCloudflareImagesHandler({ binding, token: 'secret' })
++    const response = await handler(remoteRequest({ operation: 'info' }))
++
++    expect(response.status).toBe(502)
++    expect(await response.text()).not.toContain('internal details')
++  })
++})
++
++describe('Cloudflare client boundaries', () => {
++  it('should reject a successful HTTP response with an unexpected MIME type', async () => {
++    const client = createImagesClient({
++      transport: {
++        mode: 'remote',
++        url: 'https://images.example.com',
++        token: 'secret',
++        fetch: async () =>
++          new Response('<html>error</html>', { headers: { 'Content-Type': 'text/html' } }),
++      },
++    })
++
++    await expect(
++      client.transform({
++        file: new File(['image'], 'test.png', { type: 'image/png' }),
++        output: { format: 'image/png' },
++        req: {} as never,
++        transforms: [{ width: 100 }],
++      }),
++    ).rejects.toThrow('invalid transformation response')
++  })
++
++  it('should reject corrupt image dimensions from the remote service', async () => {
++    const client = createImagesClient({
++      transport: {
++        mode: 'remote',
++        url: 'https://images.example.com',
++        token: 'secret',
++        fetch: async () =>
++          Response.json({ fileSize: 5, format: 'image/png', height: -1, width: 40 }),
++      },
++    })
++
++    await expect(
++      client.info({
++        file: new File(['image'], 'test.png', { type: 'image/png' }),
++        req: {} as never,
++      }),
++    ).rejects.toThrow('positive integer')
++  })
++
++  it('should refuse redirects and attach the configured timeout to remote calls', async () => {
++    const fetch = vi.fn(async () =>
++      Response.json({ fileSize: 5, format: 'image/png', height: 30, width: 40 }),
++    )
++    const client = createImagesClient({
++      transport: {
++        mode: 'remote',
++        url: 'https://images.example.com',
++        token: 'secret',
++        timeout: 1234,
++        fetch,
++      },
++    })
++
++    await client.info({
++      file: new File(['image'], 'test.png', { type: 'image/png' }),
++      req: {} as never,
++    })
++
++    expect(fetch).toHaveBeenCalledWith(
++      new URL('https://images.example.com'),
++      expect.objectContaining({ redirect: 'error', signal: expect.any(AbortSignal) }),
++    )
++  })
++
++  it('should reject an oversized input before sending it remotely', async () => {
++    const fetch = vi.fn()
++    const client = createImagesClient({
++      transport: { mode: 'remote', url: 'https://images.example.com', token: 'secret', fetch },
++    })
++    const file = new File([new Uint8Array(20 * 1024 * 1024 + 1)], 'test.png', { type: 'image/png' })
++
++    await expect(client.info({ file, req: {} as never })).rejects.toThrow('20 MiB')
++    expect(fetch).not.toHaveBeenCalled()
++  })
++
++  it('should stop reading and cancel a stream when its actual bytes exceed the limit', async () => {
++    const cancel = vi.fn()
++    const body = new ReadableStream<Uint8Array>({
++      start(controller) {
++        controller.enqueue(new Uint8Array(4))
++        controller.enqueue(new Uint8Array(4))
++      },
++      cancel,
++    })
++
++    await expect(readBody({ body, maxBytes: 5 })).rejects.toThrow('byte limit')
++    expect(cancel).toHaveBeenCalledOnce()
++  })
++})
+diff --git a/packages/transformer-cloudflare/src/worker.ts b/packages/transformer-cloudflare/src/worker.ts
+new file mode 100644
+index 000000000..fb3c10b87
+--- /dev/null
++++ b/packages/transformer-cloudflare/src/worker.ts
+@@ -0,0 +1,140 @@
++import type { CloudflareImagesBinding } from './types.js'
++
++import {
++  MAX_IMAGE_BYTES,
++  parseRecord,
++  readBody,
++  validateOutput,
++  validateTransformation,
++} from './validation.js'
++
++/**
++ * Authenticated, stateless companion endpoint for Payload hosted outside Workers.
++ * Never accepts source URLs or writes images to storage. Deploy with an IMAGES
++ * binding and a shared secret; the secret must not be sent to browsers.
++ */
++export function createCloudflareImagesHandler({
++  binding,
++  token,
++}: {
++  binding: CloudflareImagesBinding
++  token: string
++}): (request: Request) => Promise<Response> {
++  if (!token.trim() || /[\r\n]/.test(token)) {
++    throw new Error('A non-empty Cloudflare Images Worker token is required.')
++  }
++
++  return async (request) => {
++    if (!(await isAuthenticated({ authorization: request.headers.get('authorization'), token }))) {
++      return errorResponse({ status: 401 })
++    }
++    if (request.method !== 'POST') {
++      return new Response(null, { headers: { Allow: 'POST' }, status: 405 })
++    }
++    const contentType = request.headers.get('content-type')
++
++    if (!contentType?.startsWith('multipart/form-data;')) {
++      return errorResponse({ status: 400 })
++    }
++    let form: FormData
++
++    try {
++      const bytes = await readBody({ body: request.body, maxBytes: MAX_IMAGE_BYTES + 65_536 })
++
++      form = await new Response(bytes, { headers: { 'Content-Type': contentType } }).formData()
++    } catch {
++      return errorResponse({ status: 400 })
++    }
++    const file = form.get('file')
++    const operation = form.get('operation')
++
++    if (
++      !(file instanceof File) ||
++      file.size === 0 ||
++      file.size > MAX_IMAGE_BYTES ||
++      !['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
++      form.getAll('file').length !== 1 ||
++      form.getAll('operation').length !== 1
++    ) {
++      return errorResponse({ status: 400 })
++    }
++    if (operation === 'info') {
++      try {
++        return Response.json(await binding.info(file.stream()), {
++          headers: { 'Cache-Control': 'private, no-store' },
++        })
++      } catch {
++        return errorResponse({ status: 502 })
++      }
++    }
++    if (operation !== 'transform' || form.getAll('options').length !== 1) {
++      return errorResponse({ status: 400 })
++    }
++    let options: Record<string, unknown>
++
++    try {
++      const raw = form.get('options')
++
++      if (typeof raw !== 'string' || raw.length > 8192) {
++        return errorResponse({ status: 400 })
++      }
++      options = parseRecord({ value: JSON.parse(raw) })
++      validateOutput({ value: options.output })
++      if (!Array.isArray(options.transforms) || options.transforms.length > 4) {
++        return errorResponse({ status: 400 })
++      }
++      for (const transform of options.transforms) {
++        validateTransformation({ value: transform })
++      }
++    } catch {
++      return errorResponse({ status: 400 })
++    }
++    try {
++      let handle = binding.input(file.stream())
++
++      for (const transform of options.transforms as Parameters<typeof handle.transform>[0][]) {
++        handle = handle.transform(transform)
++      }
++      const output = await handle.output(options.output as Parameters<typeof handle.output>[0])
++      const response = output.response()
++      const headers = new Headers(response.headers)
++
++      headers.set('Cache-Control', 'private, no-store')
++      return new Response(response.body, { headers, status: response.status })
++    } catch {
++      return errorResponse({ status: 502 })
++    }
++  }
++}
++
++async function isAuthenticated({
++  authorization,
++  token,
++}: {
++  authorization: null | string
++  token: string
++}): Promise<boolean> {
++  const encoder = new TextEncoder()
++  const [actual, expected] = await Promise.all([
++    crypto.subtle.digest('SHA-256', encoder.encode(authorization ?? '')),
++    crypto.subtle.digest('SHA-256', encoder.encode(`Bearer ${token}`)),
++  ])
++  const actualBytes = new Uint8Array(actual)
++  const expectedBytes = new Uint8Array(expected)
++  let difference = 0
++
++  for (let index = 0; index < actualBytes.length; index++) {
++    difference |= actualBytes[index]! ^ expectedBytes[index]!
++  }
++
++  return difference === 0
++}
++
++function errorResponse({ status }: { status: number }): Response {
++  return Response.json(
++    {
++      errors: [{ message: status === 401 ? 'Unauthorized.' : 'Cloudflare Images request failed.' }],
++    },
++    { headers: { 'Cache-Control': 'private, no-store' }, status },
++  )
++}
+diff --git a/packages/transformer-cloudflare/tsconfig.json b/packages/transformer-cloudflare/tsconfig.json
+new file mode 100644
+index 000000000..45209999a
+--- /dev/null
++++ b/packages/transformer-cloudflare/tsconfig.json
+@@ -0,0 +1,4 @@
++{
++  "extends": "../../tsconfig.base.json",
++  "references": [{ "path": "../payload" }]
++}
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index b9cf12fce..dee1fedf7 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -1720,6 +1720,15 @@ importers:
+         specifier: '>=8.0.0'
+         version: 8.3.0(@types/node@25.9.9)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+ 
++  packages/transformer-cloudflare:
++    devDependencies:
++      payload:
++        specifier: workspace:*
++        version: link:../payload
++      sharp:
++        specifier: 0.35.4
++        version: 0.35.4(@types/node@24.12.3)
++
+   packages/transformer-sharp:
+     dependencies:
+       sharp:
+diff --git a/tools/releaser/src/lib/publishList.ts b/tools/releaser/src/lib/publishList.ts
+index cf68f43ef..cc57b909c 100644
+--- a/tools/releaser/src/lib/publishList.ts
++++ b/tools/releaser/src/lib/publishList.ts
+@@ -10,6 +10,7 @@ export const packagePublishList = [
+   'translations',
+   'payload',
+   'transformer-sharp',
++  'transformer-cloudflare',
+ 
+   // Core UI/API
+   'ui',
+diff --git a/tsconfig.json b/tsconfig.json
+index 9c70448ae..3459c54ef 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -77,6 +77,9 @@
+     {
+       "path": "./packages/richtext-lexical"
+     },
++    {
++      "path": "./packages/transformer-cloudflare"
++    },
+     {
+       "path": "./packages/transformer-sharp"
+     },
