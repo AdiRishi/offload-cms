@@ -2,11 +2,8 @@ import { hideServerErrors } from "@adirishi/offload-tanstack";
 import { useCart, useCurrency } from "@payloadcms/plugin-ecommerce/client/react";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { getVisitorPayload } from "@/lib/payload.server";
 
 /** A published product and its published variants, priced in MUR. */
@@ -55,7 +52,6 @@ function ProductPage() {
   const hydrated = useHydrated();
   const { addItem, cart, isLoading } = useCart();
   const { formatCurrency } = useCurrency();
-  const [variant, setVariant] = useState(product.variants.find((option) => option.inStock)?.id);
   const itemsInCart = (cart?.items ?? []).reduce((total, item) => total + item.quantity, 0);
 
   return (
@@ -64,38 +60,25 @@ function ProductPage() {
       className="mx-auto my-16 flex max-w-2xl flex-col gap-6 px-4"
     >
       <h1 className="text-3xl font-semibold">{product.title}</h1>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="variant">Size</Label>
-        <NativeSelect
-          id="variant"
-          value={variant}
-          onChange={(event) =>
-            setVariant(
-              product.variants.find((option) => String(option.id) === event.target.value)?.id,
-            )
-          }
-        >
-          {product.variants.map((option) => (
-            <NativeSelectOption key={option.id} value={option.id} disabled={!option.inStock}>
-              {option.title}, {formatCurrency(option.price)}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
-      <div className="flex items-center gap-4">
-        <Button
-          type="button"
-          disabled={variant === undefined || isLoading}
-          onClick={() => {
-            if (variant !== undefined) void addItem({ product: product.id, variant });
-          }}
-        >
-          Add to cart
-        </Button>
-        <p role="status">
-          {itemsInCart === 1 ? "1 item in your cart" : `${itemsInCart} items in your cart`}
-        </p>
-      </div>
+      <ul aria-label="Sizes" className="flex flex-col gap-2">
+        {product.variants.map((variant) => (
+          <li key={variant.id} className="flex items-center justify-between gap-4">
+            <span>
+              {variant.title}, {formatCurrency(variant.price)}
+            </span>
+            <Button
+              type="button"
+              disabled={!variant.inStock || isLoading}
+              onClick={() => void addItem({ product: product.id, variant: variant.id })}
+            >
+              Add to cart
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <p role="status">
+        {itemsInCart === 1 ? "1 item in your cart" : `${itemsInCart} items in your cart`}
+      </p>
       {itemsInCart > 0 ? <Link to="/checkout">Go to checkout</Link> : null}
     </main>
   );

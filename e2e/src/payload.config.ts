@@ -1,3 +1,4 @@
+import { adminOrOwner } from "@adirishi/offload-accounts/config";
 import { getBindings, hyperdrivePoolConfig } from "@adirishi/offload-cloudflare";
 import { cloudflareEmailAdapter } from "@adirishi/offload-email-cloudflare";
 import { INR, MUR } from "@adirishi/offload-payments";
@@ -5,7 +6,6 @@ import { mipsAdapter } from "@adirishi/offload-payments/mips";
 import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
 import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
 import { postgresAdapter } from "@payloadcms/db-postgres";
-import { adminOrOwner } from "@adirishi/offload-accounts/config";
 import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
 import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";
 import { nestedDocsPlugin } from "@payloadcms/plugin-nested-docs";

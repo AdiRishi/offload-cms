@@ -2,15 +2,20 @@
 // checkout components from Offload's shadcn registry, and @adirishi/offload-payments against the
 // gateway stubs in stubs/.
 
-import type { Page } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 
 import { z } from "zod";
 
-import { type Doc, expect, test, unique } from "./fixtures";
+import { createCustomer, restToken, visitorHeaders } from "./accounts";
+import { admin } from "./credentials";
+import { type Doc, expect, type PayloadApi, test, unique } from "./fixtures";
 import {
+  type Cart,
+  confirmOrder,
   guestCart,
   guestEmail,
   initiate,
+  initiateRazorpay,
   inventoryOf,
   mips,
   ordersOf,
@@ -20,14 +25,18 @@ import {
   seedProduct,
   stock,
   transactionsOf,
+  userCart,
 } from "./payments";
 
 /** Adds a variant to the cart on its product's page, goes to checkout and enters an email. */
 const checkOut = async (page: Page, product: Doc, variant: Doc) => {
   await page.goto(`/products/${product.id}`);
   await expect(page.locator("main[data-hydrated]")).toBeVisible();
-  await page.getByLabel("Size").selectOption(String(variant.id));
-  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page
+    .getByRole("listitem")
+    .filter({ hasText: String(variant.title) })
+    .getByRole("button", { name: "Add to cart" })
+    .click();
   await expect(page.getByText("1 item in your cart")).toBeVisible();
   await page.getByRole("link", { name: "Go to checkout" }).click();
   await expect(page.getByRole("list", { name: "Cart" })).toContainText("Large");
@@ -209,4 +218,74 @@ test("the admin's price inputs show and save prices in the currency's minor unit
   await page.locator("#action-save").click();
   expect((await published).ok()).toBe(true);
   expect(await anonymous.findByID("products", product.id)).toMatchObject({ priceInMUR: 199990 });
+});
+
+const settled = z.object({ order: z.union([z.number(), z.string()]) });
+
+/** Pays for a cart with Razorpay through the plugin's endpoints, as Checkout and the button do. */
+const payWithRazorpay = async (api: PayloadApi, request: APIRequestContext, cart: Cart) => {
+  const razorpayOrder = await initiateRazorpay(request, cart);
+  const { checkout } = await razorpay.pay(request, razorpayOrder.orderID, {
+    outcome: "captured",
+    deliver: false,
+  });
+  const confirmed = await confirmOrder(request, "razorpay", cart, { ...checkout });
+  expect(confirmed.status(), await confirmed.text()).toBe(200);
+  const { docs } = await api.find(
+    "transactions",
+    `?where[razorpay.orderID][equals]=${razorpayOrder.orderID}&depth=0`,
+  );
+  expect(docs).toHaveLength(1);
+  const [transaction] = docs;
+  if (!transaction) throw new Error(`No transaction for ${razorpayOrder.orderID}`);
+  const { order } = settled.parse(transaction);
+  return { order: await api.findByID("orders", order, "?depth=0"), transaction };
+};
+
+test("a logged-in customer owns the transaction and the order of their checkout", async ({
+  api,
+  baseURL,
+  playwright,
+}) => {
+  const request = await playwright.request.newContext({
+    baseURL,
+    extraHTTPHeaders: visitorHeaders(),
+    storageState: { cookies: [], origins: [] },
+  });
+  const [ada, grace] = [`${unique("ada")}@offload.test`, `${unique("grace")}@offload.test`];
+  const [customer] = await Promise.all([createCustomer(api, ada), createCustomer(api, grace)]);
+  const { product, variants } = await seedProduct(api);
+  const token = await restToken(request, ada);
+  const cart = await userCart(
+    request,
+    token,
+    [{ product: product.id, variant: variants.Large.id, quantity: 1 }],
+    customer.id,
+  );
+
+  const { order, transaction } = await payWithRazorpay(api, request, cart);
+  expect(transaction).toMatchObject({ customer: customer.id, status: "succeeded" });
+  expect(transaction.customerEmail ?? null).toBeNull();
+  expect(order).toMatchObject({ customer: customer.id });
+
+  const read = await request.get(`/api/orders/${order.id}`, { headers: cart.headers });
+  expect(read.status(), await read.text()).toBe(200);
+  const other = await request.get(`/api/orders/${order.id}`, {
+    headers: { Authorization: `JWT ${await restToken(request, grace)}` },
+  });
+  expect(other.status()).toBe(404);
+  await request.dispose();
+});
+
+test("an admin user who checks out is never attached as the customer", async ({ api }) => {
+  const { product, variants } = await seedProduct(api);
+  const cart = await userCart(api.request, api.token, [
+    { product: product.id, variant: variants.Large.id, quantity: 1 },
+  ]);
+
+  const { order, transaction } = await payWithRazorpay(api, api.request, cart);
+  expect(transaction).toMatchObject({ customerEmail: admin.email, status: "succeeded" });
+  expect(transaction.customer ?? null).toBeNull();
+  expect(order).toMatchObject({ customerEmail: admin.email });
+  expect(order.customer ?? null).toBeNull();
 });

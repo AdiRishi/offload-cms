@@ -7,6 +7,11 @@
  */
 
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "OrderStatus".
+ */
+export type OrderStatus = ('processing' | 'completed' | 'cancelled' | 'refunded') | null;
+/**
  * Supported timezones in IANA format.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -62,16 +67,16 @@ export type SupportedTimezones =
   | 'Pacific/Fiji';
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_F5369825".
+ * via the `definition` "LexicalNodes_6E4586CE".
  */
-export type LexicalNodes_F5369825 =
+export type LexicalNodes_6E4586CE =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_F5369825>
+  | SerializedParagraphNode<LexicalNodes_6E4586CE>
   | SerializedHorizontalRuleNode
   | SerializedUploadNode<'media'>
-  | SerializedQuoteNode<LexicalNodes_F5369825>
+  | SerializedQuoteNode<LexicalNodes_6E4586CE>
   | SerializedRelationshipNode<
       | 'users'
       | 'customers'
@@ -84,30 +89,38 @@ export type LexicalNodes_F5369825 =
       | 'audit-logs'
       | 'bookings'
       | 'redirects'
+      | 'addresses'
+      | 'variants'
+      | 'variantTypes'
+      | 'variantOptions'
+      | 'products'
+      | 'carts'
+      | 'orders'
+      | 'transactions'
       | 'payload-kv'
       | 'payload-jobs'
       | 'payload-locked-documents'
       | 'payload-preferences'
       | 'payload-migrations'
     >
-  | SerializedAutoLinkNode<LexicalNodes_F5369825, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_F5369825, LexicalLinkFields>
-  | SerializedListNode<LexicalNodes_F5369825>
-  | SerializedListItemNode<LexicalNodes_F5369825>
-  | SerializedHeadingNode<LexicalNodes_F5369825>;
+  | SerializedAutoLinkNode<LexicalNodes_6E4586CE, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_6E4586CE, LexicalLinkFields>
+  | SerializedListNode<LexicalNodes_6E4586CE>
+  | SerializedListItemNode<LexicalNodes_6E4586CE>
+  | SerializedHeadingNode<LexicalNodes_6E4586CE>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "LexicalNodes_2149E3F6".
+ * via the `definition` "LexicalNodes_A24C0B56".
  */
-export type LexicalNodes_2149E3F6 =
+export type LexicalNodes_A24C0B56 =
   | SerializedTextNode
   | SerializedTabNode
   | SerializedLineBreakNode
-  | SerializedParagraphNode<LexicalNodes_2149E3F6>
+  | SerializedParagraphNode<LexicalNodes_A24C0B56>
   | SerializedBlockNode<Callout | PullQuote_3756B08C>
   | SerializedHorizontalRuleNode
   | SerializedUploadNode<'media'>
-  | SerializedQuoteNode<LexicalNodes_2149E3F6>
+  | SerializedQuoteNode<LexicalNodes_A24C0B56>
   | SerializedRelationshipNode<
       | 'users'
       | 'customers'
@@ -120,17 +133,25 @@ export type LexicalNodes_2149E3F6 =
       | 'audit-logs'
       | 'bookings'
       | 'redirects'
+      | 'addresses'
+      | 'variants'
+      | 'variantTypes'
+      | 'variantOptions'
+      | 'products'
+      | 'carts'
+      | 'orders'
+      | 'transactions'
       | 'payload-kv'
       | 'payload-jobs'
       | 'payload-locked-documents'
       | 'payload-preferences'
       | 'payload-migrations'
     >
-  | SerializedAutoLinkNode<LexicalNodes_2149E3F6, LexicalLinkFields>
-  | SerializedLinkNode<LexicalNodes_2149E3F6, LexicalLinkFields>
-  | SerializedListNode<LexicalNodes_2149E3F6>
-  | SerializedListItemNode<LexicalNodes_2149E3F6>
-  | SerializedHeadingNode<LexicalNodes_2149E3F6>;
+  | SerializedAutoLinkNode<LexicalNodes_A24C0B56, LexicalLinkFields>
+  | SerializedLinkNode<LexicalNodes_A24C0B56, LexicalLinkFields>
+  | SerializedListNode<LexicalNodes_A24C0B56>
+  | SerializedListItemNode<LexicalNodes_A24C0B56>
+  | SerializedHeadingNode<LexicalNodes_A24C0B56>;
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "LexicalNodes_3DE324E4".
@@ -168,6 +189,14 @@ export interface Config {
     search: Search;
     forms: Form;
     'form-submissions': FormSubmission;
+    addresses: Address;
+    variants: Variant;
+    variantTypes: VariantType;
+    variantOptions: VariantOption;
+    products: Product;
+    carts: Cart;
+    orders: Order;
+    transactions: Transaction;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -178,6 +207,12 @@ export interface Config {
   collectionsJoins: {
     categories: {
       posts: 'posts';
+    };
+    variantTypes: {
+      options: 'variantOptions';
+    };
+    products: {
+      variants: 'variants';
     };
   };
   collectionsSelect: {
@@ -196,6 +231,14 @@ export interface Config {
     search: SearchSelect<false> | SearchSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
     'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
+    addresses: AddressesSelect<false> | AddressesSelect<true>;
+    variants: VariantsSelect<false> | VariantsSelect<true>;
+    variantTypes: VariantTypesSelect<false> | VariantTypesSelect<true>;
+    variantOptions: VariantOptionsSelect<false> | VariantOptionsSelect<true>;
+    products: ProductsSelect<false> | ProductsSelect<true>;
+    carts: CartsSelect<false> | CartsSelect<true>;
+    orders: OrdersSelect<false> | OrdersSelect<true>;
+    transactions: TransactionsSelect<false> | TransactionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -228,6 +271,7 @@ export interface Config {
   user: User | Customer;
   jobs: {
     tasks: {
+      reconcilePayments: TaskReconcilePayments;
       recordHeartbeat: TaskRecordHeartbeat;
       schedulePublish: TaskSchedulePublish;
       inline: {
@@ -237,6 +281,22 @@ export interface Config {
     };
     workflows: {
       heartbeatTwice: WorkflowHeartbeatTwice;
+    };
+  };
+  /**
+   * Generated by the Payload Ecommerce plugin
+   */
+  ecommerce: {
+    collections: {
+      addresses: Address;
+      carts: Cart;
+      customers: Customer;
+      orders: Order;
+      products: Product;
+      transactions: Transaction;
+      variantOptions: VariantOption;
+      variants: Variant;
+      variantTypes: VariantType;
     };
   };
 }
@@ -640,7 +700,7 @@ export interface Cta {
  * via the `definition` "Content".
  */
 export interface Content {
-  body?: LexicalRichText<LexicalNodes_F5369825> | null;
+  body?: LexicalRichText<LexicalNodes_6E4586CE> | null;
   id?: string | null;
   blockName?: string | null;
   blockType: 'content';
@@ -665,7 +725,7 @@ export interface Form {
   fields?: (Checkbox | Country | Email | Message | Number | Select | State | Text | Textarea)[] | null;
   submitButtonLabel?: string | null;
   confirmationType?: ('message' | 'redirect') | null;
-  confirmationMessage?: LexicalRichText<LexicalNodes_F5369825>;
+  confirmationMessage?: LexicalRichText<LexicalNodes_6E4586CE>;
   redirect?: {
     url: string;
   };
@@ -677,7 +737,7 @@ export interface Form {
         replyTo?: string | null;
         emailFrom?: string | null;
         subject: string;
-        message?: LexicalRichText<LexicalNodes_F5369825> | null;
+        message?: LexicalRichText<LexicalNodes_6E4586CE> | null;
         id?: string | null;
       }[]
     | null;
@@ -747,7 +807,7 @@ export interface Email {
  * via the `definition` "Message".
  */
 export interface Message {
-  message?: LexicalRichText<LexicalNodes_F5369825> | null;
+  message?: LexicalRichText<LexicalNodes_6E4586CE> | null;
   id?: string | null;
   blockName?: string | null;
   blockType: 'message';
@@ -851,7 +911,7 @@ export interface Post {
   author?: (number | null) | User;
   categories?: (number | Category)[] | null;
   heroImage?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_2149E3F6> | null;
+  content?: LexicalRichText<LexicalNodes_A24C0B56> | null;
   publishedAt?: string | null;
   wordCount?: number | null;
   _h_folders?: (number | null) | Folder;
@@ -988,7 +1048,7 @@ export interface FieldType {
       }[]
     | null;
   blocks?: (TextBlock | ListBlock)[] | null;
-  richText?: LexicalRichText<LexicalNodes_F5369825> | null;
+  richText?: LexicalRichText<LexicalNodes_6E4586CE> | null;
   createdBy?:
     | ({
         relationTo: 'users';
@@ -1190,6 +1250,273 @@ export interface FormSubmission {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "addresses".
+ */
+export interface Address {
+  id: number;
+  customer?: (number | null) | Customer;
+  title?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  company?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  country:
+    | 'US'
+    | 'GB'
+    | 'CA'
+    | 'AU'
+    | 'AT'
+    | 'BE'
+    | 'BR'
+    | 'BG'
+    | 'CY'
+    | 'CZ'
+    | 'DK'
+    | 'EE'
+    | 'FI'
+    | 'FR'
+    | 'DE'
+    | 'GR'
+    | 'HK'
+    | 'HU'
+    | 'IN'
+    | 'IE'
+    | 'IT'
+    | 'JP'
+    | 'LV'
+    | 'LT'
+    | 'LU'
+    | 'MY'
+    | 'MT'
+    | 'MX'
+    | 'NL'
+    | 'NZ'
+    | 'NO'
+    | 'PL'
+    | 'PT'
+    | 'RO'
+    | 'SG'
+    | 'SK'
+    | 'SI'
+    | 'ES'
+    | 'SE'
+    | 'CH';
+  phone?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variants".
+ */
+export interface Variant {
+  id: number;
+  /**
+   * Used for administrative purposes, not shown to customers. This is populated by default.
+   */
+  title?: string | null;
+  product: number | Product;
+  options: (number | VariantOption)[];
+  inventory?: number | null;
+  priceInMUREnabled?: boolean | null;
+  priceInMUR?: number | null;
+  priceInINREnabled?: boolean | null;
+  priceInINR?: number | null;
+  updatedAt: string;
+  createdAt: string;
+  deletedAt?: string | null;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products".
+ */
+export interface Product {
+  id: number;
+  title: string;
+  inventory?: number | null;
+  enableVariants?: boolean | null;
+  variantTypes?: (number | VariantType)[] | null;
+  variants?: {
+    docs?: (number | Variant)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  priceInMUREnabled?: boolean | null;
+  priceInMUR?: number | null;
+  priceInINREnabled?: boolean | null;
+  priceInINR?: number | null;
+  updatedAt: string;
+  createdAt: string;
+  deletedAt?: string | null;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variantTypes".
+ */
+export interface VariantType {
+  id: number;
+  label: string;
+  name: string;
+  options?: {
+    docs?: (number | VariantOption)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  updatedAt: string;
+  createdAt: string;
+  deletedAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variantOptions".
+ */
+export interface VariantOption {
+  id: number;
+  _variantOptions_options_order?: string | null;
+  variantType: number | VariantType;
+  label: string;
+  /**
+   * should be defaulted or dynamic based on label
+   */
+  value: string;
+  updatedAt: string;
+  createdAt: string;
+  deletedAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "carts".
+ */
+export interface Cart {
+  id: number;
+  items?:
+    | {
+        product?: (number | null) | Product;
+        variant?: (number | null) | Variant;
+        quantity: number;
+        id?: string | null;
+      }[]
+    | null;
+  secret?: string | null;
+  customer?: (number | null) | Customer;
+  purchasedAt?: string | null;
+  status?: ('active' | 'purchased' | 'abandoned') | null;
+  subtotal?: number | null;
+  currency?: ('MUR' | 'INR') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders".
+ */
+export interface Order {
+  id: number;
+  items?:
+    | {
+        product?: (number | null) | Product;
+        variant?: (number | null) | Variant;
+        quantity: number;
+        id?: string | null;
+      }[]
+    | null;
+  shippingAddress?: {
+    title?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    company?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+  };
+  customer?: (number | null) | Customer;
+  customerEmail?: string | null;
+  transactions?: (number | Transaction)[] | null;
+  status?: OrderStatus;
+  amount?: number | null;
+  currency?: ('MUR' | 'INR') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "transactions".
+ */
+export interface Transaction {
+  id: number;
+  items?:
+    | {
+        product?: (number | null) | Product;
+        variant?: (number | null) | Variant;
+        quantity: number;
+        id?: string | null;
+      }[]
+    | null;
+  paymentMethod?: ('razorpay' | 'mips') | null;
+  razorpay?: {
+    orderID?: string | null;
+    paymentID?: string | null;
+    lastEventID?: string | null;
+    shippingAddress?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    lastError?: string | null;
+  };
+  mips?: {
+    reference?: string | null;
+    paymentMethod?: string | null;
+    shippingAddress?:
+      | {
+          [k: string]: unknown;
+        }
+      | unknown[]
+      | string
+      | number
+      | boolean
+      | null;
+    lastError?: string | null;
+  };
+  billingAddress?: {
+    title?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    company?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    phone?: string | null;
+  };
+  status: 'pending' | 'processing' | 'succeeded' | 'failed' | 'cancelled' | 'expired' | 'refunded';
+  customer?: (number | null) | Customer;
+  customerEmail?: string | null;
+  order?: (number | null) | Order;
+  cart?: (number | null) | Cart;
+  amount?: number | null;
+  currency?: ('MUR' | 'INR') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -1266,7 +1593,7 @@ export interface PayloadJob {
     | {
         executedAt: string;
         completedAt: string;
-        taskSlug: 'inline' | 'recordHeartbeat' | 'schedulePublish';
+        taskSlug: 'inline' | 'reconcilePayments' | 'recordHeartbeat' | 'schedulePublish';
         taskID: string;
         input:
           | {
@@ -1297,14 +1624,14 @@ export interface PayloadJob {
           | boolean
           | null;
         parent?: {
-          taskSlug?: ('inline' | 'recordHeartbeat' | 'schedulePublish') | null;
+          taskSlug?: ('inline' | 'reconcilePayments' | 'recordHeartbeat' | 'schedulePublish') | null;
           taskID?: string | null;
         };
         id?: string | null;
       }[]
     | null;
   workflowSlug?: 'heartbeatTwice' | null;
-  taskSlug?: ('inline' | 'recordHeartbeat' | 'schedulePublish') | null;
+  taskSlug?: ('inline' | 'reconcilePayments' | 'recordHeartbeat' | 'schedulePublish') | null;
   queue?: string | null;
   waitUntil?: string | null;
   processingUntil?: string | null;
@@ -1382,6 +1709,38 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'form-submissions';
         value: number | FormSubmission;
+      } | null)
+    | ({
+        relationTo: 'addresses';
+        value: number | Address;
+      } | null)
+    | ({
+        relationTo: 'variants';
+        value: number | Variant;
+      } | null)
+    | ({
+        relationTo: 'variantTypes';
+        value: number | VariantType;
+      } | null)
+    | ({
+        relationTo: 'variantOptions';
+        value: number | VariantOption;
+      } | null)
+    | ({
+        relationTo: 'products';
+        value: number | Product;
+      } | null)
+    | ({
+        relationTo: 'carts';
+        value: number | Cart;
+      } | null)
+    | ({
+        relationTo: 'orders';
+        value: number | Order;
+      } | null)
+    | ({
+        relationTo: 'transactions';
+        value: number | Transaction;
       } | null);
   globalSlug?: string | null;
   user:
@@ -2085,6 +2444,203 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "addresses_select".
+ */
+export interface AddressesSelect<T extends boolean = true> {
+  customer?: T;
+  title?: T;
+  firstName?: T;
+  lastName?: T;
+  company?: T;
+  addressLine1?: T;
+  addressLine2?: T;
+  city?: T;
+  state?: T;
+  postalCode?: T;
+  country?: T;
+  phone?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variants_select".
+ */
+export interface VariantsSelect<T extends boolean = true> {
+  title?: T;
+  product?: T;
+  options?: T;
+  inventory?: T;
+  priceInMUREnabled?: T;
+  priceInMUR?: T;
+  priceInINREnabled?: T;
+  priceInINR?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  deletedAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variantTypes_select".
+ */
+export interface VariantTypesSelect<T extends boolean = true> {
+  label?: T;
+  name?: T;
+  options?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  deletedAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "variantOptions_select".
+ */
+export interface VariantOptionsSelect<T extends boolean = true> {
+  _variantOptions_options_order?: T;
+  variantType?: T;
+  label?: T;
+  value?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  deletedAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products_select".
+ */
+export interface ProductsSelect<T extends boolean = true> {
+  title?: T;
+  inventory?: T;
+  enableVariants?: T;
+  variantTypes?: T;
+  variants?: T;
+  priceInMUREnabled?: T;
+  priceInMUR?: T;
+  priceInINREnabled?: T;
+  priceInINR?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  deletedAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "carts_select".
+ */
+export interface CartsSelect<T extends boolean = true> {
+  items?:
+    | T
+    | {
+        product?: T;
+        variant?: T;
+        quantity?: T;
+        id?: T;
+      };
+  secret?: T;
+  customer?: T;
+  purchasedAt?: T;
+  status?: T;
+  subtotal?: T;
+  currency?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "orders_select".
+ */
+export interface OrdersSelect<T extends boolean = true> {
+  items?:
+    | T
+    | {
+        product?: T;
+        variant?: T;
+        quantity?: T;
+        id?: T;
+      };
+  shippingAddress?:
+    | T
+    | {
+        title?: T;
+        firstName?: T;
+        lastName?: T;
+        company?: T;
+        addressLine1?: T;
+        addressLine2?: T;
+        city?: T;
+        state?: T;
+        postalCode?: T;
+        country?: T;
+        phone?: T;
+      };
+  customer?: T;
+  customerEmail?: T;
+  transactions?: T;
+  status?: T;
+  amount?: T;
+  currency?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "transactions_select".
+ */
+export interface TransactionsSelect<T extends boolean = true> {
+  items?:
+    | T
+    | {
+        product?: T;
+        variant?: T;
+        quantity?: T;
+        id?: T;
+      };
+  paymentMethod?: T;
+  razorpay?:
+    | T
+    | {
+        orderID?: T;
+        paymentID?: T;
+        lastEventID?: T;
+        shippingAddress?: T;
+        lastError?: T;
+      };
+  mips?:
+    | T
+    | {
+        reference?: T;
+        paymentMethod?: T;
+        shippingAddress?: T;
+        lastError?: T;
+      };
+  billingAddress?:
+    | T
+    | {
+        title?: T;
+        firstName?: T;
+        lastName?: T;
+        company?: T;
+        addressLine1?: T;
+        addressLine2?: T;
+        city?: T;
+        state?: T;
+        postalCode?: T;
+        country?: T;
+        phone?: T;
+      };
+  status?: T;
+  customer?: T;
+  customerEmail?: T;
+  order?: T;
+  cart?: T;
+  amount?: T;
+  currency?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
@@ -2360,7 +2916,14 @@ export interface CollectionQueryWidget {
       | 'redirects'
       | 'search'
       | 'forms'
-      | 'form-submissions';
+      | 'form-submissions'
+      | 'variants'
+      | 'variantTypes'
+      | 'variantOptions'
+      | 'products'
+      | 'carts'
+      | 'orders'
+      | 'transactions';
     where?:
       | {
           [k: string]: unknown;
@@ -2399,6 +2962,13 @@ export interface ActivityWidget {
           | 'search'
           | 'forms'
           | 'form-submissions'
+          | 'variants'
+          | 'variantTypes'
+          | 'variantOptions'
+          | 'products'
+          | 'carts'
+          | 'orders'
+          | 'transactions'
         )[]
       | null;
   };
@@ -2413,6 +2983,14 @@ export interface UploadDropzoneWidget {
     excludedCollections?: 'media'[] | null;
   };
   width: 'x-small' | 'small' | 'medium' | 'large' | 'x-large' | 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskReconcilePayments".
+ */
+export interface TaskReconcilePayments {
+  input?: unknown;
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

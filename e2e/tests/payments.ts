@@ -52,28 +52,61 @@ export const inventoryOf = async (api: PayloadApi, variant: Doc) =>
   (await api.findByID("variants", variant.id, "?depth=0")).inventory;
 
 const createdCart = z.object({
-  doc: z.object({ id: z.union([z.number(), z.string()]), secret: z.string() }),
+  doc: z.object({ id: z.union([z.number(), z.string()]), secret: z.string().optional() }),
 });
 
-export type GuestCart = z.infer<typeof createdCart>["doc"] & { customerEmail: string };
+type Items = { product: Doc["id"]; variant?: Doc["id"]; quantity: number }[];
+
+/**
+ * A cart and how its owner proves access to it: a guest by the cart's secret and an email, a
+ * logged-in user by their token.
+ */
+export type Cart = z.infer<typeof createdCart>["doc"] & {
+  customerEmail?: string;
+  headers?: Record<string, string>;
+};
+
+export type GuestCart = Cart & { customerEmail: string };
 
 export const guestEmail = () => `${unique("guest")}@offload.test`;
 
-/** A guest's cart in MUR, created through REST as the plugin's React provider does. */
-export const guestCart = async (
+const createCart = async (
   request: APIRequestContext,
-  items: { product: Doc["id"]; variant?: Doc["id"]; quantity: number }[],
-): Promise<GuestCart> => {
-  const response = await request.post("/api/carts", { data: { currency: "MUR", items } });
+  data: Record<string, unknown>,
+  headers?: Record<string, string>,
+) => {
+  const response = await request.post("/api/carts", {
+    data: { currency: "MUR", ...data },
+    headers,
+  });
   expect(response.status(), await response.text()).toBe(201);
-  const { doc } = createdCart.parse(await response.json());
-  return { ...doc, customerEmail: guestEmail() };
+  return createdCart.parse(await response.json()).doc;
+};
+
+/** A guest's cart in MUR, created through REST as the plugin's React provider does. */
+export const guestCart = async (request: APIRequestContext, items: Items): Promise<GuestCart> => ({
+  ...(await createCart(request, { items })),
+  customerEmail: guestEmail(),
+});
+
+/**
+ * A logged-in user's cart in MUR. The React provider names the user as the cart's customer only
+ * when the user is a customer.
+ */
+export const userCart = async (
+  request: APIRequestContext,
+  token: string,
+  items: Items,
+  customer?: Doc["id"],
+): Promise<Cart> => {
+  const headers = { Authorization: `JWT ${token}` };
+  return { ...(await createCart(request, { customer, items }, headers)), headers };
 };
 
 type Gateway = "razorpay" | "mips";
 
-/** Calls the plugin's initiate endpoint for a guest cart, as the checkout components do. */
-export const initiate = (request: APIRequestContext, gateway: Gateway, cart: GuestCart) =>
+/** Calls the plugin's initiate endpoint for a cart, as the checkout components do. */
+export const initiate = (request: APIRequestContext, gateway: Gateway, cart: Cart) =>
   request.post(`/api/payments/${gateway}/initiate`, {
     data: {
       cartID: cart.id,
@@ -81,29 +114,31 @@ export const initiate = (request: APIRequestContext, gateway: Gateway, cart: Gue
       customerEmail: cart.customerEmail,
       secret: cart.secret,
     },
+    headers: cart.headers,
   });
 
-/** Calls the plugin's confirm-order endpoint for a guest cart. */
+/** Calls the plugin's confirm-order endpoint for a cart. */
 export const confirmOrder = (
   request: APIRequestContext,
   gateway: Gateway,
-  cart: GuestCart,
+  cart: Cart,
   data: Record<string, unknown>,
 ) =>
   request.post(`/api/payments/${gateway}/confirm-order`, {
     data: { ...data, cartID: cart.id, customerEmail: cart.customerEmail, secret: cart.secret },
+    headers: cart.headers,
   });
 
 const razorpayOrder = z.object({ orderID: z.string(), amount: z.number(), currency: z.string() });
 const mipsOrder = z.object({ reference: z.string(), paymentZone: z.string() });
 
-export const initiateRazorpay = async (request: APIRequestContext, cart: GuestCart) => {
+export const initiateRazorpay = async (request: APIRequestContext, cart: Cart) => {
   const response = await initiate(request, "razorpay", cart);
   expect(response.status(), await response.text()).toBe(200);
   return razorpayOrder.parse(await response.json());
 };
 
-export const initiateMips = async (request: APIRequestContext, cart: GuestCart) => {
+export const initiateMips = async (request: APIRequestContext, cart: Cart) => {
   const response = await initiate(request, "mips", cart);
   expect(response.status(), await response.text()).toBe(200);
   return mipsOrder.parse(await response.json());
