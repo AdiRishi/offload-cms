@@ -1,6 +1,6 @@
 packages:
   - "packages/*"
-  - "tools/*"
+  - "release"
   - "upstream"
 
 allowBuilds:

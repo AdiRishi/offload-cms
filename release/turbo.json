@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "publish": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": ["OFFLOAD_REGISTRY", "OFFLOAD_REGISTRY_TOKEN"]
+    }
+  }
+}

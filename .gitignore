@@ -10,7 +10,7 @@ dist
 /upstream/payload/
 
 # Local registry data (pnpm registry)
-tools/release/.registry-storage/
+/release/.registry-storage/
 
 # Cloudflare local state, secrets and generated types
 .wrangler

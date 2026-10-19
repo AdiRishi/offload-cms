@@ -14,6 +14,7 @@
     },
     "//#format": {
       "cache": false
-    }
+    },
+    "test": {}
   }
 }
