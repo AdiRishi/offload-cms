@@ -40,6 +40,7 @@
     "test": "node --test"
   },
   "devDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
     "@payloadcms/plugin-ecommerce": "catalog:",
     "@repo/tsconfig": "workspace:*",
@@ -49,6 +50,7 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
     "@payloadcms/plugin-ecommerce": "4.0.0-beta.2",
     "payload": "4.0.0-beta.2",
     "zod": "^4.0.0"

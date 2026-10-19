@@ -1,8 +1,12 @@
 import type { PaymentAdapter, PaymentAdapterArgs } from "@payloadcms/plugin-ecommerce/types";
 import type { DefaultDocumentIDType, Field, GroupField, PayloadRequest, Where } from "payload";
 
-import { settleTransaction } from "@payloadcms/plugin-ecommerce";
+import { getEcommerceCollectionSlugs, settleTransaction } from "@payloadcms/plugin-ecommerce";
 import { z } from "zod";
+
+/** The collection slugs the ecommerce plugin was configured with. */
+export const collectionSlugs = (req: PayloadRequest) =>
+  getEcommerceCollectionSlugs(req.payload.config);
 
 type InitiateArgs = Parameters<PaymentAdapter["initiatePayment"]>[0];
 type ConfirmArgs = Parameters<PaymentAdapter["confirmOrder"]>[0];
@@ -28,8 +32,13 @@ export const transactionSchema = z.object({
   cart: documentID.nullish(),
   customer: documentID.nullish(),
   customerEmail: z.string().nullish(),
+  // A product deleted after the checkout leaves its item without one.
   items: z.array(
-    z.object({ product: documentID, quantity: z.number(), variant: documentID.nullish() }),
+    z.object({
+      product: documentID.nullish(),
+      quantity: z.number(),
+      variant: documentID.nullish(),
+    }),
   ),
   order: documentID.nullish(),
   paymentMethod: z.string().nullish(),
@@ -79,6 +88,29 @@ export const gatewayGroup = ({
 const relationID = (value: DefaultDocumentIDType | { id: DefaultDocumentIDType }) =>
   typeof value === "object" ? value.id : value;
 
+// Offload's patch `ecommerce-adapter-customers-slug` passes the plugin's currencies to
+// initiatePayment. The workspace type-checks against Payload's unpatched release, which lacks them.
+const initiateCurrencies = z.object({
+  currenciesConfig: z.object({
+    supportedCurrencies: z.array(z.object({ code: z.string(), decimals: z.number().int().min(0) })),
+  }),
+});
+
+/**
+ * The configured `decimals` of the checkout's currency. A transaction's `amount` is in units of
+ * `10 ** decimals` of its currency.
+ */
+export const currencyDecimals = (args: InitiateArgs) => {
+  const { currency } = args.data;
+  const configured = initiateCurrencies
+    .parse(args)
+    .currenciesConfig.supportedCurrencies.find(
+      ({ code }) => code.toUpperCase() === currency.toUpperCase(),
+    );
+  if (!configured) throw new Error(`${currency} is not a configured currency.`);
+  return configured.decimals;
+};
+
 /**
  * Creates the `pending` transaction for a checkout. It charges the cart's subtotal, which the
  * carts collection computes from stored prices, so the browser never supplies an amount. A
@@ -86,18 +118,18 @@ const relationID = (value: DefaultDocumentIDType | { id: DefaultDocumentIDType }
  * including an admin user of another collection, is a guest, known by email.
  */
 export const createPendingTransaction = async (
-  { customersSlug, data, req, transactionsSlug }: InitiateArgs,
+  args: InitiateArgs,
   { gateway, name }: { gateway: Record<string, unknown>; name: string },
 ) => {
+  const { customersSlug, data, req } = args;
   const { billingAddress, cart, currency, customerEmail, shippingAddress } = data;
   if (cart.items.length === 0) throw new Error("The cart is empty.");
   const amount = cart.subtotal;
   if (amount === undefined || !Number.isInteger(amount) || amount <= 0) {
     throw new Error("The cart has no amount to charge.");
   }
-
   const transaction = await req.payload.create({
-    collection: transactionsSlug,
+    collection: collectionSlugs(req).transactions,
     depth: 0,
     data: {
       ...(req.user && req.user.collection === customersSlug
@@ -129,7 +161,7 @@ export const findTransaction = async <TSchema extends z.ZodType>(
   schema: TSchema,
 ): Promise<z.infer<TSchema> | undefined> => {
   const { docs } = await req.payload.find({
-    collection: "transactions",
+    collection: collectionSlugs(req).transactions,
     depth: 0,
     limit: 2,
     overrideAccess: true,
@@ -141,11 +173,14 @@ export const findTransaction = async <TSchema extends z.ZodType>(
   return docs[0] && schema.parse(docs[0]);
 };
 
-/** The gateway reported a payment that doesn't match the transaction. Retrying won't help. */
-export class PaymentMismatch extends Error {}
+/**
+ * The gateway holds a payment that must not settle the transaction: it doesn't match the
+ * transaction, or the cart was already bought through another transaction. Retrying won't help.
+ */
+export class PaymentRefused extends Error {}
 
 /**
- * Throws `PaymentMismatch` unless the gateway's amount, in the currency's minor unit, and its
+ * Throws `PaymentRefused` unless the gateway's amount, in the units the transaction stores, and its
  * currency equal the transaction's.
  */
 export const assertPaymentMatches = (
@@ -153,36 +188,121 @@ export const assertPaymentMatches = (
   transaction: Transaction,
 ) => {
   if (paid.amount !== transaction.amount) {
-    throw new PaymentMismatch(
+    throw new PaymentRefused(
       `The gateway reports ${paid.amount}, but transaction ${transaction.id} is for ${transaction.amount}.`,
     );
   }
   if (paid.currency.toUpperCase() !== transaction.currency.toUpperCase()) {
-    throw new PaymentMismatch(
+    throw new PaymentRefused(
       `The gateway reports ${paid.currency}, but transaction ${transaction.id} is in ${transaction.currency}.`,
     );
   }
 };
 
+/** Another transaction for the same cart that is settled or settling. */
+const otherPurchase = async (req: PayloadRequest, transaction: Transaction) => {
+  if (transaction.cart === null || transaction.cart === undefined) return undefined;
+  const { docs } = await req.payload.find({
+    collection: collectionSlugs(req).transactions,
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+    pagination: false,
+    req,
+    select: { id: true },
+    where: {
+      and: [
+        { cart: { equals: transaction.cart } },
+        { id: { not_equals: transaction.id } },
+        { status: { in: ["processing", "succeeded"] } },
+      ],
+    },
+  });
+  return docs[0]?.id;
+};
+
+const secondPayment = (paymentID: string, transaction: Transaction, other: unknown) =>
+  `Payment ${paymentID} is a second payment for cart ${transaction.cart}, which transaction ${String(other)} bought. The customer paid twice. Refund payment ${paymentID} from the gateway's dashboard.`;
+
 /**
- * Settles a transaction after the gateway's API confirmed the payment. The gateway's amount, in
- * the currency's minor unit, and its currency must equal the transaction's. `finalize` is core's
- * `finalizeOrder` in confirm-order, or `settleOnServer(req)` elsewhere. Either returns the
- * existing order when the transaction is already settled.
+ * Throws `PaymentRefused` when another transaction already bought the transaction's cart, so a
+ * second payment never becomes a second order. The transaction's own settlement doesn't count.
  */
-export const settlePaidTransaction = ({
+export const assertCartOpen = async (
+  req: PayloadRequest,
+  transaction: Transaction,
+  paymentID: string,
+) => {
+  const other = await otherPurchase(req, transaction);
+  if (other !== undefined) throw new PaymentRefused(secondPayment(paymentID, transaction, other));
+};
+
+/**
+ * Prepares a transaction for a payment that the gateway confirmed late. A transaction that
+ * reconciliation expired goes back to `pending`, atomically, so the payment settles it, unless
+ * another transaction bought the cart meanwhile. A transaction in any other state that can't
+ * settle any more throws `PaymentRefused`: the customer was charged and has no order. Returns the
+ * transaction to settle.
+ */
+export const reopenForLatePayment = async (
+  req: PayloadRequest,
+  transaction: Transaction,
+  paymentID: string,
+): Promise<Transaction> => {
+  if (["pending", "processing", "succeeded"].includes(transaction.status)) return transaction;
+  if (transaction.status !== "expired") {
+    throw new PaymentRefused(
+      `Payment ${paymentID} was charged for ${transaction.status} transaction ${transaction.id}, which has no order. Refund it from the gateway's dashboard.`,
+    );
+  }
+  await assertCartOpen(req, transaction, paymentID);
+  await req.payload.db.updateOne({
+    collection: collectionSlugs(req).transactions,
+    data: { status: "pending" },
+    options: { atomic: true },
+    req,
+    where: {
+      and: [
+        { id: { equals: transaction.id } },
+        { status: { equals: "expired" } },
+        { order: { exists: false } },
+      ],
+    },
+  });
+  req.payload.logger.warn(
+    `Payment ${paymentID} arrived for expired transaction ${transaction.id}, which is pending again.`,
+  );
+  return { ...transaction, status: "pending" };
+};
+
+/**
+ * Settles a transaction after the gateway's API confirmed the payment `paid`. Its amount and
+ * currency must equal the transaction's, and no other transaction may have bought the cart.
+ * `finalize` is core's `finalizeOrder` in confirm-order, or `settleOnServer(req)` elsewhere. Either
+ * returns the existing order when the transaction is already settled.
+ *
+ * Two payments for one cart that settle at the same moment can both pass the cart check. Each one
+ * checks again after it settles, and writes the double payment to `group`'s `lastError` and the
+ * log. Write any other change to the group before calling it, and pass the written group.
+ */
+export const settlePaidTransaction = async ({
   finalize,
+  group,
+  name,
   paid,
-  shippingAddress,
+  req,
   transaction,
 }: {
   finalize: Finalize;
-  paid: { amount: number; currency: string };
-  shippingAddress: unknown;
+  group: Record<string, unknown> & { shippingAddress?: unknown };
+  name: string;
+  paid: { amount: number; currency: string; id: string };
+  req: PayloadRequest;
   transaction: Transaction;
 }) => {
   assertPaymentMatches(paid, transaction);
-  return finalize({
+  await assertCartOpen(req, transaction, paid.id);
+  const order = await finalize({
     transactionID: transaction.id,
     orderData: {
       amount: transaction.amount,
@@ -191,10 +311,17 @@ export const settlePaidTransaction = ({
         ? { customer: transaction.customer }
         : { customerEmail: transaction.customerEmail }),
       items: transaction.items,
-      ...(shippingAddress ? { shippingAddress } : {}),
+      ...(group.shippingAddress ? { shippingAddress: group.shippingAddress } : {}),
       status: "processing",
     },
   });
+  const other = await otherPurchase(req, transaction);
+  if (other !== undefined) {
+    const message = secondPayment(paid.id, transaction, other);
+    req.payload.logger.error(message);
+    await updateGatewayGroup(req, transaction, name, { ...group, lastError: message });
+  }
+  return order;
 };
 
 /** Settles outside confirm-order: from a webhook, a payment notification, or reconciliation. */
@@ -214,7 +341,7 @@ export const updateGatewayGroup = async (
   group: Record<string, unknown>,
 ) => {
   await req.payload.db.updateOne({
-    collection: "transactions",
+    collection: collectionSlugs(req).transactions,
     id: transaction.id,
     data: { [name]: group },
     req,
@@ -227,7 +354,7 @@ export const updateGatewayGroup = async (
  */
 export const expireTransaction = async (req: PayloadRequest, transaction: Transaction) => {
   const expired = await req.payload.db.updateOne({
-    collection: "transactions",
+    collection: collectionSlugs(req).transactions,
     data: { status: "expired" },
     options: { atomic: true },
     req,
