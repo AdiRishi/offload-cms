@@ -31,7 +31,7 @@ jobs:
         with:
           payload: "true"
       - name: Release this commit to a throwaway registry and run the suite
-        run: pnpm ${{ matrix.database == 'postgres' && 'test:e2e:postgres' || 'test:e2e' }}
+        run: pnpm release e2e ${{ matrix.database == 'postgres' && '--postgres' || '' }}
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

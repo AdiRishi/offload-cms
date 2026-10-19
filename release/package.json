@@ -8,8 +8,7 @@
   },
   "type": "module",
   "scripts": {
-    "check-types": "tsc --noEmit",
-    "publish": "node src/cli.ts publish",
+    "typecheck": "tsc --noEmit",
     "test": "node --test"
   },
   "dependencies": {

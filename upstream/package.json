@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "node src/cli.ts build",
-    "check-types": "tsc --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@repo/tsconfig": "workspace:*",

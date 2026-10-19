@@ -1,7 +1,8 @@
 name: Publish
 
-# Publishes to GitHub Packages after CI passes on main. `pnpm release` exits early when
-# the pinned version is already published, so only a new `revision` publishes anything.
+# Publishes to GitHub Packages after CI passes on main. `pnpm release publish` exits
+# before building when the pinned version is already published, so only a new `revision`
+# publishes anything.
 on:
   workflow_run:
     workflows: [CI]
@@ -30,7 +31,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           payload: "true"
-      - run: pnpm release
+      - run: pnpm release publish
         env:
           OFFLOAD_REGISTRY: https://npm.pkg.github.com
           OFFLOAD_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}

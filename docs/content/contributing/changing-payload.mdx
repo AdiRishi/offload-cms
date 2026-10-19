@@ -26,12 +26,12 @@ description: Decide where a change belongs, and write, export and release a patc
 
   </Step>
   <Step title="Export it">
-    Run `pnpm upstream:export`. It writes the commits to `upstream/patches` and regenerates the [patch pages](/patches) from their messages.
+    Run `pnpm upstream export`. It writes the commits to `upstream/patches` and regenerates the [patch pages](/patches) from their messages.
   </Step>
   <Step title="Bump the revision">
     Increase `revision` in `upstream/payload.json`. The release version is `<tag>-offload.<revision>`, and a version is only ever published once.
   </Step>
   <Step title="Test it">
-    Run `pnpm test:e2e` and `pnpm test:e2e:postgres`. See [Testing](/contributing/testing).
+    Run `pnpm release e2e` and `pnpm release e2e --postgres`. See [Testing](/contributing/testing).
   </Step>
 </Steps>

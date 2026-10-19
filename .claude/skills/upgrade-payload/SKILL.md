@@ -11,7 +11,7 @@ Work on a branch named `chore/payload-<tag>`.
 
 ## 1. Survey
 
-1. Run `pnpm upstream:checkout --force`, then `pnpm upstream:status --against <tag>`.
+1. Run `pnpm upstream checkout --force`, then `pnpm upstream status --against <tag>`.
 2. Read `gh release view <tag> --repo payloadcms/payload` and the diff of `docs/migration-guide/` between the pinned tag and `<tag>`.
 3. For the files each patch touches, read `git -C upstream/payload diff <pinned-tag> <tag> -- <files>`.
 
@@ -25,9 +25,9 @@ Also done when every breaking change in the release notes is classified as affec
 
 ## 2. Replay
 
-Run `pnpm upstream:upgrade <tag> --drop <id> ...` with the **drop** verdicts.
+Run `pnpm upstream upgrade <tag> --drop <id> ...` with the **drop** verdicts.
 
-On a conflict, the script prints the patch's intent. Resolve the conflict so the patch still meets that intent. If the surrounding code changed shape, rewrite the patch. Then run `git -C upstream/payload cherry-pick --continue` and `pnpm upstream:upgrade --continue`. If a patch's intent changed, reword the commit message too, since the patch pages in `docs/content/patches` are generated from it.
+On a conflict, the script prints the patch's intent. Resolve the conflict so the patch still meets that intent. If the surrounding code changed shape, rewrite the patch. Then run `git -C upstream/payload cherry-pick --continue` and `pnpm upstream upgrade --continue`. If a patch's intent changed, reword the commit message too, since the patch pages in `docs/content/patches` are generated from it.
 
 `pnpm-lock.yaml` hunks never resolve by hand. Take the new tag's lockfile, run `pnpm install --no-frozen-lockfile` in `upstream/payload`, and amend the regenerated lockfile into the patch.
 
@@ -42,9 +42,9 @@ Done when the build and every `Tests` command pass.
 ## 4. Verify Offload end to end
 
 1. Apply the site-facing breaking changes from step 1 to `packages/` and `e2e`.
-2. Run `pnpm test:e2e`. It installs the new release into `e2e`; schema changes can fail it until step 3.
+2. Run `pnpm release e2e`. It installs the new release into `e2e`; schema changes can fail it until step 3.
 3. In `e2e`, run `pnpm payload migrate:create` and `CLOUDFLARE_ENV=postgres pnpm payload migrate:create`. Each generates a migration only when the schema changed.
-4. Run `pnpm test:e2e` and `pnpm test:e2e:postgres` from the root.
+4. Run `pnpm release e2e` and `pnpm release e2e --postgres` from the root.
 
 Done when both suites pass.
 

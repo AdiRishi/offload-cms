@@ -10,7 +10,7 @@ export const build = () => {
     checkoutChanges() !== ""
   ) {
     throw new Error(
-      "upstream/payload does not match the pin and patches. Export your commits with `pnpm upstream:export`, or reset it with `pnpm upstream:checkout --force`.",
+      "upstream/payload does not match the pin and patches. Export your commits with `pnpm upstream export`, or reset it with `pnpm upstream checkout --force`.",
     );
   }
 

@@ -8,23 +8,23 @@ description: The end-to-end suite that installs Offload from a registry and driv
 ## Run it
 
 ```bash
-pnpm test:e2e
-pnpm test:e2e:postgres
+pnpm release e2e
+pnpm release e2e --postgres
 ```
 
 The Postgres run needs Docker. Each run:
 
-1. starts a registry that exists only for the run, and runs `pnpm release` against it
+1. starts a registry that exists only for the run, and publishes the working tree to it
 2. installs `e2e` from it, forgetting the previous install, since every run republishes the same version
 3. type-checks `e2e`
 4. resets the local D1 and R2 state, or the Postgres schema, applies the migrations and builds the Worker
 5. serves the build with `vite preview`, creates the first admin through the admin panel, and runs the suite
 
-CI runs the same two commands on every push.
+CI runs both on every push.
 
 ## Iterate on the suite
 
-After one `pnpm test:e2e`, `e2e` has the release installed and no longer needs a registry. From `e2e`, rerun the suite with `pnpm e2e`, or `pnpm e2e:postgres`.
+After one `pnpm release e2e`, `e2e` has the release installed and no longer needs a registry. From `e2e`, rerun the suite with `pnpm test`, or `CLOUDFLARE_ENV=postgres pnpm test`.
 
 To read the Worker's logs, start the server yourself and let the suite reuse it:
 

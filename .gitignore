@@ -6,7 +6,7 @@ dist
 .turbo
 .tanstack
 
-# Payload checkout (pnpm upstream:checkout)
+# Payload checkout (pnpm upstream checkout)
 /upstream/payload/
 
 # Cloudflare local state, secrets and generated types

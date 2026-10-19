@@ -15,7 +15,7 @@ runs:
     - run: pnpm install --frozen-lockfile
       shell: bash
     - if: inputs.payload == 'true'
-      run: pnpm upstream:checkout
+      run: pnpm upstream checkout
       shell: bash
     - if: inputs.payload == 'true'
       id: pnpm-store

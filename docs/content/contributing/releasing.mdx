@@ -5,16 +5,16 @@ description: How Offload builds, publishes and attests its packages, and what CI
 
 Releases go to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms). To publish one, bump `revision` in `upstream/payload.json` and push to `main`. The Publish workflow releases it once CI passes.
 
-## What `pnpm release` does
+## What `pnpm release publish` does
 
-`pnpm release` runs the `publish` task through Turborepo. The task depends on every build, so Turborepo first builds `upstream/payload` and `packages/`. The Payload build refuses to run if `upstream/payload` doesn't match the pin and the patches.
+`pnpm release publish` first checks the registry. If the pinned version is already there, it does nothing. Otherwise it builds `upstream/payload` and `packages/` through Turborepo. The Payload build refuses to run if `upstream/payload` doesn't match the pin and the patches.
 
-`publish` then packs every package with pnpm, renames each Payload package to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to npm aliases, and publishes the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one. If that version is already in the registry, it does nothing.
+It then packs every package with pnpm, renames each Payload package to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to npm aliases, and publishes the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
 
-Offload's own packages are the public workspace packages that `release/package.json` depends on. That dependency also makes Turborepo build them before publishing.
+Offload's own packages are the public workspace packages that `release/package.json` depends on. That dependency also puts them in the build.
 
 :::warning
-Never publish a version twice to a real registry. To try a change, run `pnpm test:e2e`, which publishes to a registry that exists only for that run.
+Never publish a version twice to a real registry. To try a change, run `pnpm release e2e`, which publishes to a registry that exists only for that run.
 :::
 
 ## Provenance

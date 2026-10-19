@@ -21,7 +21,7 @@ export const checkout = ({ force }: { force: boolean }) => {
     run("git", ["clone", "--filter=blob:none", "--no-checkout", pin.repository, checkoutDir]);
   } else if (checkoutChanges() !== "" && !force) {
     throw new Error(
-      "upstream/payload has uncommitted changes. Commit and `pnpm upstream:export` them, or rerun with --force.",
+      "upstream/payload has uncommitted changes. Commit and `pnpm upstream export` them, or rerun with --force.",
     );
   }
 
@@ -46,7 +46,7 @@ export const checkout = ({ force }: { force: boolean }) => {
         [
           "A patch did not apply. Resolve the conflict in upstream/payload, then:",
           "  git -C upstream/payload add <files> && git -C upstream/payload am --continue",
-          "  pnpm upstream:export",
+          "  pnpm upstream export",
         ].join("\n"),
       );
     }

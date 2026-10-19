@@ -35,8 +35,8 @@
     }
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json",
-    "check-types": "tsc -p tsconfig.json --noEmit"
+    "build": "rm -rf dist && tsc",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",

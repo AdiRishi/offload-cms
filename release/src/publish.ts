@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import rootManifest from "../../package.json" with { type: "json" };
+import { repoRoot, run } from "./exec.ts";
 import { releaseManifest } from "./manifest.ts";
 import {
   offloadPackageDirs,
@@ -61,7 +62,7 @@ const pack = async (packageDir: string, workDir: string) => {
 };
 
 /**
- * Publishes the built Payload packages as `@adirishi/offload-<name>` and
+ * Builds and publishes the Payload packages as `@adirishi/offload-<name>` and
  * Offload's own packages, all at the pinned Offload version. A version is
  * published once: if it is already in the registry, this does nothing.
  */
@@ -91,6 +92,7 @@ export const publish = async ({ registry, token }: { registry: string; token: st
       return;
     }
 
+    await run("pnpm", ["turbo", "run", "build", "--filter=@repo/release^..."], { cwd: repoRoot });
     const upstreamDirs = await upstreamPackageDirs();
     const upstreamNames = new Set(upstreamDirs.map((directory) => readManifest(directory).name));
 

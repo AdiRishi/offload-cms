@@ -10,7 +10,7 @@ import { publish } from "./publish.ts";
 
 const usage = `usage: release <command>
 
-  publish [--registry <url>]          Publish the built packages at the pinned version
+  publish [--registry <url>]          Build and publish the packages at the pinned version
   use-version <site-dir> [version]    Point a site's Offload dependencies at a release
   e2e [--postgres]                    Release to a throwaway registry and run the e2e suite
 

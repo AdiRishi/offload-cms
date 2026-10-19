@@ -15,8 +15,8 @@ You need Node 24 (see `.node-version`) and pnpm through Corepack.
 
 ```bash
 pnpm install
-pnpm upstream:checkout
+pnpm upstream checkout
 pnpm check
 ```
 
-`pnpm test:e2e` runs the end-to-end suite against the working tree, and `pnpm docs` runs the documentation site locally. [Develop Offload](https://adirishi.github.io/offload-cms/contributing) covers the layout and every command.
+`pnpm release e2e` runs the end-to-end suite against the working tree, and `pnpm docs:dev` runs the documentation site locally. [Develop Offload](https://adirishi.github.io/offload-cms/contributing) covers the layout and every command.

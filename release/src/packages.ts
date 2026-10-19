@@ -30,7 +30,7 @@ export const upstreamPackageDirs = async () => {
 
 /**
  * Offload's own packages: the public workspace packages that @repo/release
- * depends on. Depending on them also makes Turborepo build them before `publish`.
+ * depends on. Depending on them also puts them in the build that `publish` runs first.
  */
 export const offloadPackageDirs = () =>
   Object.entries({ ...releasePackage.dependencies, ...releasePackage.devDependencies })

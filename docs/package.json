@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "blume build",
-    "check-types": "blume check --strict --isolated",
+    "typecheck": "blume check --strict --isolated",
     "dev": "blume dev",
     "test": "blume validate --strict"
   },

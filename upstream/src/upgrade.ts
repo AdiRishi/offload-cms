@@ -35,7 +35,7 @@ const applyQueue = (state: PendingUpgrade) => {
           "",
           "Resolve the conflict in upstream/payload, then run:",
           "  git -C upstream/payload add <files> && git -C upstream/payload cherry-pick --continue",
-          "  pnpm upstream:upgrade --continue",
+          "  pnpm upstream upgrade --continue",
         ].join("\n"),
       );
     }
