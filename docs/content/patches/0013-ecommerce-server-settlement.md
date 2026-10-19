@@ -36,7 +36,12 @@ for one cart that settle at the same moment can't both create an order: the
 second insert fails on the index, settlement returns that transaction to
 pending (or rolls back with the database transaction), and throws the
 exported CartAlreadyPurchasedError for the adapter to flag the double
-payment.
+payment. confirm-order answers that error with 409 and
+{ status: 'cart_already_purchased', transactionID }, and logs an error that
+names the transaction whose payment needs a refund. This changes what a
+two-tab double payment does with the Stripe adapter: before, it created a
+second order for the cart; now the second payment creates no order, and its
+transaction stays pending with the PaymentIntent recorded on it.
 
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
