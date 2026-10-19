@@ -22,4 +22,4 @@ Payload's TanStack Start adapter is built for a Node server. On a workerd build,
 - resolves `pg-pool` to its CommonJS build for Postgres
 - imports `@cloudflare/vite-plugin` only for build and preview, because loading it breaks Node-mode dev
 
-Each fix has a comment in `src/vite.ts`. [`apps/e2e`](../../apps/e2e) is the working example and the test bed.
+Each fix has a comment in `src/vite.ts`. [`e2e`](../../e2e) is the working example and the test bed.

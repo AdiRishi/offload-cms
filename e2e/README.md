@@ -6,7 +6,7 @@ The suite tests what Offload changes or depends on, plus the main flows that pro
 
 ## Run it
 
-From the repository root, with the local registry running (`pnpm registry`) and a release published (`pnpm release`):
+From the repository root:
 
 ```bash
 pnpm test:e2e

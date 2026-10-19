@@ -13,7 +13,7 @@ Work on a branch named `chore/payload-<tag>`.
 
 1. Run `pnpm upstream:checkout --force`, then `pnpm upstream:status --against <tag>`.
 2. Read `gh release view <tag> --repo payloadcms/payload` and the diff of `docs/migration-guide/` between the pinned tag and `<tag>`.
-3. For the files each patch touches, read `git -C vendor/payload diff <pinned-tag> <tag> -- <files>`.
+3. For the files each patch touches, read `git -C upstream/payload diff <pinned-tag> <tag> -- <files>`.
 
 Done when every patch has a verdict:
 
@@ -27,36 +27,36 @@ Also done when every breaking change in the release notes is classified as affec
 
 Run `pnpm upstream:upgrade <tag> --drop <id> ...` with the **drop** verdicts.
 
-On a conflict, the script prints the patch's intent. Resolve the conflict so the patch still meets that intent. If the surrounding code changed shape, rewrite the patch. Then run `git -C vendor/payload cherry-pick --continue` and `pnpm upstream:upgrade --continue`. If a patch's intent changed, reword the commit message too, since `PATCHES.md` is generated from it.
+On a conflict, the script prints the patch's intent. Resolve the conflict so the patch still meets that intent. If the surrounding code changed shape, rewrite the patch. Then run `git -C upstream/payload cherry-pick --continue` and `pnpm upstream:upgrade --continue`. If a patch's intent changed, reword the commit message too, since `PATCHES.md` is generated from it.
 
-`pnpm-lock.yaml` hunks never resolve by hand. Take the new tag's lockfile, run `pnpm install --no-frozen-lockfile` in `vendor/payload`, and amend the regenerated lockfile into the patch.
+`pnpm-lock.yaml` hunks never resolve by hand. Take the new tag's lockfile, run `pnpm install --no-frozen-lockfile` in `upstream/payload`, and amend the regenerated lockfile into the patch.
 
 Done when the script reports the upgrade, `upstream/payload.json` names `<tag>`, and the diff of every remaining file in `upstream/patches` still expresses its intent.
 
 ## 3. Verify upstream behaviour
 
-In `vendor/payload`, run `pnpm install`, then `pnpm build:all`, then each remaining patch's `Tests` command. Run the commands that need a deployed Worker in step 5.
+In `upstream/payload`, run `pnpm install`, then `pnpm build:all`, then each remaining patch's `Tests` command. Run the commands that need a deployed Worker in step 5.
 
 Done when the build and every `Tests` command pass.
 
 ## 4. Verify Offload end to end
 
-1. Apply the site-facing breaking changes from step 1 to `packages/` and `apps/e2e`.
-2. Run `pnpm registry` in the background, then `pnpm release` and `pnpm use-version apps/e2e`.
-3. In `apps/e2e`, run `pnpm install`, then `pnpm payload migrate:create` and `CLOUDFLARE_ENV=postgres pnpm payload migrate:create`. Each generates a migration only when the schema changed.
+1. Apply the site-facing breaking changes from step 1 to `packages/` and `e2e`.
+2. Run `pnpm test:e2e`. It installs the new release into `e2e`; schema changes can fail it until step 3.
+3. In `e2e`, run `pnpm payload migrate:create` and `CLOUDFLARE_ENV=postgres pnpm payload migrate:create`. Each generates a migration only when the schema changed.
 4. Run `pnpm test:e2e` and `pnpm test:e2e:postgres` from the root.
 
 Done when both suites pass.
 
 ## 5. Verify on Cloudflare
 
-Some behaviour exists only on deployed Workers; password hashing limits are the known case. The suite runs only locally. If a staging Worker is configured, deploy `apps/e2e` to it, then log in to its admin and publish a page.
+Some behaviour exists only on deployed Workers; password hashing limits are the known case. The suite runs only locally. If a staging Worker is configured, deploy `e2e` to it, then log in to its admin and publish a page.
 
 Done when that works on staging, or when the report says staging is not configured.
 
 ## 6. Report
 
-Commit the patch series, `PATCHES.md`, the pin, and the changes to `packages/` and `apps/e2e` as separate commits. Then report:
+Commit the patch series, `PATCHES.md`, the pin, and the changes to `packages/` and `e2e` as separate commits. Then report:
 
 - each patch's verdict and what changed in reworked patches
 - the breaking changes that affect sites, and what a site must change
