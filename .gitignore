@@ -9,9 +9,6 @@ dist
 # Payload checkout (pnpm upstream:checkout)
 /upstream/payload/
 
-# Local registry data (pnpm registry)
-/release/.registry-storage/
-
 # Cloudflare local state, secrets and generated types
 .wrangler
 .dev.vars

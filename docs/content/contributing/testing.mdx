@@ -1,24 +1,30 @@
-# Offload end-to-end tests
+---
+title: Testing
+description: The end-to-end suite that installs Offload from a registry and drives a Payload site on Workers with Playwright.
+---
 
-A Payload site on Cloudflare Workers that exists to be tested. It installs Offload from the registry the way a real site does, runs as a real Worker bundle in local workerd, and is driven by Playwright.
-
-The suite tests what Offload changes or depends on, plus the main flows that prove Payload works on top of it. It doesn't re-test Payload's own features; Payload's test suite does that.
+`e2e` is a Payload site on Cloudflare Workers that exists to be tested. It installs Offload from a registry the way a real site does, runs as a real Worker bundle in local workerd, and is driven by Playwright. The suite tests what Offload changes or depends on, plus the main flows that prove Payload works on top of it. It doesn't re-test Payload's own features; Payload's test suite does that.
 
 ## Run it
 
-From the repository root:
-
 ```bash
 pnpm test:e2e
-```
-
-To run against Postgres through Hyperdrive instead of D1 (needs Docker):
-
-```bash
 pnpm test:e2e:postgres
 ```
 
-Each run starts from an empty database. `scripts/prepare.ts` resets local D1 and R2 state, or the Postgres schema. It then applies the migrations and builds the Worker for the selected database. Playwright serves the build with `vite preview`, and a setup step creates the first admin through the admin panel.
+The Postgres run needs Docker. Each run:
+
+1. starts a registry that exists only for the run, and runs `pnpm release` against it
+2. installs `e2e` from it, forgetting the previous install, since every run republishes the same version
+3. type-checks `e2e`
+4. resets the local D1 and R2 state, or the Postgres schema, applies the migrations and builds the Worker
+5. serves the build with `vite preview`, creates the first admin through the admin panel, and runs the suite
+
+CI runs the same two commands on every push.
+
+## Iterate on the suite
+
+After one `pnpm test:e2e`, `e2e` has the release installed and no longer needs a registry. From `e2e`, rerun the suite with `pnpm e2e`, or `pnpm e2e:postgres`.
 
 To read the Worker's logs, start the server yourself and let the suite reuse it:
 
@@ -56,10 +62,10 @@ The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs col
 
 ## Staging on Cloudflare
 
-Some behaviour only shows up on a real deployment, such as the Workers limit on password hashing that patch 0001 works around. The `staging` environment in `wrangler.jsonc` deploys this app to the "Adishwar Rishi (Personal)" account as `offload-e2e-staging`, with its own D1 database and R2 bucket.
+Some behaviour only shows up on a real deployment, such as the Workers limit on password hashing that the [PBKDF2 patch](/patches/workers-pbkdf2-cap) works around. The `staging` environment in `wrangler.jsonc` deploys `e2e` to the "Adishwar Rishi (Personal)" account as `offload-e2e-staging`, with its own D1 database and R2 bucket. From `e2e`:
 
 ```bash
 pnpm deploy:staging
 ```
 
-This applies migrations to the remote D1 database, builds for staging, and deploys. The staging admin's credentials are in `.staging-admin.json`, which is gitignored. `PAYLOAD_SECRET` is a Wrangler secret on the Worker.
+This applies migrations to the remote D1 database, builds for staging, and deploys. The staging admin's credentials are in `e2e/.staging-admin.json`, which is gitignored. `PAYLOAD_SECRET` is a Wrangler secret on the Worker.

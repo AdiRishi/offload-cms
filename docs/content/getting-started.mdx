@@ -1,0 +1,96 @@
+---
+title: Getting started
+description: Install Offload in a TanStack Start site, configure Vite and Payload, and run it as a Cloudflare Worker.
+---
+
+[`e2e`](https://github.com/AdiRishi/offload-cms/tree/main/e2e) in the repository is a complete working site. Each step below shows the part of it that matters.
+
+<Steps>
+  <Step title="Authenticate to GitHub Packages">
+    GitHub Packages needs a token even for public packages. Create a GitHub token with the `read:packages` scope, export it as `GITHUB_TOKEN`, and add an `.npmrc` to the site:
+
+    ```ini .npmrc
+    @adirishi:registry=https://npm.pkg.github.com
+    //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+    ```
+
+  </Step>
+  <Step title="Install Offload under the upstream names">
+    Alias each Payload package to its Offload build, and install Offload's own Cloudflare package directly:
+
+    ```json package.json
+    "dependencies": {
+      "@adirishi/offload-cloudflare": "{{version}}",
+      "@payloadcms/db-d1-sqlite": "npm:@adirishi/offload-db-d1-sqlite@{{version}}",
+      "@payloadcms/richtext-lexical": "npm:@adirishi/offload-richtext-lexical@{{version}}",
+      "@payloadcms/storage-r2": "npm:@adirishi/offload-storage-r2@{{version}}",
+      "@payloadcms/tanstack-start": "npm:@adirishi/offload-tanstack-start@{{version}}",
+      "@payloadcms/ui": "npm:@adirishi/offload-ui@{{version}}",
+      "payload": "npm:@adirishi/offload-payload@{{version}}"
+    }
+    ```
+
+    Every Payload package Payload publishes has an Offload build of the same name, such as `@payloadcms/plugin-seo` as `@adirishi/offload-plugin-seo`.
+
+  </Step>
+  <Step title="Configure Vite">
+    `offloadVite()` builds the site for workerd and runs `vite dev` in Node:
+
+    ```ts vite.config.ts
+    import { offloadVite } from "@adirishi/offload-cloudflare/vite";
+    import path from "node:path";
+    import { defineConfig } from "vite";
+
+    export default defineConfig(
+      offloadVite({
+        payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts"),
+      }),
+    );
+    ```
+
+  </Step>
+  <Step title="Read the bindings in the Payload config">
+    `getBindings()` returns the Worker's bindings in workerd, and Wrangler's local bindings in Node:
+
+    ```ts src/payload.config.ts
+    import { getBindings } from "@adirishi/offload-cloudflare";
+    import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
+    import { buildConfig } from "payload";
+
+    const env = await getBindings();
+
+    export default buildConfig({
+      db: sqliteD1Adapter({ binding: env.D1, push: false }),
+      // collections, editor, plugins, ...
+    });
+    ```
+
+  </Step>
+  <Step title="Export the Worker">
+    `createPayloadWorker()` serves requests through TanStack Start and runs Payload's jobs on every Cron Trigger:
+
+    ```ts src/server.ts
+    import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
+    import config from "@payload-config";
+    import handler from "@tanstack/react-start/server-entry";
+
+    export default createPayloadWorker({ config, handler });
+    ```
+
+    Set `main` in `wrangler.jsonc` to this file.
+
+  </Step>
+</Steps>
+
+## Move to a new release
+
+Change every Offload version in `package.json` to the new release. From a checkout of this repository, `pnpm use-version <site-dir> [version]` does it for you, and defaults to the release the checkout pins.
+
+## Verify a package
+
+Every published tarball has a signed build provenance attestation that ties it to the commit and workflow run that built it. To check one, download it and verify it with the GitHub CLI:
+
+```bash
+npm pack @adirishi/offload-payload@{{version}}
+gh attestation verify adirishi-offload-payload-{{version}}.tgz --repo AdiRishi/offload-cms
+```

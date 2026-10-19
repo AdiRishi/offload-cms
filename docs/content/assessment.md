@@ -1,6 +1,9 @@
-# Assessment: Payload v4 on TanStack Start and Cloudflare
+---
+title: Assessment
+description: The research that led to Offload, Payload v4 on TanStack Start and Cloudflare, written before the repository existed.
+---
 
-The research that led to Offload, written before the repository existed. Paths and plans below describe the state at the time; the README describes the repository as it is.
+The research that led to Offload, written before the repository existed. Paths and plans below describe the state at the time; the rest of these docs describe the repository as it is.
 
 Assessment date: 2026-10-18. Upstream state: Payload `main` at `d5b01b40d`, latest release `v4.0.0-beta.2` (2026-10-16).
 
@@ -41,7 +44,7 @@ Everything below ran in local workerd through `vite build && vite preview`, the 
 | `vite dev` in Node against local D1 and R2                                     | Works                              | The PoC uses this mode. Dev therefore runs on a different runtime from production.                                                                                  |
 | Patched fork build, rename and publish                                         | Works                              | Install 76 s, build of all 46 workspace packages 88 s, pack 39 s, publish of 43 packages 33 s. The PoC then installed the aliases and ran the patched code.         |
 
-The PoC grew into [`e2e`](../e2e) and [`packages/cloudflare`](../packages/cloudflare); the original is in git history. The patch now lives in [`upstream/patches`](../upstream/patches), and the release transform became [`release`](../release).
+The PoC grew into [`e2e`](https://github.com/AdiRishi/offload-cms/tree/main/e2e) and [`packages/cloudflare`](https://github.com/AdiRishi/offload-cms/tree/main/packages/cloudflare); the original is in git history. The patch now lives in [`upstream/patches`](https://github.com/AdiRishi/offload-cms/tree/main/upstream/patches), and the release transform became [`release`](https://github.com/AdiRishi/offload-cms/tree/main/release).
 
 ## Framework independence: TanStack Start
 
@@ -169,7 +172,7 @@ Other things a plugin can't do without core changes: add new field types (the `F
 
 ### Rebranding without renaming the source
 
-The release transform ([`release/src/publish.ts`](../release/src/publish.ts)) does the following:
+The release transform ([`release/src/publish.ts`](https://github.com/AdiRishi/offload-cms/blob/main/release/src/publish.ts)) does the following:
 
 1. Takes the tarballs from Payload's own `pnpm pack`.
 2. Renames `payload` to `@offload/payload` and `@payloadcms/x` to `@offload/x`.

@@ -31,6 +31,8 @@
   "ignorePatterns": [
     "**/dist/**",
     "**/.wrangler/**",
+    "docs/.blume/**",
+    "docs/.blume-verify/**",
     "upstream/payload/**",
     "upstream/patches/**",
     "e2e/src/migrations/**",

@@ -1,0 +1,37 @@
+---
+title: Changing Payload
+description: Decide where a change belongs, and write, export and release a patch to Payload.
+---
+
+## Where a change goes
+
+1. **Site code** when Payload's config or plugin API can express it: collections, hooks, endpoints, admin components.
+2. **A package in `packages/`** when it's new and reusable: adapters, plugins, the Cloudflare preset. Add it to the dependencies of `release/package.json` too, so Turborepo builds it before publishing and the release includes it.
+3. **A patch to Payload** only for behaviour with no extension point. Keep each patch small, and propose it upstream when it's general.
+
+## Write a patch
+
+<Steps>
+  <Step title="Commit in the checkout">
+    Edit `upstream/payload` and commit there. The commit message documents the patch: an intent paragraph explaining what breaks without it and how the patch fixes it, then these trailers.
+
+    ```text
+    Offload-Patch: short-stable-id
+    Upstream: https://github.com/payloadcms/payload/pull/<n>
+    Drop-When: <the condition under which upstream makes this patch unnecessary>
+    Tests: <commands that prove the patch works>
+    ```
+
+    `Upstream` is optional. Commits in `upstream/payload` skip upstream's git hooks and aren't signed, because the patch files keep only the diff and the message.
+
+  </Step>
+  <Step title="Export it">
+    Run `pnpm upstream:export`. It writes the commits to `upstream/patches` and regenerates the [patch pages](/patches) from their messages.
+  </Step>
+  <Step title="Bump the revision">
+    Increase `revision` in `upstream/payload.json`. The release version is `<tag>-offload.<revision>`, and a version is only ever published once.
+  </Step>
+  <Step title="Test it">
+    Run `pnpm test:e2e` and `pnpm test:e2e:postgres`. See [Testing](/contributing/testing).
+  </Step>
+</Steps>

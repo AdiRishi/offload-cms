@@ -1,0 +1,10 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "dependsOn": [],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/upstream/payload.json"]
+    }
+  }
+}

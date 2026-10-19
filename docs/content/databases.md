@@ -1,4 +1,7 @@
-# Databases: D1 or Postgres through Hyperdrive
+---
+title: Databases
+description: Choose D1 or Postgres through Hyperdrive for an Offload site, and what to know about each.
+---
 
 Offload supports two databases on Workers. The e2e suite runs against both. Pick per site.
 

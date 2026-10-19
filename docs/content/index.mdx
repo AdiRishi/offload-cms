@@ -1,0 +1,30 @@
+---
+title: Offload
+description: Payload CMS v4 for TanStack Start sites on Cloudflare Workers, on D1 or on Postgres through Hyperdrive.
+---
+
+Offload is a pinned upstream Payload release, a small series of patches on top of it, and packages that run it on Cloudflare Workers. Everything is published to GitHub Packages under `@adirishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
+
+Sites keep importing `payload` and `@payloadcms/*`. They install the Offload builds under those names through npm aliases:
+
+```json package.json
+"payload": "npm:@adirishi/offload-payload@{{version}}",
+"@payloadcms/ui": "npm:@adirishi/offload-ui@{{version}}"
+```
+
+The current release is `{{version}}`: Payload's tag, then Offload's revision on top of it.
+
+<CardGroup cols={2}>
+  <Card title="Getting started" href="/getting-started" icon="rocket">
+    Install Offload in a TanStack Start site and run it on Workers.
+  </Card>
+  <Card title="Cloudflare package" href="/cloudflare" icon="cloud">
+    The Vite preset, bindings and Worker entry that run Payload on Workers.
+  </Card>
+  <Card title="Databases" href="/databases" icon="database">
+    Choose D1 or Postgres through Hyperdrive.
+  </Card>
+  <Card title="Patches" href="/patches" icon="git-branch">
+    What Offload changes in Payload, and when each change can go.
+  </Card>
+</CardGroup>

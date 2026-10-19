@@ -1,0 +1,31 @@
+---
+title: Releasing
+description: How Offload builds, publishes and attests its packages, and what CI runs on every push.
+---
+
+Releases go to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms). To publish one, bump `revision` in `upstream/payload.json` and push to `main`. The Publish workflow releases it once CI passes.
+
+## What `pnpm release` does
+
+`pnpm release` runs the `publish` task through Turborepo. The task depends on every build, so Turborepo first builds `upstream/payload` and `packages/`. The Payload build refuses to run if `upstream/payload` doesn't match the pin and the patches.
+
+`publish` then packs every package with pnpm, renames each Payload package to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to npm aliases, and publishes the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one. If that version is already in the registry, it does nothing.
+
+Offload's own packages are the public workspace packages that `release/package.json` depends on. That dependency also makes Turborepo build them before publishing.
+
+:::warning
+Never publish a version twice to a real registry. To try a change, run `pnpm test:e2e`, which publishes to a registry that exists only for that run.
+:::
+
+## Provenance
+
+npm's `--provenance` only works on the public npm registry, so the Publish workflow signs each published tarball with [`actions/attest`](https://github.com/actions/attest) instead. That records SLSA build provenance through Sigstore: which commit, workflow and run produced the file. `publish` uploads the exact tarballs it attests, so the registry serves the attested bytes. [Verify a package](/getting-started#verify-a-package) shows how a site checks one.
+
+## Continuous integration
+
+Every push runs these GitHub Actions jobs:
+
+- `pnpm check`
+- the e2e suite on D1 and on Postgres, against a release of that commit to a throwaway registry inside the runner
+
+After CI passes on `main`, the Publish workflow releases to GitHub Packages. Every push to `main` also deploys this site to GitHub Pages.

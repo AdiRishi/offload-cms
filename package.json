@@ -15,6 +15,7 @@
     "build": "turbo run build",
     "check": "turbo run lint format check-types test",
     "check-types": "turbo run check-types",
+    "docs": "pnpm --filter @repo/docs dev",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
     "lint": "oxlint",

@@ -1,0 +1,55 @@
+---
+title: Develop Offload
+description: Set up the repository, find your way around the workspace, and the commands that build, test and release Offload.
+---
+
+You need Node 24 (see `.node-version`) and pnpm through Corepack.
+
+```bash
+pnpm install
+pnpm upstream:checkout
+pnpm check
+```
+
+`pnpm upstream:checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks and the tests through Turborepo.
+
+## Layout
+
+<FileTree>
+
+- packages/
+  - cloudflare/ `@adirishi/offload-cloudflare`, published
+  - tsconfig/ `@repo/tsconfig`, shared TypeScript configuration
+- upstream/ `@repo/upstream`
+  - payload.json the pinned Payload release and Offload revision
+  - patches/ one `git format-patch` file per change to Payload
+  - payload/ the checkout, created by `pnpm upstream:checkout` and gitignored
+  - src/ the `upstream` CLI
+- release/ `@repo/release`, the `release` CLI
+- e2e/ a Payload site on Workers that the Playwright suite drives
+- docs/ this site, built with Blume
+
+</FileTree>
+
+The workspace contains `docs`, `packages/*`, `upstream` and `release`. Every dependency version comes from the catalog in `pnpm-workspace.yaml`. Node runs the `upstream` and `release` CLIs straight from TypeScript. `e2e` is a separate pnpm project, because it installs Offload from a registry the way a site in its own repository does.
+
+## Commands
+
+| Command                                     | What it does                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `pnpm check`                                | Lint, format check, type checks and tests                                                        |
+| `pnpm lint` / `pnpm lint:fix`               | oxlint with type-aware rules                                                                     |
+| `pnpm format` / `pnpm format:fix`           | oxfmt check, or write                                                                            |
+| `pnpm build`                                | Build Payload in `upstream/payload`, the packages in `packages/`, and this site                  |
+| `pnpm docs`                                 | Run this site locally                                                                            |
+| `pnpm upstream:checkout [--force]`          | Create `upstream/payload` from the pin and the patches                                           |
+| `pnpm upstream:export`                      | Write the commits in `upstream/payload` to `upstream/patches` and the [patch pages](/patches)    |
+| `pnpm upstream:status [--against <tag>]`    | Show each patch's upstream PR state, and whether `<tag>` already contains it                     |
+| `pnpm upstream:upgrade <tag> [--drop <id>]` | Move the patch series to a newer Payload release                                                 |
+| `pnpm release`                              | Build everything, then publish every package at the pinned version to `OFFLOAD_REGISTRY`         |
+| `pnpm use-version <site-dir> [version]`     | Point a site's Offload dependencies at a release                                                 |
+| `pnpm test:e2e` / `pnpm test:e2e:postgres`  | Release the working tree to a throwaway registry and run the Playwright suite, on D1 or Postgres |
+
+## Editor
+
+Install the recommended oxc extension. `.vscode/settings.json` formats on save, applies lint fixes, and turns on type-aware lint rules.
