@@ -16,21 +16,41 @@ The plugin now passes `collectionSlugMap.customers` to both handlers and
 `collectionSlugMap.carts` to initiate, as it already does for the other
 slugs.
 
+An adapter also can't tell what unit `cart.subtotal` is in. The plugin stores
+prices in units of `10 ** decimals` of the configured currency, but adapters
+receive only the currency code, so an adapter that assumes 2 decimals charges
+100 times less for a currency configured with `decimals: 0`. initiatePayment
+now receives `currenciesConfig`.
+
 Offload-Patch: ecommerce-adapter-customers-slug
-Drop-When: the pinned release passes customersSlug and cartsSlug from the plugin config to the initiate and confirm-order handlers
+Drop-When: the pinned release passes customersSlug, cartsSlug and the currencies config from the plugin config to the payment handlers and adapters
 Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/index.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that a logged-in customer owns a checkout and an admin user never does)
 ---
- packages/plugin-ecommerce/src/index.spec.ts | 58 +++++++++++++++++++++
- packages/plugin-ecommerce/src/index.ts      |  3 ++
- 2 files changed, 61 insertions(+)
+ .../src/endpoints/initiatePayment.ts          |  1 +
+ packages/plugin-ecommerce/src/index.spec.ts   | 61 +++++++++++++++++++
+ packages/plugin-ecommerce/src/index.ts        |  3 +
+ packages/plugin-ecommerce/src/types/index.ts  |  5 ++
+ 4 files changed, 70 insertions(+)
  create mode 100644 packages/plugin-ecommerce/src/index.spec.ts
 
+diff --git a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
+index 8ec08999f..d70016718 100644
+--- a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
++++ b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
+@@ -328,6 +328,7 @@ export const initiatePaymentHandler: InitiatePayment =
+ 
+     try {
+       const paymentResponse = await paymentMethod.initiatePayment({
++        currenciesConfig,
+         customersSlug,
+         data: {
+           billingAddress,
 diff --git a/packages/plugin-ecommerce/src/index.spec.ts b/packages/plugin-ecommerce/src/index.spec.ts
 new file mode 100644
-index 000000000..4803304aa
+index 000000000..07c4f8c35
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/index.spec.ts
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,61 @@
 +import type { Config, Endpoint, PayloadRequest } from 'payload'
 +
 +import { describe, expect, it, vi } from 'vitest'
@@ -57,7 +77,7 @@ index 000000000..4803304aa
 +}
 +
 +describe('ecommercePlugin payment endpoints', () => {
-+  it('pass the configured customers and carts slugs to the payment adapter', async () => {
++  it('pass the configured customers and carts slugs and the currencies to the payment adapter', async () => {
 +    const paymentMethod = adapter()
 +    const config = await ecommercePlugin({
 +      customers: { slug: 'customers' },
@@ -85,7 +105,10 @@ index 000000000..4803304aa
 +    expect(response.status).toBe(200)
 +    expect(findByID).toHaveBeenCalledWith(expect.objectContaining({ collection: 'baskets' }))
 +    expect(paymentMethod.initiatePayment).toHaveBeenCalledWith(
-+      expect.objectContaining({ customersSlug: 'customers' }),
++      expect.objectContaining({
++        currenciesConfig: expect.objectContaining({ defaultCurrency: 'USD' }),
++        customersSlug: 'customers',
++      }),
 +    )
 +  })
 +})
@@ -111,3 +134,19 @@ index 17e3cd167..58629a957 100644
                ordersSlug: collectionSlugMap.orders,
                paymentMethod,
                productsSlug: collectionSlugMap.products,
+diff --git a/packages/plugin-ecommerce/src/types/index.ts b/packages/plugin-ecommerce/src/types/index.ts
+index d67ada47a..4d359e5db 100644
+--- a/packages/plugin-ecommerce/src/types/index.ts
++++ b/packages/plugin-ecommerce/src/types/index.ts
+@@ -64,6 +64,11 @@ type InitiatePaymentReturnType = {
+ }
+ 
+ type InitiatePayment = (args: {
++  /**
++   * The currencies the plugin is configured with. An adapter converts `cart.subtotal`, which is in
++   * units of `10 ** decimals` of the currency, to the unit its provider takes.
++   */
++  currenciesConfig: CurrenciesConfig
+   /**
+    * The slug of the customers collection, defaults to 'users'.
+    */
