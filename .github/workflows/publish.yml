@@ -1,8 +1,8 @@
 name: Publish
 
-# Publishes to GitHub Packages after CI passes on main. `pnpm release publish` exits
-# before building when the pinned version is already published, so only a new `revision`
-# publishes anything.
+# Publishes the next release to GitHub Packages after CI passes on main, and tags the
+# commit. `pnpm release publish` publishes nothing when the commit changes nothing the
+# packages ship since the latest release tag.
 on:
   workflow_run:
     workflows: [CI]
@@ -12,7 +12,7 @@ on:
 
 permissions:
   attestations: write
-  contents: read
+  contents: write
   id-token: write
   packages: write
 
@@ -28,6 +28,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # The release tags decide the next version and whether anything changed.
+          fetch-depth: 0
       - uses: ./.github/actions/setup
         with:
           payload: "true"

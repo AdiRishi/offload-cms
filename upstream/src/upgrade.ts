@@ -46,7 +46,7 @@ const applyQueue = (state: PendingUpgrade) => {
   }
 
   git(["tag", "--force", "offload-base", state.commit]);
-  writePin({ ...pin, commit: state.commit, revision: 0, tag: state.tag });
+  writePin({ ...pin, commit: state.commit, tag: state.tag });
   rmSync(statePath, { force: true });
   exportPatches(state);
   console.log(`\nUpgraded to ${state.tag}. Review upstream/patches, then build, test and release.`);

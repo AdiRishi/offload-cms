@@ -33,9 +33,8 @@ Put a change in a package in `packages/` when Payload's config or plugin API can
   <Step title="Test it">
     Run `pnpm release e2e` and `pnpm release e2e --postgres`. [Testing](/contributing/testing) explains the suite.
   </Step>
-  <Step title="Bump the revision">
-    Increase `revision` in `upstream/payload.json`. Each release version is `<tag>-offload.<revision>` and publishes once, so a change without a new revision never reaches sites.
-  </Step>
 </Steps>
 
 To change an existing patch, amend or rebase its commit in `upstream/payload`, then export again. If the patch is general, propose it upstream and add the pull request as its `Upstream` trailer.
+
+Once CI passes on `main`, the change publishes as the next release. [Releasing](/contributing/releasing) explains how.

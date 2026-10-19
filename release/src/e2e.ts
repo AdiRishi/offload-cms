@@ -1,6 +1,6 @@
 import type { Server } from "node:http";
 
-import { offloadVersion } from "@repo/upstream";
+import { workingTreeVersion } from "@repo/upstream";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -53,8 +53,8 @@ const startRegistry = async () => {
 export const e2e = async ({ postgres }: { postgres: boolean }) => {
   const registry = await startRegistry();
   try {
-    await publish({ registry: registry.url, token: "local-registry" });
-    writeManifest(e2eDir, withOffloadVersion(readManifest(e2eDir), offloadVersion));
+    await publish({ registry: registry.url, token: "local-registry", version: workingTreeVersion });
+    writeManifest(e2eDir, withOffloadVersion(readManifest(e2eDir), workingTreeVersion));
     // Every run publishes the same version with new contents, so pnpm must forget the last one.
     // pnpm restores a missing pnpm-lock.yaml from the copy it keeps in node_modules.
     rmSync(path.join(e2eDir, "pnpm-lock.yaml"), { force: true });

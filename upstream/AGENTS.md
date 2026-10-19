@@ -8,7 +8,6 @@
 
 1. Commit the change in `payload/`. The commit message is the only record of the patch's intent, so write it in the format that `docs/content/contributing/making-changes.mdx` describes.
 2. Run `pnpm upstream export`. It rewrites `patches/` and the patch pages in `docs/content/patches/` from the commits, so change those through a commit and an export.
-3. Bump `revision` in `payload.json` when the change should publish. A push to `main` with a new revision releases to GitHub Packages once CI passes.
 
 `pnpm build` refuses a checkout that differs from the pin plus the patches. Export your commits first, or reset the checkout with `pnpm upstream checkout --force`.
 

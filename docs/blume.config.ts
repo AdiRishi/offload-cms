@@ -1,4 +1,4 @@
-import { offloadVersion } from "@repo/upstream";
+import { latestRelease, offloadVersion } from "@repo/upstream";
 import { defineConfig } from "blume";
 
 export default defineConfig({
@@ -14,7 +14,8 @@ export default defineConfig({
     text: "",
   },
   content: { root: "content" },
-  variables: { version: offloadVersion },
+  // Before the first release on a new Payload tag, the docs show the version that release gets.
+  variables: { version: latestRelease()?.version ?? offloadVersion(0) },
   github: { owner: "AdiRishi", repo: "offload-cms", dir: "docs" },
   deployment: { site: "https://adirishi.github.io", base: "/offload-cms" },
 });

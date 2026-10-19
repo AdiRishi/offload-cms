@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": [],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/upstream/payload.json"]
+      "cache": false
     }
   }
 }

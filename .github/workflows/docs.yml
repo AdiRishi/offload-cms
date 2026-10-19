@@ -1,8 +1,11 @@
 name: Docs
 
-# Builds docs/ with Blume and deploys it to GitHub Pages on every push to main.
+# Builds docs/ with Blume and deploys it to GitHub Pages after each Publish run on main,
+# so the docs show the release that run tagged.
 on:
-  push:
+  workflow_run:
+    workflows: [Publish]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -18,9 +21,13 @@ concurrency:
 jobs:
   build:
     name: Build
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
       - uses: ./.github/actions/setup
       - run: pnpm turbo run build --filter=@repo/docs
       - uses: actions/upload-pages-artifact@v5

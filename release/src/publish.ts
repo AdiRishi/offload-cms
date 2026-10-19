@@ -1,4 +1,4 @@
-import { checkoutDir, offloadPackageName, offloadVersion, pin } from "@repo/upstream";
+import { checkoutDir, offloadPackageName, pin, releaseTag } from "@repo/upstream";
 import { execFile } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -38,10 +38,12 @@ const offloadReadme = ({
   packageDir,
   published,
   upstreamName,
+  version,
 }: {
   packageDir: string;
   published: string;
   upstreamName: string;
+  version: string;
 }) =>
   [
     `# ${published}`,
@@ -53,7 +55,7 @@ const offloadReadme = ({
     "Install the package under its upstream name, so imports and Payload's documentation keep working:",
     "",
     "```json",
-    `"${upstreamName}": "npm:${published}@${offloadVersion}"`,
+    `"${upstreamName}": "npm:${published}@${version}"`,
     "```",
     "",
     `GitHub Packages needs a token with the \`read:packages\` scope. [Getting started](${docsUrl}/getting-started) shows the \`.npmrc\` and the rest of a site's setup.`,
@@ -80,10 +82,17 @@ const pack = async (packageDir: string, workDir: string) => {
 
 /**
  * Builds and publishes the Payload packages as `@adirishi/offload-<name>` and
- * Offload's own packages, all at the pinned Offload version. A version is
- * published once: if it is already in the registry, this does nothing.
+ * Offload's own packages, all at `version`.
  */
-export const publish = async ({ registry, token }: { registry: string; token: string }) => {
+export const publish = async ({
+  registry,
+  token,
+  version,
+}: {
+  registry: string;
+  token: string;
+  version: string;
+}) => {
   rmSync(tarballsDir, { force: true, recursive: true });
   mkdirSync(tarballsDir, { recursive: true });
   const workDir = mkdtempSync(path.join(tmpdir(), "offload-release-"));
@@ -96,17 +105,16 @@ export const publish = async ({ registry, token }: { registry: string; token: st
   try {
     const published = await npm([
       "view",
-      `${offloadPackageName("payload")}@${offloadVersion}`,
+      `${offloadPackageName("payload")}@${version}`,
       "version",
     ]).then(
-      ({ stdout }) => stdout.trim() === offloadVersion,
+      ({ stdout }) => stdout.trim() === version,
       () => false,
     );
     if (published) {
-      console.log(
-        `${offloadVersion} is already published to ${registry}. Bump revision in upstream/payload.json to release changes.`,
+      throw new Error(
+        `${version} is already in ${registry}, but no ${releaseTag(version)} tag marks it. Tag the commit it was published from, then run publish again.`,
       );
-      return;
     }
 
     await run("pnpm", ["turbo", "run", "build", "--filter=@repo/release^..."], { cwd: repoRoot });
@@ -119,13 +127,18 @@ export const publish = async ({ registry, token }: { registry: string; token: st
       async (packageDir) => {
         const directory = await pack(packageDir, workDir);
         const manifest = readManifest(directory);
-        const release = releaseManifest(manifest, { upstreamNames, version: offloadVersion });
+        const release = releaseManifest(manifest, { upstreamNames, version });
         writeManifest(directory, release);
 
         if (upstreamNames.has(manifest.name)) {
           writeFileSync(
             path.join(directory, "README.md"),
-            offloadReadme({ packageDir, published: release.name, upstreamName: manifest.name }),
+            offloadReadme({
+              packageDir,
+              published: release.name,
+              upstreamName: manifest.name,
+              version,
+            }),
           );
           // MIT requires Payload's notice in every copy; some packages don't ship it.
           if (!existsSync(path.join(directory, "LICENSE.md"))) {
@@ -148,12 +161,12 @@ export const publish = async ({ registry, token }: { registry: string; token: st
             throw new Error(`Publishing ${release.name} failed:\n${String(error)}`);
           },
         );
-        console.log(`+ ${release.name}@${offloadVersion}`);
+        console.log(`+ ${release.name}@${version}`);
         return release.name;
       },
     );
 
-    console.log(`\nPublished ${names.length} packages at ${offloadVersion} to ${registry}.`);
+    console.log(`\nPublished ${names.length} packages at ${version} to ${registry}.`);
   } finally {
     rmSync(workDir, { force: true, recursive: true });
   }

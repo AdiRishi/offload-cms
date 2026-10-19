@@ -5,11 +5,11 @@ description: Why Offload is a pinned Payload release with a few patches and one 
 
 Offload has three parts:
 
-- **A pinned Payload release.** [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json) names a Payload tag, its commit, and Offload's `revision` on top of it.
+- **A pinned Payload release.** [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json) names the Payload tag and commit that Offload builds on.
 - **A patch series.** [`upstream/patches`](https://github.com/AdiRishi/offload-cms/tree/main/upstream/patches) holds one `git format-patch` file per change to Payload. The [patch pages](/patches) list them.
 - **Offload's own packages.** Today that is [`@adirishi/offload-cloudflare`](/cloudflare), which has the Workers setup.
 
-A release builds Payload with the patches applied, packs every package that Payload publishes, and renames each one to `@adirishi/offload-<name>`. All packages share one version, `<tag>-offload.<revision>`, because Payload checks that its packages share a version.
+A release builds Payload with the patches applied, packs every package that Payload publishes, and renames each one to `@adirishi/offload-<name>`. All packages share one version, `<Payload version>-offload.<n>`, because Payload checks that its packages share a version. `<n>` counts Offload's releases on that Payload tag, starting at 0.
 
 ## Sites keep Payload's package names
 

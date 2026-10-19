@@ -1,22 +1,30 @@
 ---
 title: Releasing
-description: Publish a release to GitHub Packages, and what the release workflow builds, renames, and attests.
+description: How every change that passes CI on main becomes a release on GitHub Packages, and how releases are versioned, tagged, and attested.
 ---
 
-To publish a release, bump `revision` in `upstream/payload.json` and push to `main`. The Publish workflow runs after CI passes and publishes to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms). A push without a new revision publishes nothing, because that version is already in the registry.
+Releases are automatic. Push to `main`, and once CI passes, the Publish workflow publishes the change to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms) if it changes what the packages ship. Nobody edits a version.
 
-:::warning
-Publish each version to a real registry once. To try a change, run `pnpm release e2e`, which publishes to a registry that exists only for that run.
-:::
+## Versions
 
-## What `pnpm release publish` does
+Every package in a release has the same version, `<Payload version>-offload.<n>`, such as `4.0.0-beta.2-offload.4`. `<n>` counts Offload's releases on that Payload tag. The first release after an upgrade to a new Payload tag is `-offload.0`.
 
-1. Checks the registry. If the pinned version is already there, it stops.
-2. Builds `upstream/payload` and `packages/` through Turborepo. The Payload build stops if `upstream/payload` doesn't match the pin and the patches.
-3. Packs every package with pnpm. Each Payload package becomes `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, with internal dependencies rewritten to npm aliases and a README that points back to Offload.
-4. Publishes the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
+Each release has a git tag, `v<version>`, on the commit it was published from. The newest tag for the pinned Payload tag is the latest release.
+
+## What the Publish workflow does
+
+The workflow runs `pnpm release publish` on the commit that passed CI:
+
+1. Find the latest release tag for the pinned Payload tag.
+2. Stop if the commit is already part of that release, or if nothing the packages ship changed since it. Shipped files are `packages/`, `release/src/`, `release/package.json`, `upstream/patches/`, and `upstream/payload.json`. `AGENTS.md` files and tests don't count.
+3. Build `upstream/payload` and `packages/` through Turborepo. The Payload build stops if `upstream/payload` doesn't match the pin and the patches.
+4. Pack every package with pnpm. Each Payload package becomes `@adirishi/offload-<name>` at the new version, with internal dependencies rewritten to npm aliases and a README that points back to Offload.
+5. Publish the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
+6. Tag the commit `v<version>` and push the tag.
 
 Offload's own packages are the public workspace packages that `release/package.json` depends on.
+
+To try a change without releasing it, run `pnpm release e2e`. It publishes the working tree as `<Payload version>-offload.dev` to a registry that exists only for that run.
 
 ## Provenance
 
@@ -27,6 +35,6 @@ npm's `--provenance` works only on the public npm registry. Instead, the Publish
 Every push runs these GitHub Actions jobs:
 
 - `pnpm check`
-- the e2e suite on D1 and on Postgres, against a release of that commit to a registry inside the runner
+- the e2e suite on D1 and on Postgres, against the working tree published to a registry inside the runner
 
-After CI passes on `main`, the Publish workflow runs. Every push to `main` also deploys this site to GitHub Pages.
+On `main`, the Publish workflow runs after CI passes, and the Docs workflow deploys this site after Publish, so the docs show the latest release.
