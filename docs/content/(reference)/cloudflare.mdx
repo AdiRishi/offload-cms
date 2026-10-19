@@ -27,6 +27,15 @@ Returns the site's Vite config: Payload's `withPayload()` with TanStack Start, R
 | `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                |
 | `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds. |
 
+### Payload package check
+
+Every Payload package in the site must be the Offload build at the same version as `@adirishi/offload-cloudflare`.
+
+- When `vite dev` or `vite build` starts, `offloadVite()` reads each `payload` and `@payloadcms/*` dependency in the site's `package.json`. It throws if one is Payload's own build or a different Offload release.
+- At the end of `vite build`, it fails the build if any bundled module comes from Payload's own build of a package, including one that another dependency installed.
+
+Each error names the package and the line to install, such as `"@payloadcms/plugin-seo": "npm:@adirishi/offload-plugin-seo@{{version}}"`. Put the line in the site's dependencies, or in the package manager's overrides when another dependency installs the package.
+
 ### Changes to the workerd build
 
 For `vite build` and `vite preview`, `offloadVite()` changes Payload's Node-oriented build in these ways:

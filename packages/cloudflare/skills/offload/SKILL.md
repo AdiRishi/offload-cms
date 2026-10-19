@@ -53,6 +53,8 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 - Payload's dev server throws when its packages' versions differ.
 - The upstream package installs its own upstream copies of other Payload packages, such as `@payloadcms/ui`, without Offload's patches.
 
+`offloadVite()` enforces this. `vite dev` and `vite build` stop when a Payload dependency of the site is Payload's own build or a different Offload release, and `vite build` fails when any bundled module comes from Payload's own build. Each error gives the line to install. If a third-party dependency installs a Payload package, add that line to your package manager's overrides.
+
 Third-party plugins that list `payload` as a peer dependency install normally. Change every `@adirishi/offload-*` version together when you update.
 
 The Offload docs at https://adirishi.github.io/offload-cms list each patch to Payload and the known limits on Workers.

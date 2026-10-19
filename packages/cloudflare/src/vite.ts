@@ -6,6 +6,7 @@ import viteReact from "@vitejs/plugin-react";
 import rsc from "@vitejs/plugin-rsc";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 import {
   type ConfigEnv,
   mergeConfig,
@@ -14,6 +15,13 @@ import {
   type UserConfig,
   type UserConfigFnPromise,
 } from "vite";
+
+import {
+  assertOffloadBuilds,
+  readManifest,
+  upstreamBundleError,
+  upstreamPayloadPackage,
+} from "./payload-builds.ts";
 
 type CloudflarePluginConfig = NonNullable<Parameters<typeof cloudflare>[0]>;
 
@@ -29,6 +37,20 @@ export type OffloadViteOptions = {
 };
 
 const isServerEnvironment = (environment: { name: string }) => environment.name !== "client";
+
+/** The Offload release this package belongs to. Every Payload package in the site must match it. */
+const { version: offloadVersion } = readManifest(path.join(import.meta.dirname, "../package.json"));
+
+/** Fails the build when a dependency brings in Payload's own build of a Payload package. */
+const offloadBuildsOnly = (): Plugin => ({
+  name: "offload:offload-builds-only",
+  buildEnd() {
+    const upstream = new Set(
+      [...this.getModuleIds()].flatMap((id) => upstreamPayloadPackage(id) ?? []),
+    );
+    if (upstream.size > 0) this.error(upstreamBundleError(upstream, offloadVersion));
+  },
+});
 
 /**
  * workerd resolves with the `browser` condition, which maps `payload` and
@@ -144,12 +166,14 @@ export const offloadVite =
     vite,
   }: OffloadViteOptions): UserConfigFnPromise =>
   async (env) => {
+    assertOffloadBuilds({ root: process.cwd(), version: offloadVersion });
     const targetsWorkerd = env.command === "build" || env.isPreview === true;
 
     // Loading the Cloudflare plugin into the Vite process breaks Node-side
     // CommonJS interop for Payload's dependencies, so dev never imports it.
     const workerdPlugins: PluginOption[] = targetsWorkerd
       ? [
+          offloadBuildsOnly(),
           serverConditions(),
           importMetaUrlFallback(),
           literalGraphQLImports(),
