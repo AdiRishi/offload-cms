@@ -51,6 +51,18 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
     Run `pnpm wrangler types` so `env` has a type for each secret.
 
   </Step>
+  <Step title="Bind a rate limiter for the IMN">
+    The mIPS notification endpoint is public, and each request costs a call to MIPS. Add a Rate Limiting binding to every Wrangler environment. This one allows each IP 60 notifications a minute:
+
+    ```jsonc wrangler.jsonc
+    "ratelimits": [
+      { "name": "PAYMENTS", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } }
+    ]
+    ```
+
+    Skip this step if the site doesn't use mIPS.
+
+  </Step>
   <Step title="Configure the plugin and the adapters">
     ```ts src/payload.config.ts
     import { getBindings } from "@adirishi/offload-cloudflare";
@@ -79,6 +91,7 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
         cipherKey: env.MIPS_CIPHER_KEY,
       },
       returnURL: "/checkout/mips",
+      rateLimit: () => env.PAYMENTS,
     });
 
     export default buildConfig({
@@ -188,9 +201,12 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
   <Step title="Allow the gateways in a Content-Security-Policy">
     Offload, Payload's TanStack Start adapter, and TanStack Start send no Content-Security-Policy for pages. Skip this step unless the site adds one.
 
+    Both gateways run their own script in the site's origin, which also serves `/admin` and `/api`. A site that takes payments trusts Razorpay's and MIPS's scripts with everything a page script can do. `MipsPaymentZone` runs only MIPS's script and frame from the origins it allows, and never the inline scripts or other HTML in MIPS's answer.
+
     - Razorpay Checkout loads `https://checkout.razorpay.com/v1/checkout.js` and opens its own iframe. Allow `https://checkout.razorpay.com` in `script-src`, and the Razorpay hosts that Checkout frames and calls in `frame-src` and `connect-src`. Check the hosts in your browser's console with test keys, because Razorpay's docs don't list them.
     - The mIPS payment zone is a script, `https://go.mips.mu/gomips.js`, and an iframe on `https://go.mips.mu`. Allow that host in `script-src` and `frame-src`. If the card's 3-D Secure page opens inside the iframe, `frame-src` must allow the bank's host too.
     - `MipsPaymentZone` inserts the zone's script itself, so the script carries no nonce. A policy that allows scripts only by nonce must also allow `https://go.mips.mu` or use `'strict-dynamic'`.
+    - If MIPS's payment zone uses another host, such as `go2.mips.mu`, add it to the policy and to `MipsPaymentZone`'s `origins`.
 
   </Step>
 </Steps>
@@ -202,3 +218,15 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
 3. In the admin, open **Orders**. The order is there, and its transaction is `succeeded`.
 
 Payments with test keys never reach a local Worker's webhook, because Razorpay won't call `localhost`. The browser's confirmation still creates the order. To check webhooks and the IMN, deploy a staging Worker and point the gateways at it.
+
+## Watch for payments that need a refund
+
+Every payment that can't become an order goes to its transaction's `lastError` and to the Worker's log at error level. The message names the payment and says when to refund it from the gateway's dashboard. That happens when:
+
+- a customer pays twice for one cart, for example from two tabs;
+- a payment arrives for a transaction that failed or was cancelled;
+- the gateway reports an amount or currency that differs from the transaction's.
+
+The adapters never refund on their own. In the admin, open **Transactions** and filter on the gateway's **Last Error** field, such as `razorpay.lastError` exists, to list them. Workers Logs, or a Tail Worker that alerts on error-level logs, shows them as they happen.
+
+Reconciliation also logs an error when a settlement stopped after it created an order, which needs a stock check, and its job output in `payload-jobs` counts the checks that failed.

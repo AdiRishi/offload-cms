@@ -59,6 +59,7 @@ const mips = mipsAdapter({
     cipherKey: env.MIPS_CIPHER_KEY,
   },
   returnURL: "/checkout/mips",
+  rateLimit: () => env.PAYMENTS,
 });
 
 export default buildConfig({
