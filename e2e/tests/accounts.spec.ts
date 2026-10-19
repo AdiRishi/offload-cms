@@ -3,25 +3,16 @@
 
 import type { APIRequestContext, Browser, Page } from "@playwright/test";
 
-import { callServerFn, expect, type PayloadApi, test as base, unique } from "./fixtures";
+import { createCustomer, password, restLogin, restToken, visitorHeaders } from "./accounts";
+import { callServerFn, expect, test as base, unique } from "./fixtures";
 
 const accountFunctions = "src/server/account.functions.ts";
 const logIn = { file: accountFunctions, name: "logIn" };
 const signUp = { file: accountFunctions, name: "signUp" };
 const requestPasswordReset = { file: accountFunctions, name: "requestPasswordReset" };
 const turnstileToken = "XXXX.DUMMY.TOKEN.XXXX";
-const password = "offload-customer-password";
 // The ACCOUNTS binding's limit in wrangler.jsonc.
 const attemptsPerMinute = 5;
-
-/**
- * A visitor IP of its own. The rate limit counts per IP, and miniflare gives every local request
- * the same one unless the request names it.
- */
-const visitorIP = () =>
-  `10.${Array.from({ length: 3 }, () => Math.floor(Math.random() * 256)).join(".")}`;
-
-const visitorHeaders = () => ({ "cf-connecting-ip": visitorIP() });
 
 /**
  * A browser page with no cookies and an IP of its own. The IP goes only on requests to the site,
@@ -96,10 +87,6 @@ const linkTo = (html: string, path: string) => {
   return new URL(href);
 };
 
-/** A customer that the admin creates, already verified, as staff would through the admin. */
-const createCustomer = (api: PayloadApi, email: string, data: Record<string, unknown> = {}) =>
-  api.create("customers", { email, password, _verified: true, ...data });
-
 /** The registry forms mark themselves hydrated. Input typed before that is lost. */
 const formReady = (page: Page) => expect(page.locator("form[data-hydrated]")).toBeVisible();
 
@@ -108,17 +95,6 @@ const logInThroughForm = async (page: Page, email: string, secret = password) =>
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(secret);
   await page.getByRole("button", { name: "Log in" }).click();
-};
-
-const restLogin = (request: APIRequestContext, email: string, secret = password) =>
-  request.post("/api/customers/login", { data: { email, password: secret } });
-
-const restToken = async (request: APIRequestContext, email: string) => {
-  const response = await restLogin(request, email);
-  expect(response.status(), await response.text()).toBe(200);
-  const body: unknown = await response.json();
-  if (!isRecord(body) || typeof body.token !== "string") throw new Error("Login returned no token");
-  return body.token;
 };
 
 const signedInAs = async (request: APIRequestContext, token: string) => {

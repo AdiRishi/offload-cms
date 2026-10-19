@@ -1,0 +1,219 @@
+---
+title: "@adirishi/offload-payments"
+description: Reference for the Razorpay and mIPS adapters, the endpoints they add, how they settle orders, the reconciliation task, and the checkout registry items.
+---
+
+| Entry point                           | Exports                                                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `@adirishi/offload-payments`          | `MUR`, `INR`, `reconcilePaymentsTask()`, `OffloadPaymentAdapter`, `ReconcilePaymentsOptions`, `ReconcileResult` |
+| `@adirishi/offload-payments/razorpay` | `razorpayAdapter()`, `RazorpayAdapterOptions`                                                                   |
+| `@adirishi/offload-payments/mips`     | `mipsAdapter()`, `MipsAdapterOptions`                                                                           |
+| `@adirishi/offload-payments/client`   | `razorpayAdapterClient()`, `mipsAdapterClient()`, `MUR`, `INR`                                                  |
+
+`/razorpay`, `/mips`, and the main entry point run only on the server. `/client` runs in the browser. `payload`, `@payloadcms/plugin-ecommerce`, and `zod` 4 are peer dependencies. The adapters need Offload's build of `@payloadcms/plugin-ecommerce`, because they settle orders through the export that the [server settlement patch](/patches/ecommerce-server-settlement) adds.
+
+```json package.json
+"@adirishi/offload-payments": "{{version}}",
+"@payloadcms/plugin-ecommerce": "npm:@adirishi/offload-plugin-ecommerce@{{version}}"
+```
+
+[Take payments at checkout](/checkout) sets up a site.
+
+## How an order is settled
+
+Every payment starts at the plugin's `initiate` endpoint and ends in core's settlement: one atomic claim that moves the transaction from `pending` to `processing`, then the order, the cart's `purchasedAt`, the stock decrement, and `succeeded`. Only the request that wins the claim writes anything. A request that loses it, such as a duplicate webhook, gets the existing order back. A `confirm-order` that loses the claim to a settlement that hasn't finished answers `409` with `{ status: "processing" }`, and the registry components confirm again.
+
+Three things can ask for settlement, and each one is only a notice that a payment may exist:
+
+- the browser, through the plugin's `confirm-order` endpoint;
+- the gateway, through Razorpay's webhook or the mIPS payment notification (IMN);
+- `reconcilePaymentsTask()`, on the Cron Trigger.
+
+Before it settles, an adapter finds the one transaction that holds the gateway order it stored at `initiate`, and asks the gateway's API for the payment. It settles only when the API reports a paid status, the stored gateway order, and the transaction's amount and currency. The amount comes from the cart's `subtotal`, which `initiate` checks against current prices. The browser never sends an amount.
+
+A paid payment never settles when:
+
+- its amount or currency differs from the transaction's;
+- another transaction already bought the cart. The customer paid twice, so the adapter doesn't create a second order and doesn't capture an authorized payment;
+- its transaction failed or was cancelled.
+
+The adapter then writes the reason, with the payment's ID, to the transaction's `lastError`, and logs it at error level. Inside `confirm-order`, it ends core's database transaction before that write, so the flag stays on Postgres as on D1. An admin refunds the payment from the gateway's dashboard. Two payments for one cart that settle at the same moment can't both create an order: core gives each order the cart's unique `cartKey`, so the second insert fails, and the adapter flags that payment the same way. Core's `confirm-order` answers such a refusal with `409` and `{ status: "cart_already_purchased" }` for adapters that pass the error through, such as Stripe's.
+
+A payment for a transaction that reconciliation expired reopens it and settles, when the cart is still open. A failure event never fails the transaction, because the gateway can still complete the payment. Reconciliation expires a transaction only when no payment can arrive any more.
+
+A logged-in user of the plugin's `customers.slug` collection owns the transaction and the order. Any other logged-in user, such as an admin, checks out as a guest, known by email. The [customers slug patch](/patches/ecommerce-adapter-customers-slug) passes that slug and the currencies to the adapters. Settlement uses the plugin's slugs for every collection, including a `slugMap`. Each write sets only the transaction fields that its path owns, and a write for a pending transaction applies only while it is still pending, so a late event can't undo a settlement. That relies on the SQL database adapters, D1 and Postgres, which write only the columns they're given.
+
+## Currencies
+
+`MUR` and `INR` are `Currency` objects for the plugin's `currencies.supportedCurrencies`. Both have 2 decimals, so prices are stored in cents and paise.
+
+| Constant | `code` | `decimals` | `symbol` | `symbolDisplay` |
+| -------- | ------ | ---------- | -------- | --------------- |
+| `MUR`    | `MUR`  | 2          | `Rs`     | `code`          |
+| `INR`    | `INR`  | 2          | `₹`      |                 |
+
+Prices are stored in units of `10 ** decimals` of the configured currency. Razorpay takes the currency's smallest ISO 4217 unit, so `initiate` refuses a currency whose configured `decimals` isn't its ISO exponent. mIPS takes EUR, GBP, MUR, USD, and ZAR in decimal units, at least 1.00, and `initiate` refuses a currency configured with more than 2 decimals.
+
+## razorpayAdapter()
+
+```ts
+razorpayAdapter(options: RazorpayAdapterOptions): OffloadPaymentAdapter
+```
+
+| Option           | Type                                   | Description                                                                                      |
+| ---------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `keyID`          | `string`                               | Required. The key id from the Razorpay Dashboard. The browser receives it from `initiate`.       |
+| `keySecret`      | `string`                               | Required. The key secret. It authenticates API calls and verifies Checkout's payment signature.  |
+| `webhookSecret`  | `string`                               | Required. The secret of the webhook in the Razorpay Dashboard.                                   |
+| `apiURL`         | `string`                               | The API's origin. Defaults to `https://api.razorpay.com`. Change it only to test against a stub. |
+| `label`          | `string`                               | The payment method's label in the admin. Defaults to `Razorpay`.                                 |
+| `groupOverrides` | `PaymentAdapterArgs["groupOverrides"]` | Overrides the `razorpay` group on transactions, as for the plugin's Stripe adapter.              |
+
+The adapter's name is `razorpay`. Each transaction has a `razorpay` group with `orderID` (unique), `paymentID`, `lastEventID`, `shippingAddress`, and `lastError`.
+
+### Endpoints
+
+| Endpoint                                    | Called by           | What it does                                                                                                                                                                                                                                   |
+| ------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/payments/razorpay/initiate`      | The checkout button | Creates the `pending` transaction and a Razorpay order for the cart's subtotal, with a unique `receipt` and the transaction ID in `notes`. Returns `keyID`, `orderID`, `amount`, `currency`, and `timeout`, Checkout's timeout of 900 seconds. |
+| `POST /api/payments/razorpay/confirm-order` | The checkout button | Takes Checkout's `razorpay_order_id`, `razorpay_payment_id`, and `razorpay_signature`, and settles. Returns `orderID` and `transactionID`.                                                                                                     |
+| `POST /api/payments/razorpay/webhooks`      | Razorpay            | Settles on `payment.captured`, `payment.authorized`, and `order.paid`. Records `payment.failed`.                                                                                                                                               |
+
+`confirm-order` checks, in order:
+
+1. The transaction that holds `razorpay_order_id` belongs to the cart that the request proves access to.
+2. The signature is the hex HMAC-SHA256 of `<stored order id>|<payment id>` with the key secret.
+3. `GET /v1/payments/:id` reports the stored order, the transaction's amount and currency, and `captured`. An `authorized` payment of a pending transaction is captured first.
+
+The webhook endpoint reads the raw body and checks `X-Razorpay-Signature`, the hex HMAC-SHA256 of the body with the webhook secret, in constant time. A missing or wrong signature gets `400`. Every other answer is `200`, because Razorpay retries anything else for 24 hours and then disables the webhook:
+
+- an event it can't read is logged at error level;
+- an event for an order that isn't the site's, an event it already handled (the same `x-razorpay-event-id` as the transaction's `lastEventID`), and an event for the payment that already settled the transaction need nothing;
+- `payment.failed` writes the error to `lastError` and leaves the transaction `pending`, because Razorpay can still capture the payment;
+- a paid event is answered at once and settled afterwards with `waitUntil()` from `@adirishi/offload-cloudflare`, because Razorpay waits only 5 seconds and settlement on D1 can take longer. The adapter asks `GET /v1/payments/:id` for the event's payment. If that work fails, reconciliation settles the pending transaction later.
+
+Every Razorpay API call times out after 8 seconds.
+
+### Authorized payments
+
+Razorpay captures payments made through an order automatically, unless the account's capture settings say otherwise, so the adapter rarely sees an authorized payment. Razorpay refunds an `authorized` payment that isn't captured within 3 days. When the adapter does see one, it captures it before settling, but only for a `pending` transaction whose cart no other transaction bought. Otherwise it leaves the payment for Razorpay to refund, and writes the reason to `lastError`.
+
+## mipsAdapter()
+
+```ts
+mipsAdapter(options: MipsAdapterOptions): OffloadPaymentAdapter
+```
+
+| Option           | Type                                    | Description                                                                                                                                                                                               |
+| ---------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `credentials`    | `object`                                | Required. The credentials from MIPS, described below.                                                                                                                                                     |
+| `returnURL`      | `string`                                | Required. The page that the customer returns to after paying, absolute or relative to the site. The adapter adds `?reference=<reference>`. MIPS sends the customer there only after a successful payment. |
+| `rateLimit`      | `() => RateLimit \| Promise<RateLimit>` | Required. Returns a Workers Rate Limiting binding for the IMN endpoint, keyed by the `cf-connecting-ip` header.                                                                                           |
+| `apiURL`         | `string`                                | The API's base URL. Defaults to `https://api.mips.mu/api`. Change it only to test against a stub.                                                                                                         |
+| `label`          | `string`                                | The payment method's label in the admin. Defaults to `Card (mIPS)`.                                                                                                                                       |
+| `groupOverrides` | `PaymentAdapterArgs["groupOverrides"]`  | Overrides the `mips` group on transactions.                                                                                                                                                               |
+
+| `credentials` key  | MIPS name           | Use                                   |
+| ------------------ | ------------------- | ------------------------------------- |
+| `username`         | Basic auth user     | Every API call                        |
+| `password`         | Basic auth password | Every API call                        |
+| `merchantID`       | `id_merchant`       | The `authentify` object of every call |
+| `entityID`         | `id_entity`         | The `authentify` object of every call |
+| `operatorID`       | `id_operator`       | The `authentify` object of every call |
+| `operatorPassword` | `operator_password` | The `authentify` object of every call |
+| `salt`             | `salt`              | `decrypt_imn_data`                    |
+| `cipherKey`        | `cipher_key`        | `decrypt_imn_data`                    |
+
+The adapter's name is `mips`. Each transaction has a `mips` group with `reference` (unique), `decimals`, `paymentMethod`, `shippingAddress`, and `lastError`. `reference` is the 20-character alphanumeric `id_order` that MIPS knows the payment by.
+
+### Endpoints
+
+| Endpoint                                | Called by        | What it does                                                                                                                               |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/payments/mips/initiate`      | The payment zone | Creates the `pending` transaction and calls `load_payment_zone`. Returns `reference` and `paymentZone`, the HTML of MIPS's payment iframe. |
+| `POST /api/payments/mips/confirm-order` | The return page  | Takes `reference`, and settles. Returns `orderID` and `transactionID`.                                                                     |
+| `POST /api/payments/mips/imn`           | MIPS             | Takes the encrypted IMN, settles, and answers `success` or `fail` as plain text.                                                           |
+
+The IMN carries no signature that the site can check, and anyone who captured one can send it again. So the endpoint treats it only as a notice:
+
+1. It applies the rate limit (`429`) and refuses a body over 16 KiB (`413`).
+2. It asks `decrypt_imn_data` to decrypt the message, which proves only that MIPS encrypted it for this merchant, and uses only its `id_order`. An explicit refusal gets `400 fail`.
+3. It asks `orders_management` for `get_order_all_data`, and settles only when that order is `success` with the transaction's amount and currency. `confirm-order` runs the same lookup. Neither uses the amount in the IMN.
+
+It answers `200 success` when the transaction is settled, `200 fail` when the payment can't settle, and `500 fail` for anything MIPS should retry: a decrypt or lookup that fails, or an order still `waiting`. It settles before it answers, so `success` is true, and passes the settlement to `waitUntil()` so a dropped connection can't stop it halfway. Every mIPS API call times out after 8 seconds.
+
+The documents disagree on whether `get_order_all_data` reports decimal units or cents. The adapter accepts either, and logs at warning level which one matched, until MIPS confirms.
+
+If MIPS publishes the IPs it sends the IMN from, allow only those for `/api/payments/mips/imn` with a WAF rule.
+
+## reconcilePaymentsTask()
+
+```ts
+reconcilePaymentsTask(options: ReconcilePaymentsOptions): TaskConfig
+```
+
+| Option      | Type                      | Description                                                                         |
+| ----------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| `adapters`  | `OffloadPaymentAdapter[]` | Required. The adapters whose transactions to reconcile.                             |
+| `schedule`  | `ScheduleConfig[]`        | When Payload queues the task. Defaults to every ten minutes on the `default` queue. |
+| `batchSize` | `number`                  | How many pending transactions one run checks. Defaults to 50.                       |
+
+A Payload job task with the slug `reconcilePayments`. Add it to `jobs.tasks`. `createPayloadWorker()` queues and runs scheduled jobs on each Cron Trigger, so the Worker needs a Cron Trigger at least as frequent as `schedule`. Runs that overlap are safe, because every change is a conditional transition.
+
+Each run does two things:
+
+1. It repairs transactions that settlement left in `processing` for 15 minutes. On D1, which has no database transactions, a Worker that stops during settlement leaves them there. Settlement writes the transaction's ID to the order's `settlementKey` in the order's first insert. If such an order exists, the task links it, marks the transaction `succeeded`, and logs an error, because the stock decrement may not have run. If none exists, settlement had written nothing else, so the task returns the transaction to `pending`.
+2. It asks the adapters about `batchSize` `pending` transactions, the ones it checked least recently first. A transaction that stays pending, or whose check fails, moves to the back, and a failure goes to its `lastError` and the error log.
+
+The job's output counts the transactions it `checked`, `settled`, `expired`, left `pending`, and `failed`, so a run where every check failed shows in `payload-jobs`.
+
+| Gateway  | Settles when                                   | Expires when                                                                                                                                                                                                                                            |
+| -------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Razorpay | The order has a captured or authorized payment | The order has no payment attempt 1 hour after Checkout's 15-minute timeout. With attempts, no payment is captured or authorized 3 days and 1 hour after the last one. Razorpay has no record of the order (`404`), which happens after the keys change. |
+| mIPS     | `get_order_all_data` reports `success`         | MIPS reports the order `expired` or `cancelled`. An order still unpaid 24 hours after `initiate` is cancelled with `cancel_order` first, and expires only if MIPS then reports it closed.                                                               |
+
+Each checked transaction costs a few gateway calls and database queries. On Workers Paid, a Cron Trigger invocation can make 10,000 subrequests, and D1 queries count, so the default batch fits. On Workers Free it can make 50 to the internet and 1,000 to Cloudflare services, so set `batchSize` to about 15.
+
+## Client adapters
+
+`razorpayAdapterClient()` and `mipsAdapterClient()` return the `paymentMethods` entries for the plugin's `EcommerceProvider`. Each takes an optional `label`. `/client` also exports `MUR` and `INR`, so browser code doesn't import the main entry point.
+
+## Registry
+
+The checkout UI installs from Offload's shadcn registry, from [`packages/payments/registry.json`](https://github.com/AdiRishi/offload-cms/blob/main/packages/payments/registry.json).
+
+| Item                 | Installs                                     | Uses the shadcn components | Registry dependencies        | npm dependencies |
+| -------------------- | -------------------------------------------- | -------------------------- | ---------------------------- | ---------------- |
+| `razorpay-checkout`  | `components/payments/razorpay-checkout.tsx`  | `button`, `spinner`        | None                         | `zod`            |
+| `mips-payment-zone`  | `components/payments/mips-payment-zone.tsx`  | `button`, `spinner`        | None                         | `zod`            |
+| `mips-confirm-order` | `components/payments/mips-confirm-order.tsx` | `spinner`                  | `@offload/mips-payment-zone` | `zod`            |
+
+The items don't install the shadcn components they use, so `--overwrite` never replaces the site's copies. Add the ones the site lacks with `shadcn add`, without `--overwrite`.
+
+Each item's `meta` names the release of `@adirishi/offload-payments` it was built for. The components use only browser APIs in Vite's default build target, Baseline Widely Available, which includes Safari 16. The components call the plugin's `usePayments()`, so they render inside `EcommerceProvider`.
+
+### RazorpayCheckout
+
+```tsx
+<RazorpayCheckout customerEmail={email} onConfirmed={({ orderID }) => navigate(orderID)} />
+```
+
+A button that loads `https://checkout.razorpay.com/v1/checkout.js` on its first click, calls `initiate`, and opens Checkout for the Razorpay order with the `timeout` that `initiate` returns. When Checkout reports a payment, the button stays disabled for good, and it calls `confirm-order` up to 6 times over about 20 seconds, then calls `onConfirmed` with the order. If every attempt fails, it says that the payment was received and the order will be confirmed, and not to pay again. If `initiate` fails, for example because prices changed, it refreshes the cart and shows the endpoint's message. Pass `customerEmail` for a guest. A logged-in customer pays as their account. `name` sets the name that Checkout shows.
+
+### MipsPaymentZone
+
+```tsx
+<MipsPaymentZone customerEmail={email} origins={["https://go.mips.mu"]} />
+```
+
+A button that calls `initiate` and replaces itself with the payment zone that MIPS returns. It parses the zone's HTML without running it, and builds only the `<script src>` and `<iframe src>` elements whose origin is in `origins`, which defaults to `["https://go.mips.mu"]`. Inline scripts and every other element are dropped. It keeps a guest's email in `sessionStorage` under the reference, for the return page.
+
+MIPS's script runs in the site's origin, which also serves `/admin` and `/api`, so the site trusts MIPS as it trusts Razorpay's `checkout.js`. A sandboxed `srcdoc` frame can't isolate it: the payment frame inside inherits the sandbox and breaks, and `allow-same-origin` would give the frame the site's origin.
+
+### MipsConfirmOrder
+
+```tsx
+<MipsConfirmOrder reference={reference} onConfirmed={({ orderID }) => navigate(orderID)} />
+```
+
+Renders on the page at the adapter's `returnURL`, with the `reference` from the page's query string. It waits for the provider's cart, then calls `confirm-order` with the reference and the guest's stored email, up to 6 times over about 20 seconds, and calls `onConfirmed` with the order. Without a cart after 5 seconds, or when every attempt fails, it says that a paid order will be confirmed by email and not to pay again. The IMN and reconciliation confirm it.

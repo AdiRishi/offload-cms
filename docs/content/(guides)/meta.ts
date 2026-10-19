@@ -10,6 +10,7 @@ export default defineMeta({
     "live-preview",
     "forms",
     "customer-accounts",
+    "checkout",
     "seed",
     "test",
     "update",

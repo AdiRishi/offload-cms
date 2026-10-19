@@ -96,8 +96,9 @@ test("Payload keeps working across config reloads", async ({ api, page }) => {
   await test.step("edit the Payload config", async () => {
     edit(
       "src/payload.config.ts",
-      "endpoints: [queueJobEndpoint, schedulePublishEndpoint],",
+      "endpoints: [listJobsEndpoint, queueJobEndpoint, schedulePublishEndpoint],",
       `endpoints: [
+    listJobsEndpoint,
     queueJobEndpoint,
     schedulePublishEndpoint,
     { handler: () => Response.json({ reloaded: true }), method: "get", path: "/e2e/reloaded" },

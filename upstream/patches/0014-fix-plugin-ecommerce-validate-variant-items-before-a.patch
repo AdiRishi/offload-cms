@@ -1,0 +1,476 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 05:29:14 +1100
+Subject: [PATCH] fix(plugin-ecommerce): validate variant items before a
+ payment starts
+
+A customer can pay one product's price for another. The cart's subtotal
+uses the price of each item's variant, and initiate never checks variant
+items: the variant branch sits inside the branch for items without a
+variant, so it can't run. A guest cart that pairs an expensive product with
+a cheap variant of another product, or that buys a product with variants
+enabled at the product's own price, reaches the payment adapter and is
+charged that subtotal. Variant stock and missing variant prices go unchecked
+too.
+
+Initiate now loads each item's product and, when the item has a variant, the
+variant. It refuses a variant that belongs to another product and a product
+with variants enabled that has no variant, then runs the products validation
+with both, which checks the variant's price and stock.
+
+Initiate also refuses:
+- a cart that has already been bought, which a second payment would charge
+  again;
+- a quantity that isn't a whole number of at least 1, which would decrement
+  stock by a fraction;
+- a product or variant that has never been published, which a guest could
+  otherwise buy by its ID;
+- a cart whose subtotal no longer matches the current prices. The carts
+  collection computes the subtotal only when the cart is saved, so a price
+  change left it stale and the customer paid the old price. Initiate saves
+  the items again, which recomputes the subtotal, and answers 409 so the
+  customer reviews the new total.
+
+Offload-Patch: ecommerce-initiate-variant-validation
+Drop-When: the pinned release validates variant items in the initiate endpoint and checks that each variant belongs to its item's product
+Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that refuse a tampered variant cart)
+---
+ .../src/endpoints/initiatePayment.spec.ts     | 152 ++++++++++++
+ .../src/endpoints/initiatePayment.ts          | 217 +++++++++++-------
+ 2 files changed, 284 insertions(+), 85 deletions(-)
+ create mode 100644 packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts
+
+diff --git a/packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts b/packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts
+new file mode 100644
+index 000000000..b48c67ce5
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts
+@@ -0,0 +1,152 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest'
++
++vi.mock('payload', () => ({ addDataAndFileToRequest: vi.fn() }))
++
++import { initiatePaymentHandler } from './initiatePayment.js'
++
++type Handler = ReturnType<typeof initiatePaymentHandler>
++type Request = Parameters<Handler>[0]
++
++const documents: Record<string, Record<string, unknown>> = {
++  'products:shirt': { enableVariants: true, id: 'shirt', priceInMUR: 900 },
++  'products:sticker': { id: 'sticker', inventory: 10, priceInMUR: 50 },
++  'products:unreleased': { _status: 'draft', id: 'unreleased', inventory: 10, priceInMUR: 50 },
++  'variants:shirt-large': { id: 'shirt-large', inventory: 3, priceInMUR: 1500, product: 'shirt' },
++  'variants:shirt-sold-out': {
++    id: 'shirt-sold-out',
++    inventory: 0,
++    priceInMUR: 1500,
++    product: 'shirt',
++  },
++  'variants:sticker-holo': {
++    id: 'sticker-holo',
++    inventory: 10,
++    priceInMUR: 80,
++    product: 'sticker',
++  },
++}
++
++const initiate = async (
++  items: Record<string, unknown>[],
++  cartFields: Record<string, unknown> = {},
++) => {
++  const initiatePayment = vi.fn(async () => ({ message: 'Payment initiated' }))
++  const handler = initiatePaymentHandler({
++    currenciesConfig: {
++      defaultCurrency: 'MUR',
++      supportedCurrencies: [{ code: 'MUR', decimals: 2, label: 'Mauritian Rupee', symbol: 'Rs' }],
++    },
++    paymentMethod: {
++      confirmOrder: vi.fn(),
++      group: { name: 'test', type: 'group', fields: [] },
++      initiatePayment,
++      name: 'test',
++    },
++  })
++  const cart = { currency: 'MUR', id: 'cart-1', items, subtotal: 0, ...cartFields }
++  const req = {
++    data: { cartID: 'cart-1', customerEmail: 'buyer@example.com' },
++    payload: {
++      findByID: vi.fn(async ({ collection, id }: { collection: string; id: string }) =>
++        collection === 'carts' ? cart : (documents[`${collection}:${id}`] ?? null),
++      ),
++      logger: { error: vi.fn() },
++      update: vi.fn(async () => cart),
++    },
++    query: {},
++  } as unknown as Request
++
++  const response = await handler(req)
++
++  return { initiatePayment, response, update: req.payload.update }
++}
++
++describe('initiatePaymentHandler', () => {
++  beforeEach(() => {
++    vi.clearAllMocks()
++  })
++
++  it('starts a payment for a variant of the cart item product', async () => {
++    const { initiatePayment, response } = await initiate(
++      [{ product: 'shirt', quantity: 2, variant: 'shirt-large' }],
++      { subtotal: 3000 },
++    )
++
++    expect(response.status).toBe(200)
++    expect(initiatePayment).toHaveBeenCalled()
++  })
++
++  it('refuses a variant of another product, whose price the cart would charge', async () => {
++    const { initiatePayment, response } = await initiate([
++      { product: 'shirt', quantity: 1, variant: 'sticker-holo' },
++    ])
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a product with variants bought without one', async () => {
++    const { initiatePayment, response } = await initiate([{ product: 'shirt', quantity: 1 }])
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a variant that is out of stock', async () => {
++    const { initiatePayment, response } = await initiate([
++      { product: 'shirt', quantity: 1, variant: 'shirt-sold-out' },
++    ])
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a variant without a price in the cart currency', async () => {
++    documents['variants:shirt-unpriced'] = { id: 'shirt-unpriced', inventory: 5, product: 'shirt' }
++
++    const { initiatePayment, response } = await initiate([
++      { product: 'shirt', quantity: 1, variant: 'shirt-unpriced' },
++    ])
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a fractional quantity, which would decrement stock by a fraction', async () => {
++    const { initiatePayment, response } = await initiate([{ product: 'sticker', quantity: 1.5 }])
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a cart that has already been bought', async () => {
++    const { initiatePayment, response } = await initiate([{ product: 'sticker', quantity: 1 }], {
++      purchasedAt: '2026-10-20T00:00:00.000Z',
++    })
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a product that has never been published', async () => {
++    const { initiatePayment, response } = await initiate([{ product: 'unreleased', quantity: 1 }], {
++      subtotal: 50,
++    })
++
++    expect(response.status).toBe(404)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a cart whose subtotal predates a price change, and saves it again', async () => {
++    const { initiatePayment, response, update } = await initiate(
++      [{ product: 'shirt', quantity: 2, variant: 'shirt-large' }],
++      { subtotal: 2400 },
++    )
++
++    expect(response.status).toBe(409)
++    expect(initiatePayment).not.toHaveBeenCalled()
++    expect(update).toHaveBeenCalledWith(
++      expect.objectContaining({ collection: 'carts', id: 'cart-1' }),
++    )
++  })
++})
+diff --git a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
+index 995417e07..617fbc003 100644
+--- a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
++++ b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
+@@ -1,6 +1,7 @@
+ import { addDataAndFileToRequest, type DefaultDocumentIDType, type Endpoint } from 'payload'
+ 
+ import type {
++  CartItem,
+   CurrenciesConfig,
+   PaymentAdapter,
+   ProductsValidation,
+@@ -123,6 +124,7 @@ export const initiatePaymentHandler: InitiatePayment =
+             currency: true,
+             customerEmail: true,
+             items: true,
++            purchasedAt: true,
+             subtotal: true,
+           },
+         })
+@@ -193,30 +195,83 @@ export const initiatePaymentHandler: InitiatePayment =
+       )
+     }
+ 
++    // A second payment for a bought cart would charge the customer again for the same items.
++    if (cart.purchasedAt) {
++      return Response.json(
++        {
++          message: 'This cart has already been bought.',
++        },
++        {
++          status: 400,
++        },
++      )
++    }
++
++    let currentSubtotal = 0
++
+     for (const item of cart.items) {
+       // Target field to check the price based on the currency so we can validate the total
+       const priceField = `priceIn${currency.toUpperCase()}`
+-      const quantity = item.quantity || 1
++      const quantity = item.quantity
+ 
+-      // If the item has a product but no variant, we assume the product has a price in the specified currency
+-      if (item.product && !item.variant) {
+-        const id = typeof item.product === 'object' ? item.product.id : item.product
++      if (!Number.isInteger(quantity) || quantity < 1) {
++        return Response.json(
++          {
++            message: 'Each cart item needs a whole-number quantity of at least 1.',
++          },
++          {
++            status: 400,
++          },
++        )
++      }
++      const productID = typeof item.product === 'object' ? item.product.id : item.product
+ 
+-        const product = await payload.findByID({
+-          id,
+-          collection: productsSlug,
++      const product = await payload.findByID({
++        id: productID,
++        collection: productsSlug,
++        depth: 0,
++        overrideAccess: true,
++        select: {
++          _status: true,
++          enableVariants: true,
++          inventory: true,
++          [priceField]: true,
++        },
++      })
++
++      if (!product || product._status === 'draft') {
++        return Response.json(
++          {
++            message: `Product with ID ${productID} not found.`,
++          },
++          {
++            status: 404,
++          },
++        )
++      }
++
++      let variant = undefined
++
++      if (item.variant) {
++        const variantID = typeof item.variant === 'object' ? item.variant.id : item.variant
++
++        variant = await payload.findByID({
++          id: variantID,
++          collection: variantsSlug,
+           depth: 0,
+           overrideAccess: true,
+           select: {
++            _status: true,
+             inventory: true,
++            product: true,
+             [priceField]: true,
+           },
+         })
+ 
+-        if (!product) {
++        if (!variant || variant._status === 'draft') {
+           return Response.json(
+             {
+-              message: `Product with ID ${item.product} not found.`,
++              message: `Variant with ID ${variantID} not found.`,
+             },
+             {
+               status: 404,
+@@ -224,94 +279,86 @@ export const initiatePaymentHandler: InitiatePayment =
+           )
+         }
+ 
+-        try {
+-          if (productsValidation) {
+-            await productsValidation({ currenciesConfig, currency, product, quantity })
+-          } else {
+-            await defaultProductsValidation({
+-              currenciesConfig,
+-              currency,
+-              product,
+-              quantity,
+-            })
+-          }
+-        } catch (error) {
+-          payload.logger.error(
+-            error,
+-            'Error validating product or variant during payment initiation.',
+-          )
++        const variantProductID =
++          typeof variant.product === 'object' ? variant.product?.id : variant.product
+ 
++        // The cart's subtotal uses the variant's price, so a variant of another product would
++        // let the customer pay that product's price for this one.
++        if (String(variantProductID) !== String(productID)) {
+           return Response.json(
+             {
+-              message: error,
+-              ...(error instanceof Error ? { cause: error.cause } : {}),
++              message: `Variant with ID ${variantID} does not belong to product ${productID}.`,
+             },
+             {
+               status: 400,
+             },
+           )
+         }
++      } else if (product.enableVariants) {
++        return Response.json(
++          {
++            message: `Product with ID ${productID} must be bought as one of its variants.`,
++          },
++          {
++            status: 400,
++          },
++        )
++      }
+ 
+-        if (item.variant) {
+-          const id = typeof item.variant === 'object' ? item.variant.id : item.variant
+-
+-          const variant = await payload.findByID({
+-            id,
+-            collection: variantsSlug,
+-            depth: 0,
+-            overrideAccess: true,
+-            select: {
+-              inventory: true,
+-              [priceField]: true,
+-            },
+-          })
+-
+-          if (!variant) {
+-            return Response.json(
+-              {
+-                message: `Variant with ID ${item.variant} not found.`,
+-              },
+-              {
+-                status: 404,
+-              },
+-            )
+-          }
++      try {
++        await (productsValidation ?? defaultProductsValidation)({
++          currenciesConfig,
++          currency,
++          product,
++          quantity,
++          variant,
++        })
++      } catch (error) {
++        payload.logger.error(
++          error,
++          'Error validating product or variant during payment initiation.',
++        )
+ 
+-          try {
+-            if (productsValidation) {
+-              await productsValidation({
+-                currenciesConfig,
+-                currency,
+-                product: item.product,
+-                quantity,
+-                variant,
+-              })
+-            } else {
+-              await defaultProductsValidation({
+-                currenciesConfig,
+-                currency,
+-                product: item.product,
+-                quantity,
+-                variant,
+-              })
+-            }
+-          } catch (error) {
+-            payload.logger.error(
+-              error,
+-              'Error validating product or variant during payment initiation.',
+-            )
+-
+-            return Response.json(
+-              {
+-                message: error,
+-              },
+-              {
+-                status: 400,
+-              },
+-            )
+-          }
+-        }
++        return Response.json(
++          {
++            message: error,
++            ...(error instanceof Error ? { cause: error.cause } : {}),
++          },
++          {
++            status: 400,
++          },
++        )
+       }
++
++      currentSubtotal += (variant ?? product)[priceField] * quantity
++    }
++
++    // The carts collection computes the subtotal only when the cart is saved, so a price change
++    // since then leaves it stale. Saving the items again recomputes it for the customer to review.
++    if (currentSubtotal !== cart.subtotal) {
++      await payload.update({
++        id: cart.id,
++        collection: cartsSlug,
++        data: {
++          items: cart.items.map((item: CartItem) => ({
++            ...item,
++            product: typeof item.product === 'object' ? item.product.id : item.product,
++            variant: typeof item.variant === 'object' ? item.variant?.id : item.variant,
++          })),
++        },
++        depth: 0,
++        overrideAccess: true,
++        req,
++      })
++
++      return Response.json(
++        {
++          message: 'Prices changed since the cart was last updated. Review the cart and pay again.',
++        },
++        {
++          status: 409,
++        },
++      )
+     }
+ 
+     try {

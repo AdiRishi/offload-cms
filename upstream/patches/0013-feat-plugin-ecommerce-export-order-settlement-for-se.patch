@@ -1,0 +1,1293 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 05:28:27 +1100
+Subject: [PATCH] feat(plugin-ecommerce): export order settlement for
+ server-side confirmation
+
+Only the browser's confirm-order request can turn a payment into an order.
+finalizeOrder exists only inside that request, so a customer who pays and
+closes the tab before it runs is charged and gets no order. Providers that
+report payments to the server, such as Razorpay's webhooks or the mIPS
+payment notification, have no way to settle the transaction.
+
+The plugin now exports settleTransaction({ req, transactionID, orderData }).
+It takes the cart from the transaction and runs the settlement that
+confirm-order runs: the atomic pending to processing claim, then the order,
+the cart's purchasedAt, the inventory decrement and the succeeded status. A
+caller that loses the claim gets the winner's order back and writes
+nothing, so duplicate notifications and a concurrent confirm-order are
+harmless. It opens a database transaction when the adapter supports one and
+the request has none. confirm-order calls the same code. The plugin records
+its resolved collection slugs in config.custom, so settleTransaction uses
+the site's slug map, and getEcommerceCollectionSlugs(config) returns it for
+other server code. Settlement's writes no longer populate relationships.
+
+Orders get a unique settlementKey, the ID of the transaction that settlement
+created them for. The order's link to its transaction lives in a separate
+table, so on a database without transactions a request that stops between
+the two inserts leaves an order that no query by transaction finds, and a
+retry would create a second one. The key is on the order's own row: the
+unique index refuses a second order, and recovery code can find the first.
+
+Orders also get a unique cartKey, the ID of the cart they bought. A cart is
+bought once, and nothing in the plugin resets purchasedAt, so two payments
+for one cart that settle at the same moment can't both create an order: the
+second insert fails on the index, settlement returns that transaction to
+pending (or rolls back with the database transaction), and throws the
+exported CartAlreadyPurchasedError for the adapter to flag the double
+payment. confirm-order answers that error with 409 and
+{ status: 'cart_already_purchased', transactionID }, and logs an error that
+names the transaction whose payment needs a refund. This changes what a
+two-tab double payment does with the Stripe adapter: before, it created a
+second order for the cart; now the second payment creates no order, and its
+transaction stays pending with the PaymentIntent recorded on it.
+
+A confirm-order that loses the claim waits 500 ms for the winner's order. On
+D1 a webhook's settlement can take longer, and the loser answered 500, so
+the browser offered the customer the payment again. When the wait ends with
+the transaction still unsettled, confirm-order now answers 409 with
+{ status: 'processing' }, and settleTransaction throws the exported
+SettlementInProgressError. A 409 is an error to clients that check
+response.ok, so none mistakes it for a confirmed order. Confirming again
+returns the order once the winner finishes.
+
+Offload-Patch: ecommerce-server-settlement
+Drop-When: the pinned release lets a payment adapter settle a transaction outside the confirm-order request
+Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/checkout.spec.ts, tests/settlement.spec.ts)
+---
+ docs/ecommerce/payments.mdx                   |  19 +
+ .../orders/createOrdersCollection.ts          |  33 ++
+ .../src/endpoints/confirmOrder.spec.ts        |  28 +-
+ .../src/endpoints/confirmOrder.ts             | 331 ++-----------
+ packages/plugin-ecommerce/src/index.ts        |  10 +
+ .../src/utilities/ecommerceSlugs.ts           |  26 +
+ .../src/utilities/settleTransaction.spec.ts   | 214 ++++++++
+ .../src/utilities/settleTransaction.ts        | 455 ++++++++++++++++++
+ 8 files changed, 822 insertions(+), 294 deletions(-)
+ create mode 100644 packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
+ create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
+ create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.ts
+
+diff --git a/docs/ecommerce/payments.mdx b/docs/ecommerce/payments.mdx
+index 32091fa3f..6791815e9 100644
+--- a/docs/ecommerce/payments.mdx
++++ b/docs/ecommerce/payments.mdx
+@@ -79,6 +79,25 @@ If a transaction is already `succeeded` and has exactly one matching bidirection
+ 
+ Database adapters with transaction support roll back the complete settlement on failure. Without database transactions, the atomic status claim still prevents concurrent winners, but a process crash can leave a transaction in `processing`. Payload does not reset that state automatically because it cannot safely infer whether order, cart, or inventory side effects completed. Monitor and manually reconcile stale `processing` transactions. A future inventory-reservation model can provide stronger recovery semantics.
+ 
++### Settling from the server
++
++A customer who pays and closes the tab before the confirm-order request runs is charged, and no order exists. An adapter whose provider reports payments to the server, through a webhook or a reconciliation job, settles the transaction with `settleTransaction`. It runs the same atomic claim and side effects as confirm-order, so a duplicate notification or a concurrent confirm-order returns the existing order and writes nothing.
++
++```ts
++import { settleTransaction } from '@payloadcms/plugin-ecommerce'
++
++// After the provider confirms the amount, currency and status of the payment:
++const order = await settleTransaction({
++  orderData: { amount, currency, customerEmail, items, status: 'processing' },
++  req,
++  transactionID,
++})
++```
++
++`settleTransaction` takes the cart from the transaction's `cart` field, and the collection slugs from the plugin's config, which `getEcommerceCollectionSlugs(payload.config)` also returns. It throws when the transaction cannot be settled, for example because its status is `failed` or `expired`. When another request is still settling the transaction after a short wait, it throws `SettlementInProgressError`, and confirm-order answers `409` with `{ status: 'processing' }`. Confirm again to get the order.
++
++Each order records its cart in a unique `cartKey`, because a cart is bought once. When a customer pays twice for one cart, for example from two tabs, the second settlement can't create an order: it leaves its transaction `pending`, logs an error naming the transaction, and throws `CartAlreadyPurchasedError`. confirm-order answers `409` with `{ status: 'cart_already_purchased', transactionID }`. The payment stays with the provider, recorded on that pending transaction, and needs a refund. Before this, a second payment created a second order for the same cart.
++
+ ### Stripe Webhooks
+ 
+ You can also add your own webhooks to handle [events from Stripe](https://docs.stripe.com/api/events). This is optional and the plugin internally does not use webhooks for any core functionality. It receives the following arguments:
+diff --git a/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts b/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
+index 2be0a20e5..1551e4073 100644
+--- a/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
++++ b/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
+@@ -117,6 +117,39 @@ export const createOrdersCollection: (props: Props) => CollectionConfig = (props
+         // @ts-expect-error - translations are not typed in plugins yet
+         t('plugin-ecommerce:customerEmail'),
+     },
++    {
++      // The transaction that settlement created the order for, on the order's own row. The
++      // relationship below lives in another table, which a database without transactions can
++      // leave unwritten when a request stops, and the unique index refuses a second order.
++      name: 'settlementKey',
++      type: 'text',
++      access: {
++        create: access.adminOnlyFieldAccess,
++        read: access.adminOnlyFieldAccess,
++        update: () => false,
++      },
++      admin: {
++        hidden: true,
++      },
++      index: true,
++      unique: true,
++    },
++    {
++      // The cart that settlement created the order for. A cart is bought once, so the unique
++      // index refuses a second order for it even when two payments settle at the same moment.
++      name: 'cartKey',
++      type: 'text',
++      access: {
++        create: access.adminOnlyFieldAccess,
++        read: access.adminOnlyFieldAccess,
++        update: () => false,
++      },
++      admin: {
++        hidden: true,
++      },
++      index: true,
++      unique: true,
++    },
+     {
+       name: 'transactions',
+       type: 'relationship',
+diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
+index fe564f2ab..4ea8c2446 100644
+--- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
++++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
+@@ -482,7 +482,28 @@ describe('confirmOrderHandler', () => {
+     expect(harness.state.inventoryUpdates).toHaveLength(0)
+   })
+ 
+-  it('should fail closed after bounded polling of a stale processing transaction', async () => {
++  it('should refuse with a clear answer when another transaction already bought the cart', async () => {
++    const harness = createHarness({ adapter: coreAdapter })
++    harness.create.mockRejectedValueOnce(
++      Object.assign(new Error('The following field is invalid: cartKey'), {
++        name: 'ValidationError',
++        data: { errors: [{ message: 'Value must be unique', path: 'cartKey' }] },
++      }),
++    )
++
++    const { body, response } = await runHandler(harness)
++
++    expect(response.status).toBe(409)
++    expect(body).toMatchObject({ status: 'cart_already_purchased', transactionID: 'txn-123' })
++    expect(harness.state.inventoryUpdates).toHaveLength(0)
++    expect(harness.loggerError).toHaveBeenCalledWith(
++      expect.objectContaining({
++        msg: expect.stringContaining('refund the payment recorded on transaction txn-123'),
++      }),
++    )
++  })
++
++  it('should ask the client to confirm again while another request settles the transaction', async () => {
+     vi.useFakeTimers()
+     vi.setSystemTime(new Date('2026-08-27T12:00:00.000Z'))
+     const harness = createHarness({
+@@ -499,9 +520,10 @@ describe('confirmOrderHandler', () => {
+ 
+     const result = runHandler(harness)
+     await vi.advanceTimersByTimeAsync(1000)
+-    const { response } = await result
++    const { body, response } = await result
+ 
+-    expect(response.status).toBe(500)
++    expect(response.status).toBe(409)
++    expect(body).toMatchObject({ status: 'processing' })
+     expect(harness.create).not.toHaveBeenCalled()
+     expect(harness.state.inventoryUpdates).toHaveLength(0)
+   })
+diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
+index 0db80602d..ef39055c0 100644
+--- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
++++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
+@@ -14,13 +14,20 @@ import type {
+   UserWithCart,
+ } from '../types/index.js'
+ 
++import {
++  CartAlreadyPurchasedError,
++  finalizeTransactionOrder,
++  getRelationshipID,
++  isTransientTransactionConflict,
++  isValidDocumentID,
++  SettlementInProgressError,
++  waitForCanonicalOrder,
++} from '../utilities/settleTransaction.js'
++
+ type ConfirmOrderArgs = Parameters<PaymentAdapter['confirmOrder']>[0]
+ type FinalizeOrder = ConfirmOrderArgs['finalizeOrder']
+ type RecordValue = Record<string, unknown>
+ 
+-const SETTLEMENT_POLL_INTERVAL_MS = 25
+-const SETTLEMENT_WAIT_TIMEOUT_MS = 500
+-
+ type Args = {
+   /**
+    * The slug of the carts collection, defaults to 'carts'.
+@@ -305,6 +312,36 @@ export const confirmOrderHandler: ConfirmOrderHandler =
+         await killTransaction(req)
+       }
+ 
++      if (err instanceof CartAlreadyPurchasedError) {
++        payload.logger.error({
++          err,
++          msg: `Transaction ${err.transactionID} paid for cart ${err.cartID}, which another transaction already bought. The customer paid twice: refund the payment recorded on transaction ${err.transactionID}.`,
++        })
++
++        return Response.json(
++          {
++            message: 'This cart has already been bought, so this payment did not create an order.',
++            status: 'cart_already_purchased',
++            transactionID: err.transactionID,
++          },
++          {
++            status: 409,
++          },
++        )
++      }
++
++      if (err instanceof SettlementInProgressError) {
++        return Response.json(
++          {
++            message: 'The order is still being confirmed. Confirm again shortly.',
++            status: 'processing',
++          },
++          {
++            status: 409,
++          },
++        )
++      }
++
+       payload.logger.error({ err, msg: 'Error confirming order.' })
+ 
+       return Response.json(
+@@ -320,291 +357,3 @@ export const confirmOrderHandler: ConfirmOrderHandler =
+ 
+ const normalizeEmail = (email: unknown): string =>
+   typeof email === 'string' ? email.trim().toLowerCase() : ''
+-
+-const isValidDocumentID = (id: unknown): id is DefaultDocumentIDType =>
+-  (typeof id === 'number' && Number.isFinite(id)) ||
+-  (typeof id === 'string' && id.trim().length > 0)
+-
+-const finalizeTransactionOrder = async ({
+-  cartID,
+-  cartsSlug,
+-  orderData,
+-  ordersSlug,
+-  productsSlug,
+-  req,
+-  transactionID,
+-  transactionsSlug,
+-  variantsSlug,
+-}: {
+-  cartID: DefaultDocumentIDType
+-  cartsSlug: string
+-  orderData: Record<string, unknown>
+-  ordersSlug: string
+-  productsSlug: string
+-  req: ConfirmOrderArgs['req']
+-  transactionID: DefaultDocumentIDType
+-  transactionsSlug: string
+-  variantsSlug: string
+-}): Promise<RecordValue> => {
+-  if (!isValidDocumentID(transactionID)) {
+-    throw new Error('Transaction ID is missing or invalid.')
+-  }
+-
+-  if (!isRecord(orderData)) {
+-    throw new Error('Order data is missing or invalid.')
+-  }
+-
+-  const claimedTransaction = await req.payload.db.updateOne({
+-    collection: transactionsSlug,
+-    data: { status: 'processing' },
+-    options: { atomic: true },
+-    req,
+-    where: {
+-      and: [
+-        { id: { equals: transactionID } },
+-        { status: { equals: 'pending' } },
+-        { order: { exists: false } },
+-      ],
+-    },
+-  })
+-
+-  if (!claimedTransaction) {
+-    return waitForCanonicalOrder({ ordersSlug, req, transactionID, transactionsSlug })
+-  }
+-
+-  if (getRelationshipID(claimedTransaction.id) !== getRelationshipID(transactionID)) {
+-    throw new Error('Claimed transaction does not match the requested transaction.')
+-  }
+-
+-  const transaction = await req.payload.findByID({
+-    id: transactionID,
+-    collection: transactionsSlug,
+-    depth: 0,
+-    overrideAccess: true,
+-    req,
+-  })
+-
+-  if (
+-    !transaction ||
+-    getRelationshipID(transaction.id) !== getRelationshipID(transactionID) ||
+-    transaction.status !== 'processing'
+-  ) {
+-    throw new Error('Claimed transaction could not be loaded for settlement.')
+-  }
+-
+-  const referencedOrders = await req.payload.find({
+-    collection: ordersSlug,
+-    depth: 0,
+-    limit: 1,
+-    overrideAccess: true,
+-    pagination: false,
+-    req,
+-    where: { transactions: { equals: transactionID } },
+-  })
+-
+-  if (referencedOrders.totalDocs !== 0 || referencedOrders.docs.length !== 0) {
+-    throw new Error('An order already references the claimed transaction.')
+-  }
+-
+-  const order = (await req.payload.create({
+-    collection: ordersSlug,
+-    data: {
+-      ...orderData,
+-      transactions: [transactionID],
+-    },
+-    overrideAccess: true,
+-    req,
+-  })) as RecordValue
+-  const orderID = requireDocumentID({ fieldName: 'order ID', value: order.id })
+-
+-  await req.payload.update({
+-    id: cartID,
+-    collection: cartsSlug,
+-    data: { purchasedAt: new Date().toISOString() },
+-    overrideAccess: true,
+-    req,
+-  })
+-
+-  await decrementInventory({
+-    items: transaction.items,
+-    productsSlug,
+-    req,
+-    variantsSlug,
+-  })
+-
+-  await req.payload.update({
+-    id: transactionID,
+-    collection: transactionsSlug,
+-    data: { order: orderID, status: 'succeeded' },
+-    overrideAccess: true,
+-    req,
+-  })
+-
+-  return order
+-}
+-
+-const decrementInventory = async ({
+-  items,
+-  productsSlug,
+-  req,
+-  variantsSlug,
+-}: {
+-  items: unknown
+-  productsSlug: string
+-  req: ConfirmOrderArgs['req']
+-  variantsSlug: string
+-}): Promise<void> => {
+-  if (!Array.isArray(items) || items.length === 0) {
+-    throw new Error('Inventory transaction items are missing or invalid.')
+-  }
+-
+-  for (const item of items) {
+-    if (
+-      !isRecord(item) ||
+-      typeof item.quantity !== 'number' ||
+-      !Number.isFinite(item.quantity) ||
+-      item.quantity <= 0
+-    ) {
+-      throw new Error('Inventory item quantity is missing or invalid.')
+-    }
+-
+-    const hasVariant = item.variant !== null && item.variant !== undefined
+-    const id = hasVariant ? item.variant : item.product
+-
+-    if (!isValidDocumentID(id)) {
+-      throw new Error('Inventory item target is missing or invalid.')
+-    }
+-
+-    const updatedInventory = await req.payload.db.updateOne({
+-      id,
+-      collection: hasVariant ? variantsSlug : productsSlug,
+-      data: { inventory: { $inc: item.quantity * -1 } },
+-      req,
+-    })
+-
+-    if (!updatedInventory) {
+-      throw new Error('Inventory item could not be updated.')
+-    }
+-  }
+-}
+-
+-const waitForCanonicalOrder = async ({
+-  ordersSlug,
+-  req,
+-  transactionID,
+-  transactionsSlug,
+-}: {
+-  ordersSlug: string
+-  req: ConfirmOrderArgs['req']
+-  transactionID: DefaultDocumentIDType
+-  transactionsSlug: string
+-}): Promise<RecordValue> => {
+-  const deadline = Date.now() + SETTLEMENT_WAIT_TIMEOUT_MS
+-
+-  do {
+-    const transaction = await req.payload.findByID({
+-      id: transactionID,
+-      collection: transactionsSlug,
+-      depth: 0,
+-      overrideAccess: true,
+-      req,
+-    })
+-
+-    if (!transaction) {
+-      throw new Error('Canonical transaction was not found.')
+-    }
+-
+-    if (transaction.status === 'succeeded') {
+-      return findExactlyLinkedOrder({
+-        orderID: transaction.order,
+-        ordersSlug,
+-        req,
+-        transactionID,
+-      })
+-    }
+-
+-    if (transaction.status !== 'pending' && transaction.status !== 'processing') {
+-      throw new Error('Transaction is not available for settlement.')
+-    }
+-
+-    if (Date.now() >= deadline) {
+-      break
+-    }
+-
+-    await new Promise<void>((resolve) =>
+-      setTimeout(resolve, Math.min(SETTLEMENT_POLL_INTERVAL_MS, deadline - Date.now())),
+-    )
+-  } while (Date.now() <= deadline)
+-
+-  throw new Error('Transaction settlement did not complete in time.')
+-}
+-
+-const findExactlyLinkedOrder = async ({
+-  orderID,
+-  ordersSlug,
+-  req,
+-  transactionID,
+-}: {
+-  orderID: unknown
+-  ordersSlug: string
+-  req: ConfirmOrderArgs['req']
+-  transactionID: DefaultDocumentIDType
+-}): Promise<RecordValue> => {
+-  const canonicalOrderID = requireDocumentID({ fieldName: 'order ID', value: orderID })
+-  const result = await req.payload.find({
+-    collection: ordersSlug,
+-    depth: 0,
+-    limit: 2,
+-    overrideAccess: true,
+-    pagination: false,
+-    req,
+-    where: { transactions: { equals: transactionID } },
+-  })
+-
+-  if (
+-    result.totalDocs !== 1 ||
+-    result.docs.length !== 1 ||
+-    getRelationshipID(result.docs[0]?.id) !== getRelationshipID(canonicalOrderID)
+-  ) {
+-    throw new Error('Transaction does not have exactly one canonical linked order.')
+-  }
+-
+-  return result.docs[0] as RecordValue
+-}
+-
+-const getRelationshipID = (value: unknown): string | undefined => {
+-  const id = isRecord(value) ? value.id : value
+-
+-  return isValidDocumentID(id) ? String(id) : undefined
+-}
+-
+-const requireDocumentID = ({
+-  fieldName,
+-  value,
+-}: {
+-  fieldName: string
+-  value: unknown
+-}): DefaultDocumentIDType => {
+-  const id = isRecord(value) ? value.id : value
+-
+-  if (!isValidDocumentID(id)) {
+-    throw new Error(`${fieldName} is missing or invalid.`)
+-  }
+-
+-  return id
+-}
+-
+-const isRecord = (value: unknown): value is RecordValue =>
+-  typeof value === 'object' && value !== null && !Array.isArray(value)
+-
+-const isTransientTransactionConflict = (error: unknown): boolean => {
+-  if (!isRecord(error)) {
+-    return false
+-  }
+-
+-  return (
+-    error.code === 112 ||
+-    error.codeName === 'WriteConflict' ||
+-    (Array.isArray(error.errorLabels) && error.errorLabels.includes('TransientTransactionError'))
+-  )
+-}
+diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
+index 2661856e8..54fcffdc5 100644
+--- a/packages/plugin-ecommerce/src/index.ts
++++ b/packages/plugin-ecommerce/src/index.ts
+@@ -17,6 +17,7 @@ import { createVariantTypesCollection } from './collections/variants/createVaria
+ import { confirmOrderHandler } from './endpoints/confirmOrder.js'
+ import { initiatePaymentHandler } from './endpoints/initiatePayment.js'
+ import { translations } from './translations/index.js'
++import { getEcommerceCollectionSlugs, recordCollectionSlugMap } from './utilities/ecommerceSlugs.js'
+ import { getCollectionSlugMap } from './utilities/getCollectionSlugMap.js'
+ import { pushTypeScriptProperties } from './utilities/pushTypeScriptProperties.js'
+ import { sanitizePluginConfig } from './utilities/sanitizePluginConfig.js'
+@@ -53,6 +54,8 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
+      */
+     const collectionSlugMap = getCollectionSlugMap({ enableVariants, sanitizedPluginConfig })
+ 
++    recordCollectionSlugMap(incomingConfig, collectionSlugMap)
++
+     const currenciesConfig: Required<SanitizedEcommercePluginConfig['currencies']> =
+       sanitizedPluginConfig.currencies
+ 
+@@ -398,3 +401,10 @@ export { currencyField } from './fields/currencyField.js'
+ export { pricesField } from './fields/pricesField.js'
+ export { statusField } from './fields/statusField.js'
+ export { variantsFields } from './fields/variantsFields.js'
++export { getEcommerceCollectionSlugs }
++export {
++  CartAlreadyPurchasedError,
++  SettlementInProgressError,
++  settleTransaction,
++  type SettleTransactionArgs,
++} from './utilities/settleTransaction.js'
+diff --git a/packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts b/packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
+new file mode 100644
+index 000000000..55128ab0d
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
+@@ -0,0 +1,26 @@
++import type { Config, SanitizedConfig } from 'payload'
++
++import type { CollectionSlugMap } from '../types/index.js'
++
++const key = '@payloadcms/plugin-ecommerce'
++
++/** Records the plugin's resolved collection slugs in `config.custom`, for server code to read. */
++export const recordCollectionSlugMap = (config: Config, collectionSlugMap: CollectionSlugMap) => {
++  config.custom = { ...config.custom, [key]: { collectionSlugMap } }
++}
++
++/**
++ * The collection slugs the ecommerce plugin was configured with, including any `slugMap` and
++ * `customers.slug`. Throws when the plugin isn't in the config.
++ */
++export const getEcommerceCollectionSlugs = (
++  config: Pick<SanitizedConfig, 'custom'>,
++): CollectionSlugMap => {
++  const recorded = config.custom?.[key]?.collectionSlugMap
++
++  if (!recorded) {
++    throw new Error('The ecommerce plugin is not in this Payload config.')
++  }
++
++  return recorded
++}
+diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
+new file mode 100644
+index 000000000..6e8f77a9a
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
+@@ -0,0 +1,214 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest'
++
++const payloadUtilities = vi.hoisted(() => ({
++  commitTransaction: vi.fn(),
++  initTransaction: vi.fn(),
++  killTransaction: vi.fn(),
++}))
++
++vi.mock('payload', () => payloadUtilities)
++
++import { CartAlreadyPurchasedError, settleTransaction } from './settleTransaction.js'
++
++type Request = Parameters<typeof settleTransaction>[0]['req']
++
++const orderData = {
++  amount: 2500,
++  currency: 'MUR',
++  customerEmail: 'buyer@example.com',
++  items: [{ product: 7, quantity: 1, variant: 11 }],
++  status: 'processing',
++}
++
++const createStore = (transaction: Record<string, unknown>) => {
++  const state = {
++    cart: { id: 3, purchasedAt: undefined as string | undefined },
++    inventory: new Map<string, number>([
++      ['products:7', 5],
++      ['variants:11', 5],
++    ]),
++    orders: [] as Record<string, unknown>[],
++    transaction: { ...transaction },
++  }
++
++  const matches = (where: Record<string, any>) =>
++    where.and.every((condition: Record<string, any>) => {
++      if (condition.id) {
++        return condition.id.equals === state.transaction.id
++      }
++      if (condition.status) {
++        return condition.status.equals === state.transaction.status
++      }
++      return condition.order.exists === Boolean(state.transaction.order)
++    })
++
++  const payload = {
++    config: {
++      custom: {
++        '@payloadcms/plugin-ecommerce': {
++          collectionSlugMap: {
++            addresses: 'addresses',
++            carts: 'carts',
++            customers: 'customers',
++            orders: 'orders',
++            products: 'products',
++            transactions: 'transactions',
++            variants: 'variants',
++          },
++        },
++      },
++    },
++    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
++      const order = { ...data, id: state.orders.length + 100 }
++      state.orders.push(order)
++      return order
++    }),
++    db: {
++      updateOne: vi.fn(
++        async ({
++          collection,
++          data,
++          id,
++          where,
++        }: {
++          collection: string
++          data: Record<string, any>
++          id?: number
++          where?: Record<string, any>
++        }) => {
++          if (collection === 'transactions') {
++            if (!where || !matches(where)) {
++              return null
++            }
++            state.transaction = { ...state.transaction, ...data }
++            return { ...state.transaction }
++          }
++          const key = `${collection}:${id}`
++          state.inventory.set(key, (state.inventory.get(key) ?? 0) + data.inventory.$inc)
++          return { id }
++        },
++      ),
++    },
++    find: vi.fn(async ({ where }: { where: Record<string, any> }) => {
++      const docs = state.orders.filter((order) =>
++        (order.transactions as unknown[]).includes(where.transactions.equals),
++      )
++      return { docs, totalDocs: docs.length }
++    }),
++    findByID: vi.fn(async ({ collection }: { collection: string }) =>
++      collection === 'transactions' ? { ...state.transaction } : null,
++    ),
++    update: vi.fn(
++      async ({ collection, data }: { collection: string; data: Record<string, unknown> }) => {
++        if (collection === 'carts') {
++          state.cart = { ...state.cart, ...data }
++          return state.cart
++        }
++        state.transaction = { ...state.transaction, ...data }
++        return state.transaction
++      },
++    ),
++  }
++
++  const req = { payload } as unknown as Request
++
++  return { payload, req, state }
++}
++
++const pendingTransaction = {
++  cart: 3,
++  id: 42,
++  items: [{ product: 7, quantity: 1, variant: 11 }],
++  order: null,
++  status: 'pending',
++}
++
++describe('settleTransaction', () => {
++  beforeEach(() => {
++    vi.clearAllMocks()
++    payloadUtilities.initTransaction.mockResolvedValue(false)
++  })
++
++  it('creates the order and applies the cart and inventory side effects once', async () => {
++    const { req, state } = createStore(pendingTransaction)
++
++    const first = await settleTransaction({ orderData, req, transactionID: 42 })
++    const second = await settleTransaction({ orderData, req, transactionID: 42 })
++
++    expect(second.id).toBe(first.id)
++    expect(state.orders).toHaveLength(1)
++    expect(state.orders[0]).toMatchObject({
++      ...orderData,
++      cartKey: '3',
++      settlementKey: '42',
++      transactions: [42],
++    })
++    expect(state.transaction).toMatchObject({ order: first.id, status: 'succeeded' })
++    expect(state.cart.purchasedAt).toEqual(expect.any(String))
++    expect(state.inventory.get('variants:11')).toBe(4)
++    expect(state.inventory.get('products:7')).toBe(5)
++  })
++
++  it('refuses a transaction that is no longer pending and writes nothing', async () => {
++    const { req, state } = createStore({ ...pendingTransaction, status: 'expired' })
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toThrow(
++      'Transaction is not available for settlement.',
++    )
++    expect(state.orders).toHaveLength(0)
++    expect(state.inventory.get('variants:11')).toBe(5)
++  })
++
++  it('refuses a transaction without a cart before claiming it', async () => {
++    const { req, state } = createStore({ ...pendingTransaction, cart: null })
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toThrow(
++      'Transaction has no cart to settle.',
++    )
++    expect(state.transaction.status).toBe('pending')
++  })
++
++  it('commits the database transaction it opened, and rolls it back on failure', async () => {
++    payloadUtilities.initTransaction.mockResolvedValue(true)
++    const settled = createStore(pendingTransaction)
++
++    await settleTransaction({ orderData, req: settled.req, transactionID: 42 })
++
++    expect(payloadUtilities.commitTransaction).toHaveBeenCalledWith(settled.req)
++
++    const failing = createStore(pendingTransaction)
++    failing.payload.create.mockRejectedValueOnce(new Error('order insert failed'))
++
++    await expect(
++      settleTransaction({ orderData, req: failing.req, transactionID: 42 }),
++    ).rejects.toThrow('order insert failed')
++    expect(payloadUtilities.killTransaction).toHaveBeenCalledWith(failing.req)
++  })
++
++  it('refuses to settle in a config without the ecommerce plugin', async () => {
++    const { payload, req, state } = createStore(pendingTransaction)
++    payload.config.custom = {} as typeof payload.config.custom
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toThrow(
++      'The ecommerce plugin is not in this Payload config.',
++    )
++    expect(state.transaction.status).toBe('pending')
++  })
++
++  it('refuses a second order for a bought cart and returns the transaction to pending', async () => {
++    const { payload, req, state } = createStore(pendingTransaction)
++    const cartKeyTaken = Object.assign(new Error('The following field is invalid: cartKey'), {
++      name: 'ValidationError',
++      data: { errors: [{ message: 'Value must be unique', path: 'cartKey' }] },
++    })
++    payload.create.mockRejectedValueOnce(cartKeyTaken)
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toBeInstanceOf(
++      CartAlreadyPurchasedError,
++    )
++    expect(state.orders).toHaveLength(0)
++    expect(state.transaction.status).toBe('pending')
++    expect(state.cart.purchasedAt).toBeUndefined()
++    expect(state.inventory.get('variants:11')).toBe(5)
++  })
++})
+diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
+new file mode 100644
+index 000000000..49a38fa55
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
+@@ -0,0 +1,455 @@
++import {
++  commitTransaction,
++  type DefaultDocumentIDType,
++  initTransaction,
++  killTransaction,
++  type PayloadRequest,
++} from 'payload'
++
++import { getEcommerceCollectionSlugs } from './ecommerceSlugs.js'
++
++type RecordValue = Record<string, unknown>
++
++const SETTLEMENT_POLL_INTERVAL_MS = 25
++const SETTLEMENT_WAIT_TIMEOUT_MS = 500
++
++/**
++ * Another request holds the transaction's settlement and hadn't finished it when the wait ended.
++ * The payment is not lost: the order appears once that request finishes, so confirm again later.
++ */
++export class SettlementInProgressError extends Error {
++  constructor() {
++    super('Another request is still settling the transaction.')
++    this.name = 'SettlementInProgressError'
++  }
++}
++
++/**
++ * Another transaction's order already bought the cart: the customer paid twice. Settlement created
++ * nothing for this transaction and left it `pending`, or rolled back with the database transaction.
++ */
++export class CartAlreadyPurchasedError extends Error {
++  readonly cartID: DefaultDocumentIDType
++  readonly transactionID: DefaultDocumentIDType
++
++  constructor({
++    cartID,
++    transactionID,
++  }: {
++    cartID: DefaultDocumentIDType
++    transactionID: DefaultDocumentIDType
++  }) {
++    super(`Cart ${cartID} was already bought through another transaction than ${transactionID}.`)
++    this.name = 'CartAlreadyPurchasedError'
++    this.cartID = cartID
++    this.transactionID = transactionID
++  }
++}
++
++export type SettleTransactionArgs = {
++  /**
++   * The provider-validated data used to create the order. Settlement adds the canonical
++   * transaction relationship and owns all settlement side effects.
++   */
++  orderData: RecordValue
++  req: PayloadRequest
++  /**
++   * The ecommerce transaction that represents the payment.
++   */
++  transactionID: DefaultDocumentIDType
++}
++
++/**
++ * Turns a paid transaction into its order outside the confirm-order request, for example from a
++ * payment provider's webhook or a reconciliation job. Call it only after the provider has
++ * confirmed the payment.
++ *
++ * It settles the transaction the way confirm-order does: one atomic `pending` to `processing`
++ * claim, then the order, the cart's `purchasedAt`, the inventory and the `succeeded` status. A
++ * caller that loses the claim, such as a duplicate webhook or a concurrent confirm-order, gets the
++ * winner's order back and writes nothing. It runs in a database transaction when the adapter
++ * supports one and the request has none. Throws when the transaction cannot be settled, for example
++ * because it failed or expired, and throws `SettlementInProgressError` when another request is
++ * still settling it.
++ */
++export const settleTransaction = async ({
++  orderData,
++  req,
++  transactionID,
++}: SettleTransactionArgs): Promise<RecordValue> => {
++  const slugs = getEcommerceCollectionSlugs(req.payload.config)
++  const transactionsSlug = slugs.transactions
++  const ordersSlug = slugs.orders
++  const transaction = await req.payload.findByID({
++    id: transactionID,
++    collection: transactionsSlug,
++    depth: 0,
++    overrideAccess: true,
++    req,
++  })
++  const cartID = isRecord(transaction?.cart) ? transaction.cart.id : transaction?.cart
++
++  if (!isValidDocumentID(cartID)) {
++    throw new Error('Transaction has no cart to settle.')
++  }
++
++  const shouldCommit = await initTransaction(req)
++
++  try {
++    const order = await finalizeTransactionOrder({
++      cartID,
++      cartsSlug: slugs.carts,
++      orderData,
++      ordersSlug,
++      productsSlug: slugs.products,
++      req,
++      transactionID,
++      transactionsSlug,
++      variantsSlug: slugs.variants ?? 'variants',
++    })
++
++    if (shouldCommit) {
++      await commitTransaction(req)
++    }
++
++    return order
++  } catch (error) {
++    if (shouldCommit) {
++      await killTransaction(req)
++    }
++
++    if (shouldCommit && isTransientTransactionConflict(error)) {
++      return waitForCanonicalOrder({ ordersSlug, req, transactionID, transactionsSlug })
++    }
++
++    throw error
++  }
++}
++
++export const finalizeTransactionOrder = async ({
++  cartID,
++  cartsSlug,
++  orderData,
++  ordersSlug,
++  productsSlug,
++  req,
++  transactionID,
++  transactionsSlug,
++  variantsSlug,
++}: {
++  cartID: DefaultDocumentIDType
++  cartsSlug: string
++  orderData: Record<string, unknown>
++  ordersSlug: string
++  productsSlug: string
++  req: PayloadRequest
++  transactionID: DefaultDocumentIDType
++  transactionsSlug: string
++  variantsSlug: string
++}): Promise<RecordValue> => {
++  if (!isValidDocumentID(transactionID)) {
++    throw new Error('Transaction ID is missing or invalid.')
++  }
++
++  if (!isRecord(orderData)) {
++    throw new Error('Order data is missing or invalid.')
++  }
++
++  const claimedTransaction = await req.payload.db.updateOne({
++    collection: transactionsSlug,
++    data: { status: 'processing' },
++    options: { atomic: true },
++    req,
++    where: {
++      and: [
++        { id: { equals: transactionID } },
++        { status: { equals: 'pending' } },
++        { order: { exists: false } },
++      ],
++    },
++  })
++
++  if (!claimedTransaction) {
++    return waitForCanonicalOrder({ ordersSlug, req, transactionID, transactionsSlug })
++  }
++
++  if (getRelationshipID(claimedTransaction.id) !== getRelationshipID(transactionID)) {
++    throw new Error('Claimed transaction does not match the requested transaction.')
++  }
++
++  const transaction = await req.payload.findByID({
++    id: transactionID,
++    collection: transactionsSlug,
++    depth: 0,
++    overrideAccess: true,
++    req,
++  })
++
++  if (
++    !transaction ||
++    getRelationshipID(transaction.id) !== getRelationshipID(transactionID) ||
++    transaction.status !== 'processing'
++  ) {
++    throw new Error('Claimed transaction could not be loaded for settlement.')
++  }
++
++  const referencedOrders = await req.payload.find({
++    collection: ordersSlug,
++    depth: 0,
++    limit: 1,
++    overrideAccess: true,
++    pagination: false,
++    req,
++    where: { transactions: { equals: transactionID } },
++  })
++
++  if (referencedOrders.totalDocs !== 0 || referencedOrders.docs.length !== 0) {
++    throw new Error('An order already references the claimed transaction.')
++  }
++
++  let order: RecordValue
++
++  try {
++    order = (await req.payload.create({
++      collection: ordersSlug,
++      data: {
++        ...orderData,
++        cartKey: String(cartID),
++        settlementKey: String(transactionID),
++        transactions: [transactionID],
++      },
++      depth: 0,
++      overrideAccess: true,
++      req,
++    })) as RecordValue
++  } catch (error) {
++    if (!isUniqueViolationOf(error, ['cartKey', 'cart_key'])) {
++      throw error
++    }
++
++    // Without a database transaction nothing rolls the claim back, so release it here. Nothing
++    // else was written: the order is settlement's first write.
++    if (!(await req.transactionID)) {
++      await req.payload.db.updateOne({
++        collection: transactionsSlug,
++        data: { status: 'pending' },
++        options: { atomic: true },
++        req,
++        where: {
++          and: [
++            { id: { equals: transactionID } },
++            { status: { equals: 'processing' } },
++            { order: { exists: false } },
++          ],
++        },
++      })
++    }
++
++    throw new CartAlreadyPurchasedError({ cartID, transactionID })
++  }
++  const orderID = requireDocumentID({ fieldName: 'order ID', value: order.id })
++
++  await req.payload.update({
++    id: cartID,
++    collection: cartsSlug,
++    data: { purchasedAt: new Date().toISOString() },
++    depth: 0,
++    overrideAccess: true,
++    req,
++  })
++
++  await decrementInventory({
++    items: transaction.items,
++    productsSlug,
++    req,
++    variantsSlug,
++  })
++
++  await req.payload.update({
++    id: transactionID,
++    collection: transactionsSlug,
++    data: { order: orderID, status: 'succeeded' },
++    depth: 0,
++    overrideAccess: true,
++    req,
++  })
++
++  return order
++}
++
++const decrementInventory = async ({
++  items,
++  productsSlug,
++  req,
++  variantsSlug,
++}: {
++  items: unknown
++  productsSlug: string
++  req: PayloadRequest
++  variantsSlug: string
++}): Promise<void> => {
++  if (!Array.isArray(items) || items.length === 0) {
++    throw new Error('Inventory transaction items are missing or invalid.')
++  }
++
++  for (const item of items) {
++    if (
++      !isRecord(item) ||
++      typeof item.quantity !== 'number' ||
++      !Number.isFinite(item.quantity) ||
++      item.quantity <= 0
++    ) {
++      throw new Error('Inventory item quantity is missing or invalid.')
++    }
++
++    const hasVariant = item.variant !== null && item.variant !== undefined
++    const id = hasVariant ? item.variant : item.product
++
++    if (!isValidDocumentID(id)) {
++      throw new Error('Inventory item target is missing or invalid.')
++    }
++
++    const updatedInventory = await req.payload.db.updateOne({
++      id,
++      collection: hasVariant ? variantsSlug : productsSlug,
++      data: { inventory: { $inc: item.quantity * -1 } },
++      req,
++    })
++
++    if (!updatedInventory) {
++      throw new Error('Inventory item could not be updated.')
++    }
++  }
++}
++
++export const waitForCanonicalOrder = async ({
++  ordersSlug,
++  req,
++  transactionID,
++  transactionsSlug,
++}: {
++  ordersSlug: string
++  req: PayloadRequest
++  transactionID: DefaultDocumentIDType
++  transactionsSlug: string
++}): Promise<RecordValue> => {
++  const deadline = Date.now() + SETTLEMENT_WAIT_TIMEOUT_MS
++
++  do {
++    const transaction = await req.payload.findByID({
++      id: transactionID,
++      collection: transactionsSlug,
++      depth: 0,
++      overrideAccess: true,
++      req,
++    })
++
++    if (!transaction) {
++      throw new Error('Canonical transaction was not found.')
++    }
++
++    if (transaction.status === 'succeeded') {
++      return findExactlyLinkedOrder({
++        orderID: transaction.order,
++        ordersSlug,
++        req,
++        transactionID,
++      })
++    }
++
++    if (transaction.status !== 'pending' && transaction.status !== 'processing') {
++      throw new Error('Transaction is not available for settlement.')
++    }
++
++    if (Date.now() >= deadline) {
++      break
++    }
++
++    await new Promise<void>((resolve) =>
++      setTimeout(resolve, Math.min(SETTLEMENT_POLL_INTERVAL_MS, deadline - Date.now())),
++    )
++  } while (Date.now() <= deadline)
++
++  throw new SettlementInProgressError()
++}
++
++const findExactlyLinkedOrder = async ({
++  orderID,
++  ordersSlug,
++  req,
++  transactionID,
++}: {
++  orderID: unknown
++  ordersSlug: string
++  req: PayloadRequest
++  transactionID: DefaultDocumentIDType
++}): Promise<RecordValue> => {
++  const canonicalOrderID = requireDocumentID({ fieldName: 'order ID', value: orderID })
++  const result = await req.payload.find({
++    collection: ordersSlug,
++    depth: 0,
++    limit: 2,
++    overrideAccess: true,
++    pagination: false,
++    req,
++    where: { transactions: { equals: transactionID } },
++  })
++
++  if (
++    result.totalDocs !== 1 ||
++    result.docs.length !== 1 ||
++    getRelationshipID(result.docs[0]?.id) !== getRelationshipID(canonicalOrderID)
++  ) {
++    throw new Error('Transaction does not have exactly one canonical linked order.')
++  }
++
++  return result.docs[0] as RecordValue
++}
++
++export const isValidDocumentID = (id: unknown): id is DefaultDocumentIDType =>
++  (typeof id === 'number' && Number.isFinite(id)) ||
++  (typeof id === 'string' && id.trim().length > 0)
++
++export const getRelationshipID = (value: unknown): string | undefined => {
++  const id = isRecord(value) ? value.id : value
++
++  return isValidDocumentID(id) ? String(id) : undefined
++}
++
++const requireDocumentID = ({
++  fieldName,
++  value,
++}: {
++  fieldName: string
++  value: unknown
++}): DefaultDocumentIDType => {
++  const id = isRecord(value) ? value.id : value
++
++  if (!isValidDocumentID(id)) {
++    throw new Error(`${fieldName} is missing or invalid.`)
++  }
++
++  return id
++}
++
++const isRecord = (value: unknown): value is RecordValue =>
++  typeof value === 'object' && value !== null && !Array.isArray(value)
++
++const isUniqueViolationOf = (error: unknown, paths: string[]): boolean =>
++  isRecord(error) &&
++  error.name === 'ValidationError' &&
++  isRecord(error.data) &&
++  Array.isArray(error.data.errors) &&
++  error.data.errors.some((entry) => isRecord(entry) && paths.includes(String(entry.path)))
++
++export const isTransientTransactionConflict = (error: unknown): boolean => {
++  if (!isRecord(error)) {
++    return false
++  }
++
++  return (
++    error.code === 112 ||
++    error.codeName === 'WriteConflict' ||
++    (Array.isArray(error.errorLabels) && error.errorLabels.includes('TransientTransactionError'))
++  )
++}

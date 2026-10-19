@@ -79,6 +79,21 @@ In Node, the first call for a Wrangler environment starts a platform proxy, and 
 
 To keep test data apart from development data, give the tests their own Wrangler environment with a different D1 `database_id` and R2 bucket, and run the Payload CLI, the build, and the tests with `CLOUDFLARE_ENV` set to it. Wrangler keeps local state per database and bucket, so the two sets of data never mix. [Keep test data apart](/test) shows the setup.
 
+## waitUntil()
+
+```ts
+waitUntil(promise: Promise<unknown>): Promise<void>
+```
+
+Keeps the Worker running until `promise` settles, so a handler can answer first and finish its work afterwards. In workerd it passes the promise to `waitUntil` from `cloudflare:workers`. Node never cancels pending work, so there it does nothing and the promise runs. Nothing awaits `promise`, so attach its error handling before you pass it:
+
+```ts
+await waitUntil(settle().catch((error) => req.payload.logger.error(error)));
+return Response.json({ received: true });
+```
+
+A Worker can keep running for 30 seconds after it answers.
+
 ## hyperdrivePoolConfig()
 
 ```ts

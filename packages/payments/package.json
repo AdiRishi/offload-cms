@@ -1,0 +1,58 @@
+{
+  "name": "@adirishi/offload-payments",
+  "version": "0.0.0",
+  "description": "Razorpay and mIPS payment adapters for Payload's ecommerce plugin, with webhook settlement and reconciliation on Cloudflare Workers",
+  "homepage": "https://github.com/AdiRishi/offload-cms/tree/main/packages/payments#readme",
+  "bugs": {
+    "url": "https://github.com/AdiRishi/offload-cms/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdiRishi/offload-cms.git",
+    "directory": "packages/payments"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./mips": {
+      "types": "./dist/mips/index.d.ts",
+      "default": "./dist/mips/index.js"
+    },
+    "./razorpay": {
+      "types": "./dist/razorpay/index.d.ts",
+      "default": "./dist/razorpay/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
+    "@cloudflare/workers-types": "catalog:",
+    "@payloadcms/plugin-ecommerce": "catalog:",
+    "@repo/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "payload": "catalog:",
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
+    "@payloadcms/plugin-ecommerce": "4.0.0-beta.2",
+    "payload": "4.0.0-beta.2",
+    "zod": "^4.0.0"
+  }
+}

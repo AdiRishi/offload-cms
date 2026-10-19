@@ -1,7 +1,12 @@
+import { adminOrOwner } from "@adirishi/offload-accounts/config";
 import { getBindings, hyperdrivePoolConfig } from "@adirishi/offload-cloudflare";
 import { cloudflareEmailAdapter } from "@adirishi/offload-email-cloudflare";
+import { INR, MUR } from "@adirishi/offload-payments";
+import { mipsAdapter } from "@adirishi/offload-payments/mips";
+import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
 import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
 import { postgresAdapter } from "@payloadcms/db-postgres";
+import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
 import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";
 import { nestedDocsPlugin } from "@payloadcms/plugin-nested-docs";
 import { redirectsPlugin } from "@payloadcms/plugin-redirects";
@@ -14,7 +19,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
-import { isStaff } from "./access";
+import { isStaff, publishedOrStaff } from "./access";
 import { PullQuote } from "./blocks";
 import { AuditLogs } from "./collections/AuditLogs";
 import { Bookings } from "./collections/Bookings";
@@ -28,7 +33,7 @@ import { Posts } from "./collections/Posts";
 import { Tags } from "./collections/Tags";
 import { Users } from "./collections/Users";
 import { Header, SiteSettings } from "./globals";
-import { jobs, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
+import { createJobs, listJobsEndpoint, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const env = await getBindings();
@@ -49,6 +54,31 @@ const databaseAdapter = () =>
         migrationDir: path.resolve(dirname, "migrations/d1"),
         push: false,
       });
+
+// The values in .dev.vars.example point both gateways at the stubs in stubs/.
+const paymentMethods = [
+  razorpayAdapter({
+    apiURL: env.RAZORPAY_API_URL,
+    keyID: env.RAZORPAY_KEY_ID,
+    keySecret: env.RAZORPAY_KEY_SECRET,
+    webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+  }),
+  mipsAdapter({
+    apiURL: env.MIPS_API_URL,
+    credentials: {
+      cipherKey: env.MIPS_CIPHER_KEY,
+      entityID: env.MIPS_ENTITY_ID,
+      merchantID: env.MIPS_MERCHANT_ID,
+      operatorID: env.MIPS_OPERATOR_ID,
+      operatorPassword: env.MIPS_OPERATOR_PASSWORD,
+      password: env.MIPS_PASSWORD,
+      salt: env.MIPS_SALT,
+      username: env.MIPS_USERNAME,
+    },
+    rateLimit: () => env.PAYMENTS,
+    returnURL: "/checkout/mips-return",
+  }),
+];
 
 export default buildConfig({
   admin: {
@@ -76,9 +106,9 @@ export default buildConfig({
     defaultFromAddress: "noreply@example.com",
     defaultFromName: "Offload e2e",
   }),
-  endpoints: [queueJobEndpoint, schedulePublishEndpoint],
+  endpoints: [listJobsEndpoint, queueJobEndpoint, schedulePublishEndpoint],
   globals: [SiteSettings, Header],
-  jobs,
+  jobs: createJobs({ paymentMethods }),
   localization: {
     defaultLocale: "en",
     fallback: true,
@@ -104,6 +134,26 @@ export default buildConfig({
       fields: { payment: false },
       // Visitors submit through saveFormSubmission(), after the rate limit and Turnstile.
       formSubmissionOverrides: { access: { create: isStaff } },
+    }),
+    ecommercePlugin({
+      access: {
+        adminOnlyFieldAccess: isStaff,
+        adminOrPublishedStatus: publishedOrStaff,
+        isAdmin: isStaff,
+        isCustomer: ({ req }) => req.user?.collection === Customers.slug,
+        isDocumentOwner: adminOrOwner(Customers.slug, "customer"),
+      },
+      currencies: { defaultCurrency: MUR.code, supportedCurrencies: [MUR, INR] },
+      customers: { slug: Customers.slug },
+      payments: { paymentMethods },
+      products: {
+        productsCollectionOverride: ({ defaultCollection }) => ({
+          ...defaultCollection,
+          admin: { ...defaultCollection.admin, useAsTitle: "title" },
+          fields: [{ name: "title", type: "text", required: true }, ...defaultCollection.fields],
+        }),
+        variants: true,
+      },
     }),
   ],
   secret: env.PAYLOAD_SECRET,

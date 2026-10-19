@@ -14,6 +14,7 @@ import { Route as PayloadRouteImport } from './app/_payload'
 import { Route as FrontendIndexRouteImport } from './app/_frontend/index'
 import { Route as FrontendSlugRouteImport } from './app/_frontend/$slug'
 import { Route as FrontendAccountRouteImport } from './app/_frontend/_account'
+import { Route as FrontendShopRouteImport } from './app/_frontend/_shop'
 import { Route as FrontendForgotPasswordRouteImport } from './app/_frontend/forgot-password'
 import { Route as FrontendLoginRouteImport } from './app/_frontend/login'
 import { Route as FrontendResetPasswordRouteImport } from './app/_frontend/reset-password'
@@ -27,6 +28,9 @@ import { Route as PayloadApiGraphqlRouteImport } from './app/_payload/api.graphq
 import { Route as FrontendAccountAccountIndexRouteImport } from './app/_frontend/_account/account.index'
 import { Route as FrontendAccountAccountBookingsRouteImport } from './app/_frontend/_account/account.bookings'
 import { Route as FrontendAccountAccountPasswordRouteImport } from './app/_frontend/_account/account.password'
+import { Route as FrontendShopCheckoutIndexRouteImport } from './app/_frontend/_shop/checkout.index'
+import { Route as FrontendShopCheckoutMipsReturnRouteImport } from './app/_frontend/_shop/checkout.mips-return'
+import { Route as FrontendShopProductsProductIDRouteImport } from './app/_frontend/_shop/products.$productID'
 
 const FrontendRoute = FrontendRouteImport.update({
   id: '/_frontend',
@@ -48,6 +52,10 @@ const FrontendSlugRoute = FrontendSlugRouteImport.update({
 } as any)
 const FrontendAccountRoute = FrontendAccountRouteImport.update({
   id: '/_account',
+  getParentRoute: () => FrontendRoute,
+} as any)
+const FrontendShopRoute = FrontendShopRouteImport.update({
+  id: '/_shop',
   getParentRoute: () => FrontendRoute,
 } as any)
 const FrontendForgotPasswordRoute = FrontendForgotPasswordRouteImport.update({
@@ -118,6 +126,24 @@ const FrontendAccountAccountPasswordRoute =
     path: '/account/password',
     getParentRoute: () => FrontendAccountRoute,
   } as any)
+const FrontendShopCheckoutIndexRoute =
+  FrontendShopCheckoutIndexRouteImport.update({
+    id: '/checkout/',
+    path: '/checkout/',
+    getParentRoute: () => FrontendShopRoute,
+  } as any)
+const FrontendShopCheckoutMipsReturnRoute =
+  FrontendShopCheckoutMipsReturnRouteImport.update({
+    id: '/checkout/mips-return',
+    path: '/checkout/mips-return',
+    getParentRoute: () => FrontendShopRoute,
+  } as any)
+const FrontendShopProductsProductIDRoute =
+  FrontendShopProductsProductIDRouteImport.update({
+    id: '/products/$productID',
+    path: '/products/$productID',
+    getParentRoute: () => FrontendShopRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof FrontendIndexRoute
@@ -134,7 +160,10 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof PayloadAdminIndexRoute
   '/account/bookings': typeof FrontendAccountAccountBookingsRoute
   '/account/password': typeof FrontendAccountAccountPasswordRoute
+  '/checkout/mips-return': typeof FrontendShopCheckoutMipsReturnRoute
+  '/products/$productID': typeof FrontendShopProductsProductIDRoute
   '/account/': typeof FrontendAccountAccountIndexRoute
+  '/checkout/': typeof FrontendShopCheckoutIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof FrontendIndexRoute
@@ -151,7 +180,10 @@ export interface FileRoutesByTo {
   '/admin': typeof PayloadAdminIndexRoute
   '/account/bookings': typeof FrontendAccountAccountBookingsRoute
   '/account/password': typeof FrontendAccountAccountPasswordRoute
+  '/checkout/mips-return': typeof FrontendShopCheckoutMipsReturnRoute
+  '/products/$productID': typeof FrontendShopProductsProductIDRoute
   '/account': typeof FrontendAccountAccountIndexRoute
+  '/checkout': typeof FrontendShopCheckoutIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -159,6 +191,7 @@ export interface FileRoutesById {
   '/_payload': typeof PayloadRouteWithChildren
   '/_frontend/$slug': typeof FrontendSlugRoute
   '/_frontend/_account': typeof FrontendAccountRouteWithChildren
+  '/_frontend/_shop': typeof FrontendShopRouteWithChildren
   '/_frontend/forgot-password': typeof FrontendForgotPasswordRoute
   '/_frontend/login': typeof FrontendLoginRoute
   '/_frontend/reset-password': typeof FrontendResetPasswordRoute
@@ -172,7 +205,10 @@ export interface FileRoutesById {
   '/_payload/admin/': typeof PayloadAdminIndexRoute
   '/_frontend/_account/account/bookings': typeof FrontendAccountAccountBookingsRoute
   '/_frontend/_account/account/password': typeof FrontendAccountAccountPasswordRoute
+  '/_frontend/_shop/checkout/mips-return': typeof FrontendShopCheckoutMipsReturnRoute
+  '/_frontend/_shop/products/$productID': typeof FrontendShopProductsProductIDRoute
   '/_frontend/_account/account/': typeof FrontendAccountAccountIndexRoute
+  '/_frontend/_shop/checkout/': typeof FrontendShopCheckoutIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,7 +227,10 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/account/bookings'
     | '/account/password'
+    | '/checkout/mips-return'
+    | '/products/$productID'
     | '/account/'
+    | '/checkout/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -208,13 +247,17 @@ export interface FileRouteTypes {
     | '/admin'
     | '/account/bookings'
     | '/account/password'
+    | '/checkout/mips-return'
+    | '/products/$productID'
     | '/account'
+    | '/checkout'
   id:
     | '__root__'
     | '/_frontend'
     | '/_payload'
     | '/_frontend/$slug'
     | '/_frontend/_account'
+    | '/_frontend/_shop'
     | '/_frontend/forgot-password'
     | '/_frontend/login'
     | '/_frontend/reset-password'
@@ -228,7 +271,10 @@ export interface FileRouteTypes {
     | '/_payload/admin/'
     | '/_frontend/_account/account/bookings'
     | '/_frontend/_account/account/password'
+    | '/_frontend/_shop/checkout/mips-return'
+    | '/_frontend/_shop/products/$productID'
     | '/_frontend/_account/account/'
+    | '/_frontend/_shop/checkout/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -271,6 +317,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof FrontendAccountRouteImport
+      parentRoute: typeof FrontendRoute
+    }
+    '/_frontend/_shop': {
+      id: '/_frontend/_shop'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof FrontendShopRouteImport
       parentRoute: typeof FrontendRoute
     }
     '/_frontend/forgot-password': {
@@ -364,6 +417,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FrontendAccountAccountPasswordRouteImport
       parentRoute: typeof FrontendAccountRoute
     }
+    '/_frontend/_shop/checkout/': {
+      id: '/_frontend/_shop/checkout/'
+      path: '/checkout'
+      fullPath: '/checkout/'
+      preLoaderRoute: typeof FrontendShopCheckoutIndexRouteImport
+      parentRoute: typeof FrontendShopRoute
+    }
+    '/_frontend/_shop/checkout/mips-return': {
+      id: '/_frontend/_shop/checkout/mips-return'
+      path: '/checkout/mips-return'
+      fullPath: '/checkout/mips-return'
+      preLoaderRoute: typeof FrontendShopCheckoutMipsReturnRouteImport
+      parentRoute: typeof FrontendShopRoute
+    }
+    '/_frontend/_shop/products/$productID': {
+      id: '/_frontend/_shop/products/$productID'
+      path: '/products/$productID'
+      fullPath: '/products/$productID'
+      preLoaderRoute: typeof FrontendShopProductsProductIDRouteImport
+      parentRoute: typeof FrontendShopRoute
+    }
   }
 }
 
@@ -383,9 +457,26 @@ const FrontendAccountRouteWithChildren = FrontendAccountRoute._addFileChildren(
   FrontendAccountRouteChildren,
 )
 
+interface FrontendShopRouteChildren {
+  FrontendShopCheckoutMipsReturnRoute: typeof FrontendShopCheckoutMipsReturnRoute
+  FrontendShopProductsProductIDRoute: typeof FrontendShopProductsProductIDRoute
+  FrontendShopCheckoutIndexRoute: typeof FrontendShopCheckoutIndexRoute
+}
+
+const FrontendShopRouteChildren: FrontendShopRouteChildren = {
+  FrontendShopCheckoutMipsReturnRoute: FrontendShopCheckoutMipsReturnRoute,
+  FrontendShopProductsProductIDRoute: FrontendShopProductsProductIDRoute,
+  FrontendShopCheckoutIndexRoute: FrontendShopCheckoutIndexRoute,
+}
+
+const FrontendShopRouteWithChildren = FrontendShopRoute._addFileChildren(
+  FrontendShopRouteChildren,
+)
+
 interface FrontendRouteChildren {
   FrontendSlugRoute: typeof FrontendSlugRoute
   FrontendAccountRoute: typeof FrontendAccountRouteWithChildren
+  FrontendShopRoute: typeof FrontendShopRouteWithChildren
   FrontendForgotPasswordRoute: typeof FrontendForgotPasswordRoute
   FrontendLoginRoute: typeof FrontendLoginRoute
   FrontendResetPasswordRoute: typeof FrontendResetPasswordRoute
@@ -398,6 +489,7 @@ interface FrontendRouteChildren {
 const FrontendRouteChildren: FrontendRouteChildren = {
   FrontendSlugRoute: FrontendSlugRoute,
   FrontendAccountRoute: FrontendAccountRouteWithChildren,
+  FrontendShopRoute: FrontendShopRouteWithChildren,
   FrontendForgotPasswordRoute: FrontendForgotPasswordRoute,
   FrontendLoginRoute: FrontendLoginRoute,
   FrontendResetPasswordRoute: FrontendResetPasswordRoute,
