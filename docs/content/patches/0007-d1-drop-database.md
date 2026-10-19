@@ -22,6 +22,10 @@ with rows in them. Each statement is DROP TABLE IF EXISTS, as in the SQLite
 adapter, because dropping an FTS5 table also drops its shadow tables. The
 libSQL adapter keeps the SQLite dropDatabase.
 
+Warning: PAYLOAD_DROP_DATABASE=true now drops every table. A Worker drops the
+database on the first getPayload call in each new isolate, so never set it
+on a deployed Worker.
+
 - **Patch:** `d1-drop-database`, committed as `fix(db-d1-sqlite): drop the database through the D1 binding`
 - **Upstream:** [https://github.com/payloadcms/payload/issues/15415](https://github.com/payloadcms/payload/issues/15415)
 - **Tests:** `pnpm exec vitest run --project unit packages/db-d1-sqlite/src/dropDatabase.spec.ts; e2e suite (e2e/scripts/prepare.ts runs migrate:fresh on D1)`
