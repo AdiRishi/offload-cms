@@ -15,6 +15,8 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 
 Payload keeps one Postgres pool per isolate. Upstream issue [payloadcms/payload#17335](https://github.com/payloadcms/payload/issues/17335) reports that a query which hangs until Workers cancels its request can leave the pool unusable for the rest of the isolate's life. The symptom is requests that fail in about a millisecond. The reported fix is a pool for each request. Offload doesn't include it, because the hang doesn't reproduce locally.
 
+A related hang does reproduce locally, and `hyperdrivePoolConfig()` prevents it. With pg-pool's default limit of 10 connections, an eleventh concurrent query waits, and pg-pool opens its connection inside the request that releases one. workerd cancels the waiting request because it uses another request's I/O. `hyperdrivePoolConfig()` sets no limit, so a request never waits.
+
 ## D1
 
 D1 allows at most 100 columns in a table and 100 bound parameters in a statement. Each field stored on a collection's main table is one column, and each image variant of an upload collection adds 8. Count a wide collection's columns in its migration before you deploy.

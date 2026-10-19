@@ -79,7 +79,7 @@ Call it with top-level `await` in `payload.config.ts`. In Node, it throws if the
 hyperdrivePoolConfig(hyperdrive: Hyperdrive, options?: PoolConfig): PoolConfig
 ```
 
-Returns the `pool` option for `postgresAdapter()`. The returned config reads `hyperdrive.connectionString` when the pool connects, because a Worker can read it only inside a request. It sets `maxUses: 1`, so each query gets a new connection and Hyperdrive does the pooling. Values in `options` override both.
+Returns the `pool` option for `postgresAdapter()`. The returned config reads `hyperdrive.connectionString` when the pool connects, because a Worker can read it only inside a request. It sets `maxUses: 1`, so each query gets a new connection and Hyperdrive does the pooling. It also sets `max: Infinity`, so a request never waits for a connection that another request releases: pg-pool would open that connection inside the other request, and workerd cancels a request that uses another request's I/O. Values in `options` override these.
 
 ## createPayloadWorker()
 

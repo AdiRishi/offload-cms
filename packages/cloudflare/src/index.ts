@@ -39,11 +39,17 @@ export const getBindings = async (): Promise<Cloudflare.Env> => {
  * reading the Hyperdrive binding inside a request, and Payload opens its pool
  * there, so the connection string is read lazily. `maxUses: 1` gives every
  * query a fresh connection; Hyperdrive does the pooling.
+ *
+ * The pool has no size limit, so a request never waits for another request's
+ * connection. pg-pool opens a waiting request's connection when another
+ * request releases one, inside the releasing request, and workerd cancels a
+ * request that uses I/O another request opened.
  */
 export const hyperdrivePoolConfig = (
   hyperdrive: Hyperdrive,
   options: PoolConfig = {},
 ): PoolConfig => ({
+  max: Infinity,
   maxUses: 1,
   ...options,
   get connectionString() {
