@@ -69,6 +69,8 @@ Coding agents get a skill with the package. Add this line to the site's `AGENTS.
 For Payload work in this site, read `node_modules/@adirishi/offload-cloudflare/skills/offload/SKILL.md` first.
 ```
 
+With pnpm 12.11 or later, `pnpm approve` can also link the skill into the project's agent skill directories. [Getting started](https://adirishi.github.io/offload-cms/getting-started#set-up-your-coding-agent) explains both.
+
 ## Status
 
 Offload follows the Payload v4 betas. [`upstream/payload.json`](upstream/payload.json) names the release the current packages are built on. [Known limits](https://adirishi.github.io/offload-cms/limits) lists what works differently on Workers.

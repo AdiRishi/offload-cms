@@ -216,6 +216,10 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 For Payload work in this site, read `node_modules/@adirishi/offload-cloudflare/skills/offload/SKILL.md` first.
 ```
 
+pnpm 12.11 and later can also link the skills that dependencies ship into the agent skill directories a project has, such as `.claude/skills`. After an install, pnpm lists `@adirishi/offload-cloudflare` and `@adirishi/offload-payload` as awaiting approval. Run `pnpm approve` and approve both. The first links Offload's `offload` skill, and the second links Payload's `payload` skill, which the Offload skill builds on. pnpm records the approval in `pnpm-workspace.yaml`, and each link points at the installed version, so the skills change when you update Offload.
+
+Keep the `AGENTS.md` line too. It works with every package manager and agent, and it makes the agent read Offload's skill before Payload's, whose Next.js advice Offload's skill overrides.
+
 ## Next steps
 
 - [Deploy to Cloudflare](/deploy) puts the site on a real Worker.
