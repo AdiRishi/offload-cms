@@ -101,8 +101,6 @@ Third-party plugins that list `payload` as a peer dependency install normally. C
 
 **Live Preview** needs a path in `admin.livePreview.url`, such as `` ({ data }) => `/${data.slug}` ``, and `{draft && <LivePreviewListener />}` from `@adirishi/offload-tanstack` in the page's component. The admin and the site share one origin.
 
-**Return rich text from a server function as a rendered element.** TanStack Start rejects Lexical JSON as not serializable. Render it with `renderServerComponent(<RichText data={doc.content} />)` from `@tanstack/react-start/rsc`, and return the result.
-
 **Public forms use `@adirishi/offload-form-builder`** and the form UI from Offload's shadcn registry:
 
 - Install the components with `pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup`. `components.json` needs `"rsc": true` and the `@offload` registry.
