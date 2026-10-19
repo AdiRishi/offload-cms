@@ -19,6 +19,17 @@ The Postgres run needs Docker. CI runs both on every pull request and every push
 3. Type-check `e2e`.
 4. Reset the local D1 and R2 state, or the Postgres schema. Apply the migrations, create a page, drop the database with `migrate:fresh`, roll back every migration with `migrate:down`, and apply them again. Then build the Worker.
 5. Serve the build with `vite preview`, create the first admin user through the admin panel, and run the suite.
+6. On D1, check the Worker's compressed size against its budget.
+
+## Worker size budget
+
+The D1 run ends with `pnpm size` in `e2e`. It builds the Worker and reads its compressed size from `wrangler deploy --dry-run`, which needs no Cloudflare account and contacts no Cloudflare API. The check fails when the size passes the budget in `e2e/scripts/worker-size.ts`, so a change that bundles a large dependency or a second copy of Payload fails CI. To check the size after a change, run this from `e2e`:
+
+```bash
+pnpm size
+```
+
+If the growth is intended, raise the budget in the same commit and keep about 5% of headroom.
 
 ## Rerun the suite without publishing
 

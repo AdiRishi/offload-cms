@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/prepare.ts && playwright test",
+    "size": "node scripts/worker-size.ts",
     "deploy:staging": "CLOUDFLARE_ENV=staging pnpm payload migrate && CLOUDFLARE_ENV=staging pnpm build && wrangler deploy"
   },
   "dependencies": {
