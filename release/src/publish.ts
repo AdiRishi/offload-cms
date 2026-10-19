@@ -1,6 +1,15 @@
 import { checkoutDir, offloadPackageName, pin, releaseTag } from "@repo/upstream";
 import { execFile } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -16,8 +25,17 @@ import {
 
 const execFileAsync = promisify(execFile);
 const concurrency = 8;
-/** Every tarball the last publish uploaded, byte for byte, for the Publish workflow to attest. */
-const tarballsDir = path.resolve(import.meta.dirname, "../dist");
+/** The tarballs `pack` makes, which the Publish workflow attests and then `publish` uploads. */
+const distDir = path.resolve(import.meta.dirname, "../dist");
+/** The version of the tarballs in distDir. */
+const releaseFile = path.join(distDir, "release.json");
+
+type PackedRelease = { version: string };
+
+const packedTarballs = () =>
+  readdirSync(distDir)
+    .filter((file) => file.endsWith(".tgz"))
+    .map((file) => path.join(distDir, file));
 
 /** Runs `task` over `items` with at most `limit` in flight. Results keep the input order. */
 const mapConcurrent = async <T, R>(items: T[], limit: number, task: (item: T) => Promise<R>) => {
@@ -68,8 +86,8 @@ const offloadReadme = ({
     "",
   ].join("\n");
 
-/** Packs a package with pnpm and unpacks it, returning the directory npm publishes. */
-const pack = async (packageDir: string, workDir: string) => {
+/** Packs a package with pnpm and unpacks it, returning the directory to rewrite for the release. */
+const unpack = async (packageDir: string, workDir: string) => {
   const { stdout } = await execFileAsync("pnpm", ["pack", "--pack-destination", workDir], {
     cwd: packageDir,
   });
@@ -81,20 +99,78 @@ const pack = async (packageDir: string, workDir: string) => {
 };
 
 /**
- * Builds and publishes the Payload packages as `@adirishi/offload-<name>` and
- * Offload's own packages, all at `version`.
+ * Builds the Payload packages as `@adirishi/offload-<name>` and Offload's own
+ * packages, all at `version`, and packs each into release/dist. Publishes nothing.
  */
-export const publish = async ({
-  registry,
-  token,
-  version,
-}: {
-  registry: string;
-  token: string;
-  version: string;
-}) => {
-  rmSync(tarballsDir, { force: true, recursive: true });
-  mkdirSync(tarballsDir, { recursive: true });
+export const pack = async (version: string) => {
+  rmSync(distDir, { force: true, recursive: true });
+  mkdirSync(distDir, { recursive: true });
+  const workDir = mkdtempSync(path.join(tmpdir(), "offload-release-"));
+
+  try {
+    const upstreamDirs = await upstreamPackageDirs();
+    const upstreamNames = new Set(upstreamDirs.map((directory) => readManifest(directory).name));
+    const offloadDirs = offloadPackageDirs();
+    const collisions = nameCollisions(
+      offloadDirs.map((directory) => readManifest(directory).name),
+      upstreamNames,
+    );
+    if (collisions.length > 0) {
+      throw new Error(
+        `Upstream Payload now has a package that publishes as ${collisions.join(", ")}, which an Offload package in packages/ already uses. Remove or rename the Offload package.`,
+      );
+    }
+
+    await run("pnpm", ["turbo", "run", "build", "--filter=@repo/release^..."], { cwd: repoRoot });
+
+    await mapConcurrent([...upstreamDirs, ...offloadDirs], concurrency, async (packageDir) => {
+      const directory = await unpack(packageDir, workDir);
+      const manifest = readManifest(directory);
+      const release = releaseManifest(manifest, { upstreamNames, version });
+      writeManifest(directory, release);
+
+      if (upstreamNames.has(manifest.name)) {
+        writeFileSync(
+          path.join(directory, "README.md"),
+          offloadReadme({
+            packageDir,
+            published: release.name,
+            upstreamName: manifest.name,
+            version,
+          }),
+        );
+        // MIT requires Payload's notice in every copy; some packages don't ship it.
+        if (!existsSync(path.join(directory, "LICENSE.md"))) {
+          copyFileSync(path.join(checkoutDir, "LICENSE.md"), path.join(directory, "LICENSE.md"));
+        }
+      }
+
+      await execFileAsync("npm", [
+        "pack",
+        directory,
+        "--pack-destination",
+        distDir,
+        "--ignore-scripts",
+      ]);
+    });
+
+    writeFileSync(releaseFile, `${JSON.stringify({ version } satisfies PackedRelease)}\n`);
+    console.log(`Packed ${packedTarballs().length} packages at ${version} into ${distDir}.`);
+  } finally {
+    rmSync(workDir, { force: true, recursive: true });
+  }
+};
+
+/**
+ * Uploads every tarball that `pack` left in release/dist, unchanged, and
+ * returns their version. Uploading the files, not package directories, makes
+ * the registry serve exactly the bytes the Publish workflow attested.
+ */
+export const publish = async ({ registry, token }: { registry: string; token: string }) => {
+  if (!existsSync(releaseFile)) throw new Error(`${distDir} has no release. Run pack first.`);
+  const { version }: PackedRelease = JSON.parse(readFileSync(releaseFile, "utf8"));
+  const tarballs = packedTarballs();
+
   const workDir = mkdtempSync(path.join(tmpdir(), "offload-release-"));
   const npmrc = path.join(workDir, ".npmrc");
   const registryHost = registry.replace(/^https?:/, "").replace(/\/?$/, "/");
@@ -113,71 +189,21 @@ export const publish = async ({
     );
     if (published) {
       throw new Error(
-        `${version} is already in ${registry}, but no ${releaseTag(version)} tag marks it. Tag the commit it was published from, then run publish again.`,
+        `${version} is already in ${registry}, but no ${releaseTag(version)} tag marks it. Tag the commit it was published from and push the tag.`,
       );
     }
 
-    const upstreamDirs = await upstreamPackageDirs();
-    const upstreamNames = new Set(upstreamDirs.map((directory) => readManifest(directory).name));
-    const offloadDirs = offloadPackageDirs();
-    const collisions = nameCollisions(
-      offloadDirs.map((directory) => readManifest(directory).name),
-      upstreamNames,
-    );
-    if (collisions.length > 0) {
-      throw new Error(
-        `Upstream Payload now has a package that publishes as ${collisions.join(", ")}, which an Offload package in packages/ already uses. Remove or rename the Offload package.`,
+    await mapConcurrent(tarballs, concurrency, async (tarball) => {
+      await npm(["publish", tarball, "--tag", "latest", "--ignore-scripts"]).catch(
+        (error: unknown) => {
+          throw new Error(`Publishing ${path.basename(tarball)} failed:\n${String(error)}`);
+        },
       );
-    }
+      console.log(`+ ${path.basename(tarball)}`);
+    });
 
-    await run("pnpm", ["turbo", "run", "build", "--filter=@repo/release^..."], { cwd: repoRoot });
-
-    const names = await mapConcurrent(
-      [...upstreamDirs, ...offloadDirs],
-      concurrency,
-      async (packageDir) => {
-        const directory = await pack(packageDir, workDir);
-        const manifest = readManifest(directory);
-        const release = releaseManifest(manifest, { upstreamNames, version });
-        writeManifest(directory, release);
-
-        if (upstreamNames.has(manifest.name)) {
-          writeFileSync(
-            path.join(directory, "README.md"),
-            offloadReadme({
-              packageDir,
-              published: release.name,
-              upstreamName: manifest.name,
-              version,
-            }),
-          );
-          // MIT requires Payload's notice in every copy; some packages don't ship it.
-          if (!existsSync(path.join(directory, "LICENSE.md"))) {
-            copyFileSync(path.join(checkoutDir, "LICENSE.md"), path.join(directory, "LICENSE.md"));
-          }
-        }
-
-        // Publishing the packed file, not the directory, makes the registry serve exactly the
-        // bytes left in tarballsDir, so an attestation of that file covers what sites install.
-        const { stdout } = await npm([
-          "pack",
-          directory,
-          "--pack-destination",
-          tarballsDir,
-          "--ignore-scripts",
-        ]);
-        const tarball = path.join(tarballsDir, stdout.trim().split("\n").at(-1) ?? "");
-        await npm(["publish", tarball, "--tag", "latest", "--ignore-scripts"]).catch(
-          (error: unknown) => {
-            throw new Error(`Publishing ${release.name} failed:\n${String(error)}`);
-          },
-        );
-        console.log(`+ ${release.name}@${version}`);
-        return release.name;
-      },
-    );
-
-    console.log(`\nPublished ${names.length} packages at ${version} to ${registry}.`);
+    console.log(`\nPublished ${tarballs.length} packages at ${version} to ${registry}.`);
+    return version;
   } finally {
     rmSync(workDir, { force: true, recursive: true });
   }
