@@ -23,9 +23,20 @@ Returns the site's Vite config: Payload's `withPayload()` with TanStack Start, R
 | Option                      | Type                              | Description                                                                                     |
 | --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `payloadConfigPath`         | `string`                          | Required. The path to `payload.config.ts`.                                                      |
-| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's.                                              |
+| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's. Its plugins run after Offload's.             |
+| `pluginsBefore`             | `PluginOption[]`                  | Plugins that run before Payload's, TanStack Start's, and Offload's own.                         |
 | `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                |
 | `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds. |
+
+Put a plugin in `pluginsBefore` when it must see the source before any other transform. TanStack's `devtools()` from `@tanstack/devtools-vite` is one. It writes each element's source line into a `data-tsd-source` attribute. After another plugin has changed the file, the server and the client write different lines, and React reports a hydration mismatch.
+
+```ts vite.config.ts
+offloadVite({
+  payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts"),
+  pluginsBefore: [devtools()],
+  vite: () => ({ plugins: [tailwindcss()] }),
+});
+```
 
 ### Payload package check
 

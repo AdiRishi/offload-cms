@@ -37,6 +37,11 @@ export type OffloadViteOptions = {
   devServerExternalPackages?: string[];
   /** Path to `payload.config.ts`. */
   payloadConfigPath: string;
+  /**
+   * Plugins that must run before Offload's and Payload's, such as `devtools()`
+   * from `@tanstack/devtools-vite`. Plugins in `vite` run after them.
+   */
+  pluginsBefore?: PluginOption[];
   /** The app's own Vite config, merged over Offload's. */
   vite?: (env: ConfigEnv) => UserConfig;
 };
@@ -126,6 +131,7 @@ export const offloadVite =
     cloudflare: cloudflareOptions,
     devServerExternalPackages = [],
     payloadConfigPath,
+    pluginsBefore = [],
     vite,
   }: OffloadViteOptions): UserConfigFnPromise =>
   async (env) => {
@@ -168,6 +174,7 @@ export const offloadVite =
         payloadConfigPath,
       },
     )(env);
+    config.plugins = [...pluginsBefore, ...(config.plugins ?? [])];
 
     return targetsWorkerd ? bundleEverything(config) : config;
   };

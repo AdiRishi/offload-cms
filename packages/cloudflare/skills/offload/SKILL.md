@@ -28,7 +28,7 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 });
 ```
 
-**Two runtimes.** `vite dev` runs in Node. `vite build` and `vite preview` run the Worker bundle in workerd, which is what production runs. Check runtime behaviour with `vite build && vite preview`. `vite.config.ts` uses `offloadVite()` from `@adirishi/offload-cloudflare/vite`.
+**Two runtimes.** `vite dev` runs in Node. `vite build` and `vite preview` run the Worker bundle in workerd, which is what production runs. Check runtime behaviour with `vite build && vite preview`. `vite.config.ts` uses `offloadVite()` from `@adirishi/offload-cloudflare/vite`. Add the site's Vite plugins in `offloadVite({ vite })`, which run after Offload's. A plugin that must run first, such as `devtools()` from `@tanstack/devtools-vite`, goes in `pluginsBefore`.
 
 **Bindings replace environment variables.** `payload.config.ts` gets D1, R2, Hyperdrive, and secrets from `await getBindings()` (from `@adirishi/offload-cloudflare`). Declare bindings in `wrangler.jsonc`. Put local secrets such as `PAYLOAD_SECRET` in `.dev.vars` and deployed ones in `wrangler secret put`. `CLOUDFLARE_ENV` selects the Wrangler environment for the Payload CLI and the build.
 
