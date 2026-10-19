@@ -1,0 +1,99 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Mon, 19 Oct 2026 20:12:22 +1100
+Subject: [PATCH] fix(payload): batch stored file lookups by the adapter's
+ parameter limit
+
+Deleting an upload with many image variants fails on D1 with "D1_ERROR: too
+many SQL variables". Before Payload removes an upload's files, it looks for
+documents that still reference them. One query binds every candidate name
+once for each filename column: the file, its original, and each variant. The
+candidates include every suffix of each storage key, and a cloud storage key
+is <objectKey>/<filename>, so seven variants bind 144 parameters. D1 accepts
+100. D1 has no transactions, so the document stays deleted, the API returns
+an error, and the files stay in storage. Replacing a file runs the same
+lookup.
+
+BaseDatabaseAdapter now declares limitedBoundParameters, which the D1 adapter
+already sets. With it, the lookup splits the names into batches that keep each
+query within 100 bound parameters. Other adapters keep batches of 100 names.
+
+Offload-Patch: d1-file-lookup-bound-parameters
+Drop-When: the pinned release keeps the stored file reference lookup within D1's limit of 100 bound parameters
+Tests: e2e suite (media update and delete test)
+---
+ packages/drizzle/src/types.ts                          |  1 -
+ packages/payload/src/database/createDatabaseAdapter.ts |  1 +
+ packages/payload/src/database/types.ts                 |  6 ++++++
+ packages/payload/src/uploads/fileVersioning/cleanup.ts | 10 ++++++++--
+ 4 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/packages/drizzle/src/types.ts b/packages/drizzle/src/types.ts
+index bd084ffa7..b166fd5bd 100644
+--- a/packages/drizzle/src/types.ts
++++ b/packages/drizzle/src/types.ts
+@@ -471,7 +471,6 @@ export interface DrizzleAdapter extends BaseDatabaseAdapter {
+    * primary to guarantee read-after-write consistency.
+    */
+   lastWriteTimestamp?: number
+-  limitedBoundParameters?: boolean
+   localesSuffix?: string
+   logger: DrizzleConfig['logger']
+   operatorHandlers: DrizzleOperatorHandler[]
+diff --git a/packages/payload/src/database/createDatabaseAdapter.ts b/packages/payload/src/database/createDatabaseAdapter.ts
+index b501d128e..19b4198c1 100644
+--- a/packages/payload/src/database/createDatabaseAdapter.ts
++++ b/packages/payload/src/database/createDatabaseAdapter.ts
+@@ -30,6 +30,7 @@ export function createDatabaseAdapter<T extends BaseDatabaseAdapter>(
+     | 'bulkOperationsSingleTransaction'
+     | 'copy'
+     | 'createMigration'
++    | 'limitedBoundParameters'
+     | 'migrate'
+     | 'migrateDown'
+     | 'migrateFresh'
+diff --git a/packages/payload/src/database/types.ts b/packages/payload/src/database/types.ts
+index d762feb65..9c0b869bb 100644
+--- a/packages/payload/src/database/types.ts
++++ b/packages/payload/src/database/types.ts
+@@ -97,6 +97,12 @@ export interface BaseDatabaseAdapter {
+    */
+   init?: Init
+ 
++  /**
++   * When true, the database rejects a statement with more than 100 bound parameters, as D1 does.
++   * Queries built from a variable number of values must split them into batches.
++   */
++  limitedBoundParameters?: boolean
++
+   /**
+    * Run any migration up functions that have not yet been performed and update the status
+    */
+diff --git a/packages/payload/src/uploads/fileVersioning/cleanup.ts b/packages/payload/src/uploads/fileVersioning/cleanup.ts
+index 6dac3f059..29734d775 100644
+--- a/packages/payload/src/uploads/fileVersioning/cleanup.ts
++++ b/packages/payload/src/uploads/fileVersioning/cleanup.ts
+@@ -15,6 +15,7 @@ import {
+ } from './storedFiles.js'
+ 
+ const pageSize = 100
++const maxBoundParameters = 100
+ 
+ export const collectStoredFiles = async ({
+   collection,
+@@ -210,8 +211,13 @@ const findUnreferenced = async ({
+     ),
+   ]
+ 
+-  for (let offset = 0; offset < filenames.length && remaining.size; offset += pageSize) {
+-    const batch = filenames.slice(offset, offset + pageSize)
++  // Each query binds every filename once per path, plus its limit and offset.
++  const batchSize = req.payload.db.limitedBoundParameters
++    ? Math.max(1, Math.floor((maxBoundParameters - 2) / filenamePaths.length))
++    : pageSize
++
++  for (let offset = 0; offset < filenames.length && remaining.size; offset += batchSize) {
++    const batch = filenames.slice(offset, offset + batchSize)
+     const where: Where = { or: filenamePaths.map((field) => ({ [field]: { in: batch } })) }
+     let page = 1
+ 
