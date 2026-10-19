@@ -1,6 +1,6 @@
 "use client";
 
-import { usePayments } from "@payloadcms/plugin-ecommerce/client/react";
+import { useCart, usePayments } from "@payloadcms/plugin-ecommerce/client/react";
 import { useState } from "react";
 import { z } from "zod";
 
@@ -18,6 +18,8 @@ type CheckoutOptions = {
   amount: number;
   currency: string;
   order_id: string;
+  /** Seconds after which Checkout stops taking the payment. */
+  timeout: number;
   name?: string;
   prefill: { email?: string };
   handler: (response: HandlerResponse) => void;
@@ -45,11 +47,43 @@ const initiated = z.object({
   orderID: z.string(),
   amount: z.number(),
   currency: z.string(),
+  timeout: z.number(),
 });
 
 const confirmed = z.object({ orderID: z.union([z.string(), z.number()]) });
 
 export type ConfirmedOrder = z.infer<typeof confirmed>;
+
+const refusal = z.object({ message: z.string() });
+
+/** The plugin's provider throws the endpoint's response text, whose message is for the customer. */
+const messageOf = (error: unknown) => {
+  try {
+    return error instanceof Error ? refusal.parse(JSON.parse(error.message)).message : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** The waits before each confirmation attempt: six attempts over about 20 seconds. */
+const retryDelays = [0, 1000, 2000, 4000, 6000, 7000];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Runs `attempt` after each delay until it succeeds. Resolves undefined if it never does. */
+const withRetries = async <T,>(
+  attempt: () => Promise<T>,
+  delays = retryDelays,
+): Promise<T | undefined> => {
+  const [delay, ...later] = delays;
+  if (delay === undefined) return undefined;
+  await sleep(delay);
+  try {
+    return await attempt();
+  } catch {
+    return withRetries(attempt, later);
+  }
+};
 
 let script: Promise<CheckoutConstructor> | undefined;
 
@@ -73,11 +107,17 @@ const loadCheckout = () => {
   return script;
 };
 
+type Phase = "idle" | "starting" | "open" | "confirming" | "unconfirmed";
+
 /**
  * Pays for the cart with Razorpay Standard Checkout. The button loads Checkout, creates a
  * Razorpay order for the cart, opens Checkout, and confirms the order with the payment that
  * Checkout returns. Pass `customerEmail` for a guest. A logged-in customer's order uses their
  * account's email.
+ *
+ * Once Checkout reports a payment, the customer can't pay again. The confirmation retries for
+ * about 20 seconds, because the webhook may be settling the same payment. If every attempt fails,
+ * the webhook still settles a paid order.
  */
 export function RazorpayCheckout({
   customerEmail,
@@ -91,25 +131,23 @@ export function RazorpayCheckout({
   onConfirmed: (order: ConfirmedOrder) => void;
 }) {
   const { confirmOrder, initiatePayment } = usePayments();
-  const [busy, setBusy] = useState(false);
+  const { refreshCart } = useCart();
+  const [phase, setPhase] = useState<Phase>("idle");
   const [problem, setProblem] = useState<string>();
 
   const confirm = async (response: HandlerResponse) => {
-    try {
-      const result = await confirmOrder("razorpay", {
-        additionalData: { ...response, customerEmail },
-      });
-      onConfirmed(confirmed.parse(result));
-    } catch {
-      setProblem(
-        "We could not confirm your payment. If you were charged, we will confirm your order shortly.",
-      );
-      setBusy(false);
-    }
+    setPhase("confirming");
+    setProblem(undefined);
+    // Confirming is idempotent, so retrying while another request settles the payment is safe.
+    const result = await withRetries(() =>
+      confirmOrder("razorpay", { additionalData: { ...response, customerEmail } }),
+    );
+    if (result === undefined) setPhase("unconfirmed");
+    else onConfirmed(confirmed.parse(result));
   };
 
   const pay = async () => {
-    setBusy(true);
+    setPhase("starting");
     setProblem(undefined);
     try {
       const [Razorpay, order] = await Promise.all([
@@ -123,25 +161,40 @@ export function RazorpayCheckout({
         amount: order.amount,
         currency: order.currency,
         order_id: order.orderID,
+        timeout: order.timeout,
         name,
         prefill: { email: customerEmail },
         handler: (response) => void confirm(response),
-        modal: { ondismiss: () => setBusy(false) },
+        modal: { ondismiss: () => setPhase((current) => (current === "open" ? "idle" : current)) },
       });
       checkout.on("payment.failed", (response) => setProblem(response.error.description));
       checkout.open();
-    } catch {
-      setProblem("We could not start the payment. Please try again.");
-      setBusy(false);
+      setPhase("open");
+    } catch (error) {
+      // A refused start can mean the prices changed. The cart then holds the new total.
+      await refreshCart();
+      setProblem(messageOf(error) ?? "We could not start the payment. Please try again.");
+      setPhase("idle");
     }
   };
 
   return (
     <div className="flex flex-col gap-2">
-      <Button type="button" disabled={disabled || busy} onClick={() => void pay()}>
-        {busy ? <Spinner /> : null}
+      <Button type="button" disabled={disabled || phase !== "idle"} onClick={() => void pay()}>
+        {phase === "starting" ? <Spinner /> : null}
         Pay with Razorpay
       </Button>
+      {phase === "confirming" ? (
+        <p role="status" className="flex items-center gap-2 text-sm">
+          <Spinner />
+          Confirming your payment
+        </p>
+      ) : null}
+      {phase === "unconfirmed" ? (
+        <p role="status" className="text-sm">
+          Your payment was received. We'll confirm your order shortly. Don't pay again.
+        </p>
+      ) : null}
       {problem ? (
         <p role="alert" className="text-sm text-destructive">
           {problem}
