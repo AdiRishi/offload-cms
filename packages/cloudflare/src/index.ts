@@ -78,3 +78,5 @@ export const hyperdrivePoolConfig = (
     return hyperdrive.connectionString;
   },
 });
+
+export { type TurnstileCheck, verifyTurnstile } from "./turnstile.ts";
