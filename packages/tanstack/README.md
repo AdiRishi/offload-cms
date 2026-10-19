@@ -18,11 +18,11 @@ The package is on GitHub Packages, which needs a token with the `read:packages` 
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-```bash
-pnpm add --save-exact @adirishi/offload-tanstack
-```
+Install it at the exact version of the site's other Offload packages. Replace `VERSION` with that version, such as `4.0.0-beta.2-offload.6`:
 
-Install it at the same version as the site's other Offload packages.
+```bash
+pnpm add --save-exact @adirishi/offload-tanstack@VERSION
+```
 
 ## Use it
 

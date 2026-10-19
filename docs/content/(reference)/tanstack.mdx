@@ -106,7 +106,8 @@ A client component with no props. It renders `RefreshRouteOnSave` from `@payload
 Render it only for draft requests:
 
 ```tsx
-{
-  page.draft && <LivePreviewListener />;
-}
+<main>
+  {page.draft && <LivePreviewListener />}
+  <h1>{page.title}</h1>
+</main>
 ```
