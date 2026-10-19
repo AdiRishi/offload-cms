@@ -56,9 +56,10 @@ export const e2e = async ({ postgres }: { postgres: boolean }) => {
     await publish({ registry: registry.url, token: "local-registry", version: workingTreeVersion });
     writeManifest(e2eDir, withOffloadVersion(readManifest(e2eDir), workingTreeVersion));
     // Every run publishes the same version with new contents, so pnpm must forget the last one.
-    // pnpm restores a missing pnpm-lock.yaml from the copy it keeps in node_modules.
+    // pnpm keeps an installed package directory whose version matches, even when the lockfile
+    // records a new integrity, so node_modules goes too.
     rmSync(path.join(e2eDir, "pnpm-lock.yaml"), { force: true });
-    rmSync(path.join(e2eDir, "node_modules/.pnpm/lock.yaml"), { force: true });
+    rmSync(path.join(e2eDir, "node_modules"), { force: true, recursive: true });
     await run("pnpm", ["cache", "delete", "@adirishi/*"], { cwd: e2eDir });
     await run("pnpm", ["install"], { cwd: e2eDir });
   } finally {
