@@ -1,0 +1,65 @@
+---
+title: Process images with Cloudflare Images
+description: Generate upload variants, crop, convert formats, and resize on request through a Worker's Images binding.
+---
+
+Payload 4 processes images through upload transformers. Its Sharp transformer can't run on Workers, so an Offload site uses `@payloadcms/transformer-cloudflare`, which calls Cloudflare Images through a binding. Without a transformer, Payload stores each image exactly as it was uploaded.
+
+:::note
+Offload carries this transformer as a [backport](/patches/transformer-cloudflare) of an upstream pull request that Payload hasn't merged. Its options can change before Payload releases it.
+:::
+
+<Steps>
+  <Step title="Install the transformer">
+    ```json package.json
+    "@payloadcms/transformer-cloudflare": "npm:@adirishi/offload-transformer-cloudflare@{{version}}"
+    ```
+  </Step>
+  <Step title="Bind Cloudflare Images">
+    ```jsonc wrangler.jsonc
+    "images": { "binding": "IMAGES" }
+    ```
+
+    Add the binding to every Wrangler environment, then run `pnpm wrangler types`.
+
+  </Step>
+  <Step title="Configure the transformer">
+    ```ts src/payload.config.ts
+    import { getBindings } from "@adirishi/offload-cloudflare";
+    import { cloudflareTransformer } from "@payloadcms/transformer-cloudflare";
+
+    const env = await getBindings();
+
+    export default buildConfig({
+      upload: {
+        transformers: [
+          cloudflareTransformer({
+            transport: { mode: "binding", binding: () => env.IMAGES },
+            collections: {
+              media: { variants: [{ name: "thumbnail", width: 400, height: 300 }] },
+            },
+            dynamic: { collections: ["media"] },
+          }),
+        ],
+      },
+      // collections, db, editor
+    });
+    ```
+
+    Pass the binding as a function. Cloudflare checks a Worker upload by running `payload.config.ts` without bindings, and `cloudflareTransformer()` throws if `binding` is undefined.
+
+  </Step>
+  <Step title="Migrate the database">
+    Each variant adds fields under the collection's `variants` field. Run `pnpm payload migrate:create`, and apply the migration before you deploy.
+  </Step>
+</Steps>
+
+`collections` sets what happens at upload: `variants`, `crop`, `focalPoint`, `resizeOptions`, and `formatOptions`. The admin's crop and focal-point controls work as they do with Sharp. `dynamic` turns on resizing at request time, such as `/api/media/file/photo.png?width=400`, for the collections it lists. Payload's [transformer documentation](https://payloadcms.com/docs/upload/transformers) explains how to restrict dynamic resizing on a public collection.
+
+## Limits
+
+- Cloudflare Images reads JPEG, PNG, GIF, WebP, and AVIF. The transformer doesn't process SVG or TIFF.
+- Each input and output image can be at most 20 MiB.
+- Sharp-only options such as `trimOptions`, `withMetadata`, and a custom Sharp build have no equivalent.
+- Cloudflare bills each transformation under [Images pricing](https://developers.cloudflare.com/images/pricing/), and the transformer doesn't cache resized output.
+- `vite dev` and `vite preview` use a local copy of the binding that supports only some of Cloudflare's features. Check crop, focal point, and animated images on a deployed Worker.

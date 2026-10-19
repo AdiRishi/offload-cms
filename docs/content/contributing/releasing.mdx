@@ -32,7 +32,7 @@ npm's `--provenance` works only on the public npm registry. Instead, the Publish
 
 ## Continuous integration
 
-Every push runs these GitHub Actions jobs:
+Every pull request and every push to `main` runs these GitHub Actions jobs:
 
 - `pnpm check`
 - the e2e suite on D1 and on Postgres, against the working tree published to a registry inside the runner

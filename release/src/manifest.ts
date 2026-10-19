@@ -68,6 +68,18 @@ export const releaseManifest = (
   };
 };
 
+/**
+ * The Offload package names that an upstream package would also publish as.
+ * Upstream can add a package after Offload has published one under that name.
+ */
+export const nameCollisions = (
+  offloadNames: readonly string[],
+  upstreamNames: ReadonlySet<string>,
+) => {
+  const republished = new Set([...upstreamNames].map(offloadPackageName));
+  return offloadNames.filter((name) => republished.has(name));
+};
+
 const offloadAlias = /^npm:(@adirishi\/offload-[a-z0-9-]+)@/;
 
 /** Points every `@adirishi/offload-*` dependency of a site, including npm aliases, at `version`. */

@@ -8,8 +8,8 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 - `vite dev` runs in Node, and a deployed site runs in workerd. A difference between the two runtimes shows up only in `vite preview` or on a deployed Worker.
 - A site needs the Workers Paid plan. A Payload Worker is about 4 MB compressed, and the free plan allows 3 MB.
 - The admin is always at `/admin`. Payload's TanStack Start adapter doesn't support `routes.admin`.
-- Workers can't run `sharp`. Payload stores uploaded images as they are and reads their dimensions without it, but it can't generate `imageSizes` or crop.
-- Nodemailer needs TCP sockets, which Workers don't give it. Send email through an adapter that uses `fetch`, such as Payload's Resend adapter.
+- Workers can't run `sharp`. [Process images with Cloudflare Images](/images) instead. It reads only JPEG, PNG, GIF, WebP, and AVIF, at most 20 MiB each, and it has no equivalent of Sharp-only options such as `trimOptions`.
+- Nodemailer needs TCP sockets, which Workers don't give it. [Send email with Cloudflare Email Service](/email), or through an adapter that uses `fetch`, such as Payload's Resend adapter.
 
 ## Postgres
 

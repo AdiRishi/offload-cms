@@ -1,5 +1,6 @@
-// Behaviour that depends on Cloudflare: R2 storage, the Cron Trigger handler from
-// `createPayloadWorker`, and plugins whose dependencies have to bundle for workerd.
+// Behaviour that depends on Cloudflare: R2 storage, the Images and Email Service bindings,
+// the Cron Trigger handler from `createPayloadWorker`, and plugins whose dependencies have
+// to bundle for workerd.
 
 import { lexical, png } from "./data";
 import { expect, test, unique } from "./fixtures";
@@ -19,6 +20,35 @@ test("R2 stores uploads byte for byte and serves byte ranges", async ({ anonymou
   const range = await anonymous.request.get(String(media.url), { headers: { Range: "bytes=0-7" } });
   expect(range.status()).toBe(206);
   expect((await range.body()).length).toBe(8);
+});
+
+test("the Images binding generates upload variants", async ({ api }) => {
+  const media = await api.upload(
+    "media",
+    {
+      buffer: png({ height: 240, width: 320 }),
+      mimeType: "image/png",
+      name: `${unique("variants")}.png`,
+    },
+    { alt: "Variants" },
+  );
+  expect(media).toMatchObject({ variants: { thumbnail: { height: 120, width: 160 } } });
+});
+
+test("Email Service sends Payload's password reset email", async ({ anonymous, api }) => {
+  const email = `${unique("reset")}@example.com`;
+  await api.create("users", { email, password: unique("password") });
+
+  const requested = await anonymous.request.post("/api/users/forgot-password", { data: { email } });
+  expect(requested.status(), await requested.text()).toBe(200);
+
+  // Miniflare's local explorer lists what the local send_email binding received.
+  const sent = await api.request.get("/cdn-cgi/local/explorer/api/local/email/sending");
+  expect(await sent.json()).toMatchObject({
+    result: expect.arrayContaining([
+      expect.objectContaining({ subject: "Reset Your Password", to: [email] }),
+    ]),
+  });
 });
 
 test("hooks, virtual fields and custom endpoints run in the Worker", async ({ api }) => {

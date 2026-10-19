@@ -1,0 +1,41 @@
+{
+  "name": "@adirishi/offload-email-cloudflare",
+  "version": "0.0.0",
+  "description": "Payload email adapter for Cloudflare Email Service, through a Worker's send_email binding",
+  "homepage": "https://github.com/AdiRishi/offload-cms/tree/main/packages/email-cloudflare#readme",
+  "bugs": {
+    "url": "https://github.com/AdiRishi/offload-cms/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdiRishi/offload-cms.git",
+    "directory": "packages/email-cloudflare"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@repo/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/nodemailer": "catalog:",
+    "payload": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "payload": "4.0.0-beta.2"
+  }
+}

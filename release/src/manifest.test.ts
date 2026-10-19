@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { releaseManifest, withOffloadVersion } from "./manifest.ts";
+import { nameCollisions, releaseManifest, withOffloadVersion } from "./manifest.ts";
 
 const version = "4.0.0-beta.2-offload.3";
 const upstreamNames = new Set(["payload", "@payloadcms/ui", "@payloadcms/graphql"]);
@@ -79,4 +79,14 @@ test("withOffloadVersion moves every Offload dependency of a site and nothing el
     react: "19.3.1",
   });
   assert.deepEqual(site.devDependencies, { vite: "8.3.4" });
+});
+
+test("nameCollisions finds an Offload package that an upstream package would publish over", () => {
+  const offloadNames = ["@adirishi/offload-cloudflare", "@adirishi/offload-email-cloudflare"];
+
+  assert.deepEqual(nameCollisions(offloadNames, upstreamNames), []);
+  assert.deepEqual(
+    nameCollisions(offloadNames, new Set([...upstreamNames, "@payloadcms/email-cloudflare"])),
+    ["@adirishi/offload-email-cloudflare"],
+  );
 });

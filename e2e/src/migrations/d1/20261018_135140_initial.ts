@@ -464,6 +464,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`original__objectkey\` text,
   	\`focal_x\` numeric,
   	\`focal_y\` numeric,
+  	\`variants_thumbnail_url\` text,
+  	\`variants_thumbnail_width\` numeric,
+  	\`variants_thumbnail_height\` numeric,
+  	\`variants_thumbnail_mime_type\` text,
+  	\`variants_thumbnail_filesize\` numeric,
+  	\`variants_thumbnail_filename\` text,
+  	\`variants_thumbnail_prefix\` text,
+  	\`variants_thumbnail__objectkey\` text,
   	FOREIGN KEY (\`_h_folders_id\`) REFERENCES \`folders\`(\`id\`) ON UPDATE no action ON DELETE set null
   );
   `)
@@ -472,6 +480,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`media_created_at_idx\` ON \`media\` (\`created_at\`);`)
   await db.run(sql`CREATE UNIQUE INDEX \`media_filename_idx\` ON \`media\` (\`filename\`);`)
   await db.run(sql`CREATE INDEX \`media_original_original_filename_idx\` ON \`media\` (\`original_filename\`);`)
+  await db.run(sql`CREATE INDEX \`media_variants_thumbnail_variants_thumbnail_filename_idx\` ON \`media\` (\`variants_thumbnail_filename\`);`)
   await db.run(sql`CREATE TABLE \`media_locales\` (
   	\`caption\` text,
   	\`id\` integer PRIMARY KEY NOT NULL,
@@ -524,6 +533,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`version_original__objectkey\` text,
   	\`version_focal_x\` numeric,
   	\`version_focal_y\` numeric,
+  	\`version_variants_thumbnail_url\` text,
+  	\`version_variants_thumbnail_width\` numeric,
+  	\`version_variants_thumbnail_height\` numeric,
+  	\`version_variants_thumbnail_mime_type\` text,
+  	\`version_variants_thumbnail_filesize\` numeric,
+  	\`version_variants_thumbnail_filename\` text,
+  	\`version_variants_thumbnail_prefix\` text,
+  	\`version_variants_thumbnail__objectkey\` text,
   	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE set null,
@@ -536,6 +553,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_media_v_version_version_created_at_idx\` ON \`_media_v\` (\`version_created_at\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_version_version_filename_idx\` ON \`_media_v\` (\`version_filename\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_version_original_version_original_filename_idx\` ON \`_media_v\` (\`version_original_filename\`);`)
+  await db.run(sql`CREATE INDEX \`_media_v_version_variants_thumbnail_version_variants_thu_idx\` ON \`_media_v\` (\`version_variants_thumbnail_filename\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_created_at_idx\` ON \`_media_v\` (\`created_at\`);`)
   await db.run(sql`CREATE INDEX \`_media_v_updated_at_idx\` ON \`_media_v\` (\`updated_at\`);`)
   await db.run(sql`CREATE TABLE \`_media_v_locales\` (

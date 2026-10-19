@@ -32,11 +32,13 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 
 **Bindings replace environment variables.** `payload.config.ts` gets D1, R2, Hyperdrive, and secrets from `await getBindings()` (from `@adirishi/offload-cloudflare`). Declare bindings in `wrangler.jsonc`. Put local secrets such as `PAYLOAD_SECRET` in `.dev.vars` and deployed ones in `wrangler secret put`. `CLOUDFLARE_ENV` selects the Wrangler environment for the Payload CLI and the build.
 
-**Database and storage adapters take bindings:**
+**Adapters take bindings:**
 
 - D1: `sqliteD1Adapter({ binding: env.D1, push: false, migrationDir })`
 - Postgres: `postgresAdapter({ pool: hyperdrivePoolConfig(env.HYPERDRIVE), push: false, migrationDir })`
 - R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`
+- Email Service: `email: cloudflareEmailAdapter({ binding: env.EMAIL, defaultFromAddress, defaultFromName })` from `@adirishi/offload-email-cloudflare`, with `"send_email": [{ "name": "EMAIL" }]`. The `from` domain must be onboarded to Email Sending.
+- Cloudflare Images: `upload: { transformers: [cloudflareTransformer({ transport: { mode: "binding", binding: () => env.IMAGES }, collections })] }` from `@payloadcms/transformer-cloudflare`, with `"images": { "binding": "IMAGES" }`. Pass the binding as a function, because Cloudflare's upload check loads the config without bindings and the transformer throws on an undefined one. `collections` sets upload `variants`, `crop`, and `focalPoint`, and `dynamic` enables `?width=` resizing.
 
 **Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ config, handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
 
@@ -45,8 +47,8 @@ const getPosts = createServerFn({ method: "GET" }).handler(async () => {
 **Workers runtime limits:**
 
 - Create users through the Worker, with the admin or the API. A user created in Node, through the Payload CLI or a seed script, gets a password hash that a deployed Worker can't verify.
-- `sharp` can't run, so uploads keep the original image and `imageSizes` and crops aren't generated.
-- Nodemailer can't open sockets. Send email through an adapter that uses `fetch`, such as `@payloadcms/email-resend`.
+- Process images with the Cloudflare Images transformer above. `sharp` can't run, so `@payloadcms/transformer-sharp` fails on Workers.
+- Send email with the Email Service adapter above, or another adapter that uses `fetch`, such as `@payloadcms/email-resend`. Nodemailer can't open sockets.
 
 **Every Payload package must be an Offload build.** That covers `payload` and every `@payloadcms/*` package, including plugins and adapters you add later. Install each one under its upstream name, for example `"@payloadcms/plugin-seo": "npm:@adirishi/offload-plugin-seo@<version>"`, at the same version as the rest. An upstream `@payloadcms/*` version breaks the site in two ways:
 

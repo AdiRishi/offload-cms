@@ -12,7 +12,7 @@ pnpm release e2e
 pnpm release e2e --postgres
 ```
 
-The Postgres run needs Docker. CI runs both on every push. Each run does these steps:
+The Postgres run needs Docker. CI runs both on every pull request and every push to `main`. Each run does these steps:
 
 1. Start a registry that exists only for the run, and publish the working tree to it.
 2. Install `e2e` from that registry. Every run publishes the same version, so the install discards the previous one.
@@ -38,23 +38,23 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 
 ## What the suite covers
 
-| File                     | Covers                                                                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/auth.setup.ts`    | Creating the first user through the admin, which hashes the password inside the Worker                                                            |
-| `tests/admin.spec.ts`    | Admin rendering, server functions, and saves: drafting, publishing, and translating a page, uploading to R2, and a document with every field type |
-| `tests/api.spec.ts`      | REST, GraphQL queries with arguments, and access control                                                                                          |
-| `tests/workers.spec.ts`  | R2 byte ranges, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins             |
-| `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API                                                                           |
+| File                     | Covers                                                                                                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tests/auth.setup.ts`    | Creating the first user through the admin, which hashes the password inside the Worker                                                                                                                                         |
+| `tests/admin.spec.ts`    | Admin rendering, server functions, and saves: drafting, publishing, and translating a page, uploading to R2, and a document with every field type                                                                              |
+| `tests/api.spec.ts`      | REST, GraphQL queries with arguments, and access control                                                                                                                                                                       |
+| `tests/workers.spec.ts`  | R2 byte ranges, image variants through the Images binding, a password reset email through Email Service, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins |
+| `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API                                                                                                                                                        |
 
 ## How the site is set up
 
-| File                                           | Purpose                                                                                                                                  |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `wrangler.jsonc`                               | D1 and R2 by default. The `postgres` environment binds Hyperdrive to the Docker Postgres in `docker-compose.yml`.                        |
-| `src/payload.config.ts`                        | Picks the database adapter from the binding that exists                                                                                  |
-| `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, then again with `CLOUDFLARE_ENV=postgres`. |
-| `src/jobs.ts`                                  | A job task, a workflow, and two endpoints that queue work for the Cron Trigger                                                           |
-| `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                  |
+| File                                           | Purpose                                                                                                                                   |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler.jsonc`                               | D1, R2, Images, and Email Service by default. The `postgres` environment binds Hyperdrive to the Docker Postgres in `docker-compose.yml`. |
+| `src/payload.config.ts`                        | Picks the database adapter from the binding that exists                                                                                   |
+| `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, then again with `CLOUDFLARE_ENV=postgres`.  |
+| `src/jobs.ts`                                  | A job task, a workflow, and two endpoints that queue work for the Cron Trigger                                                            |
+| `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                   |
 
 The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and a real site should keep it closed.
 

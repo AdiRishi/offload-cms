@@ -1,0 +1,68 @@
+---
+title: Send email with Cloudflare Email Service
+description: Send Payload's email, such as password resets and verification, through a Worker's send_email binding.
+---
+
+Payload sends email through one adapter in its config. Nodemailer can't run on Workers, so an Offload site uses `@adirishi/offload-email-cloudflare`, which sends through Cloudflare Email Service with no API key.
+
+<Steps>
+  <Step title="Onboard the sending domain">
+    Email Service sends only from a domain that is on Cloudflare DNS and onboarded to Email Sending:
+
+    ```bash
+    pnpm wrangler email sending enable example.com
+    ```
+
+  </Step>
+  <Step title="Install the adapter">
+    ```json package.json
+    "@adirishi/offload-email-cloudflare": "{{version}}"
+    ```
+
+    The adapter isn't a Payload package, so it installs under its own name.
+
+  </Step>
+  <Step title="Bind Email Service">
+    ```jsonc wrangler.jsonc
+    "send_email": [{ "name": "EMAIL" }]
+    ```
+
+    Add the binding to every Wrangler environment, because environments don't inherit bindings. Run `pnpm wrangler types` afterwards so `env.EMAIL` has a type.
+
+  </Step>
+  <Step title="Configure the adapter">
+    ```ts src/payload.config.ts
+    import { getBindings } from "@adirishi/offload-cloudflare";
+    import { cloudflareEmailAdapter } from "@adirishi/offload-email-cloudflare";
+
+    const env = await getBindings();
+
+    export default buildConfig({
+      email: cloudflareEmailAdapter({
+        binding: env.EMAIL,
+        defaultFromAddress: "noreply@example.com",
+        defaultFromName: "Example",
+      }),
+      // collections, db, editor
+    });
+    ```
+
+  </Step>
+</Steps>
+
+## Develop locally
+
+`vite dev`, `vite preview`, and the Payload CLI use a local copy of the binding, which sends nothing. Under `vite preview`, it logs each email and keeps it in the local explorer at `/cdn-cgi/local/explorer`. To send real email from your machine, set `"remote": true` on the binding.
+
+## What the adapter sends
+
+The adapter takes Payload's Nodemailer-style options and converts them for the binding:
+
+- `from`, `to`, `cc`, `bcc`, and `replyTo` accept strings such as `"Name" <address>`, comma-separated lists, and `{ name, address }` objects. Email Service takes one `from` and one `replyTo` address.
+- `html` and `text` must be strings or Buffers.
+- Each attachment needs `filename`, `contentType`, and `content` as a string or a Buffer. Email Service can't read a stream, a `path`, or a URL. An attachment with a `cid` is sent inline.
+- Email Service accepts only [some headers](https://developers.cloudflare.com/email-service/reference/headers/), and at most 50 recipients across `to`, `cc`, and `bcc`.
+
+An error from Email Service, such as `E_SENDER_NOT_VERIFIED` for a domain that isn't onboarded, reaches Payload unchanged.
+
+To send through another provider, use any Payload email adapter that calls its API with `fetch`, such as `@payloadcms/email-resend` installed as `npm:@adirishi/offload-email-resend@{{version}}`.

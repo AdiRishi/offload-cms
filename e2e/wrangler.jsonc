@@ -7,6 +7,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [{ "binding": "D1", "database_name": "offload-e2e", "database_id": "local" }],
   "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-e2e" }],
+  "send_email": [{ "name": "EMAIL" }],
+  "images": { "binding": "IMAGES" },
   "env": {
     // Postgres through Hyperdrive. Select it with CLOUDFLARE_ENV=postgres.
     "postgres": {
@@ -20,6 +22,8 @@
         },
       ],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-e2e" }],
+      "send_email": [{ "name": "EMAIL" }],
+      "images": { "binding": "IMAGES" },
     },
     // A real deployment on Cloudflare, for behaviour that local workerd doesn't reproduce.
     // Deploy with `pnpm deploy:staging`.
@@ -34,6 +38,9 @@
         },
       ],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "offload-staging", "remote": true }],
+      // Email Service sends only from a domain onboarded to Email Sending.
+      "send_email": [{ "name": "EMAIL" }],
+      "images": { "binding": "IMAGES" },
     },
   },
 }
