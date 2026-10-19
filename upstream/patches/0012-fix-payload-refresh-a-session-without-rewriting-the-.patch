@@ -24,6 +24,7 @@ array field, where each row has the ID of an existing row and the fields to
 set. The SQL adapters update the columns of each row with one statement, and
 MongoDB sets the fields through array filters. MongoDB with transactions
 still rejects concurrent writes to one user with a WriteConflict, as before.
+This patch requires concurrent-login-sessions, which adds $remove.
 
 Offload-Patch: concurrent-session-refresh
 Drop-When: the pinned release refreshes a session without writing back the sessions array it read
@@ -379,10 +380,10 @@ index 7451edf64..28df8f7a5 100644
  
      user = await req.payload.db.findOne({
 diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
-index 5b37f259f..0cfe40559 100644
+index fea74d59c..2170ee60b 100644
 --- a/test/auth/int.spec.ts
 +++ b/test/auth/int.spec.ts
-@@ -3272,6 +3272,136 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
+@@ -3332,6 +3332,136 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
        )
      })
  

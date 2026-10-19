@@ -25,6 +25,7 @@ array field, where each row has the ID of an existing row and the fields to
 set. The SQL adapters update the columns of each row with one statement, and
 MongoDB sets the fields through array filters. MongoDB with transactions
 still rejects concurrent writes to one user with a WriteConflict, as before.
+This patch requires concurrent-login-sessions, which adds $remove.
 
 - **Patch:** `concurrent-session-refresh`, committed as `fix(payload): refresh a session without rewriting the sessions array`
 - **Upstream:** Not proposed
