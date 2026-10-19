@@ -25,7 +25,8 @@ test("Live Preview shows a saved draft without a reload", async ({ api, page }) 
   const slug = unique("live-page");
   const doc = await api.create("pages", { _status: "published", slug, title: "Before the edit" });
 
-  await page.goto(`/admin/collections/pages/${doc.id}`);
+  // The admin keeps each user's last locale, and another test switches it to French.
+  await page.goto(`/admin/collections/pages/${doc.id}?locale=en`);
   await page.getByRole("button", { name: "Live Preview" }).click();
   const preview = page.frameLocator("iframe");
   await expect(preview.getByRole("heading", { level: 1 })).toHaveText("Before the edit");
