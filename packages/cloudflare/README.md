@@ -63,4 +63,12 @@ import handler from "@tanstack/react-start/server-entry";
 export default createPayloadWorker({ config, handler });
 ```
 
+## Coding agents
+
+The package ships an agent skill at `skills/offload/SKILL.md`. It covers what differs from stock Payload and points to Payload's own skill for the rest. Add this line to the site's `AGENTS.md`:
+
+```md
+For Payload work in this site, read `node_modules/@adirishi/offload-cloudflare/skills/offload/SKILL.md` first.
+```
+
 [Getting started](https://adirishi.github.io/offload-cms/getting-started) walks through a complete site. The [package reference](https://adirishi.github.io/offload-cms/cloudflare) lists every option and what `offloadVite()` changes in the build.

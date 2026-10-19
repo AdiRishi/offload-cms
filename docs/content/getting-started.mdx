@@ -184,6 +184,14 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
   </Step>
 </Steps>
 
+## Set up your coding agent
+
+`@adirishi/offload-cloudflare` ships an agent skill that explains what Offload changes about Payload, and points to the skill that the `payload` package ships for everything else. Add this line to the site's `AGENTS.md`:
+
+```md AGENTS.md
+For Payload work in this site, read `node_modules/@adirishi/offload-cloudflare/skills/offload/SKILL.md` first.
+```
+
 ## Next steps
 
 - [Deploy to Cloudflare](/deploy) puts the site on a real Worker.

@@ -13,7 +13,8 @@
     "directory": "packages/cloudflare"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "type": "module",
   "exports": {

@@ -61,9 +61,15 @@ These steps add Offload to an existing TanStack Start site. [Getting started](ht
    export default createPayloadWorker({ config, handler });
    ```
 
+Coding agents get a skill with the package. Add this line to the site's `AGENTS.md`:
+
+```md
+For Payload work in this site, read `node_modules/@adirishi/offload-cloudflare/skills/offload/SKILL.md` first.
+```
+
 ## Status
 
-Offload follows the Payload v4 betas. [`upstream/payload.json`](upstream/payload.json) names the release the current packages are built on. Read [Known limits](https://adirishi.github.io/offload-cms/limits) before you commit a site to it. The most important limit is that D1 has no transactions.
+Offload follows the Payload v4 betas. [`upstream/payload.json`](upstream/payload.json) names the release the current packages are built on. [Known limits](https://adirishi.github.io/offload-cms/limits) lists what works differently on Workers.
 
 ## Contributing
 
