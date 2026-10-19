@@ -190,6 +190,8 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
     Open `/admin` on the address that Vite prints. Payload asks you to create the first user. After you create it, you see the dashboard with the **Users** and **Media** collections.
 
+    This user is for local work only. `vite dev` runs in Node, which hashes the password with 600,000 PBKDF2 iterations, and a deployed Worker can verify at most 100,000. Create the users of the deployed site on the deployed Worker, as [Deploy to Cloudflare](/deploy) shows.
+
   </Step>
   <Step title="Run the Worker build">
     `vite dev` runs in Node. To run the bundle that Cloudflare runs, build it and serve it in local workerd:
@@ -199,7 +201,9 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     pnpm vite preview
     ```
 
-    The preview uses the same local D1 and R2 state as `vite dev`, so the user you created can log in.
+    The preview uses the same local D1 and R2 state as `vite dev`, so the user you created can log in. Local workerd doesn't enforce the deployed Worker's PBKDF2 limit, so this login doesn't show whether a deployed Worker accepts the password hash.
+
+    The preview runs the last build, with the secrets that `vite build` copied from `.dev.vars` into it. After you change `.dev.vars`, build again before you preview.
 
   </Step>
 </Steps>
