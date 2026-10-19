@@ -6,7 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { repoRoot, run } from "./exec.ts";
-import { releaseManifest } from "./manifest.ts";
+import { nameCollisions, releaseManifest } from "./manifest.ts";
 import {
   offloadPackageDirs,
   readManifest,
@@ -117,12 +117,23 @@ export const publish = async ({
       );
     }
 
-    await run("pnpm", ["turbo", "run", "build", "--filter=@repo/release^..."], { cwd: repoRoot });
     const upstreamDirs = await upstreamPackageDirs();
     const upstreamNames = new Set(upstreamDirs.map((directory) => readManifest(directory).name));
+    const offloadDirs = offloadPackageDirs();
+    const collisions = nameCollisions(
+      offloadDirs.map((directory) => readManifest(directory).name),
+      upstreamNames,
+    );
+    if (collisions.length > 0) {
+      throw new Error(
+        `Upstream Payload now has a package that publishes as ${collisions.join(", ")}, which an Offload package in packages/ already uses. Remove or rename the Offload package.`,
+      );
+    }
+
+    await run("pnpm", ["turbo", "run", "build", "--filter=@repo/release^..."], { cwd: repoRoot });
 
     const names = await mapConcurrent(
-      [...upstreamDirs, ...offloadPackageDirs()],
+      [...upstreamDirs, ...offloadDirs],
       concurrency,
       async (packageDir) => {
         const directory = await pack(packageDir, workDir);
