@@ -34,11 +34,23 @@ const fromMiniflare = createRequire(
 );
 const workerdBinary: string = fromMiniflare("workerd").default;
 
-/** The running processes of that workerd binary: one per Wrangler platform proxy. */
-const workerdProcesses = () =>
-  execFileSync("ps", ["-A", "-o", "command="], { encoding: "utf8" })
-    .split("\n")
-    .filter((command) => command.startsWith(`${workerdBinary} `)).length;
+/**
+ * The most Wrangler platform proxies that one process runs. Each proxy is a workerd child of the
+ * process that started it. The dev server isn't the only such process: after every config load,
+ * Payload runs `payload generate:types` in a child process, which starts its own proxy until it exits.
+ */
+const mostProxiesInOneProcess = () => {
+  const proxies = new Map<string, number>();
+  for (const line of execFileSync("ps", ["-A", "-o", "ppid=,command="], { encoding: "utf8" }).split(
+    "\n",
+  )) {
+    const [, parent, command] = /^\s*(\d+) (.*)$/.exec(line) ?? [];
+    if (parent !== undefined && command?.startsWith(`${workerdBinary} `)) {
+      proxies.set(parent, (proxies.get(parent) ?? 0) + 1);
+    }
+  }
+  return Math.max(0, ...proxies.values());
+};
 
 /** Polls a path until it returns 200. A request that hangs counts as a failed attempt. */
 const expectOk = async (page: Page, url: string) => {
@@ -79,8 +91,7 @@ const expectConfigLevelBlockWorks = async (api: PayloadApi, page: Page) => {
 test("Payload keeps working across config reloads", async ({ api, page }) => {
   await expectOk(page, "/api/users/init");
   await expectConfigLevelBlockWorks(api, page);
-  const proxies = workerdProcesses();
-  expect(proxies).toBeGreaterThan(0);
+  expect(mostProxiesInOneProcess()).toBe(1);
 
   await test.step("edit the Payload config", async () => {
     edit(
@@ -116,5 +127,5 @@ test("Payload keeps working across config reloads", async ({ api, page }) => {
     await expectConfigLevelBlockWorks(api, page);
   });
 
-  expect(workerdProcesses()).toBe(proxies);
+  expect(mostProxiesInOneProcess()).toBe(1);
 });
