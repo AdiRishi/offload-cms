@@ -10,7 +10,9 @@ on:
   workflow_dispatch:
 
 permissions:
+  attestations: write
   contents: read
+  id-token: write
   packages: write
 
 concurrency:
@@ -32,3 +34,9 @@ jobs:
         env:
           OFFLOAD_REGISTRY: https://npm.pkg.github.com
           OFFLOAD_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Signed SLSA build provenance for every tarball just published. Verify one with
+      # `gh attestation verify <tarball> --repo AdiRishi/offload-cms`.
+      - if: hashFiles('release/dist/*.tgz') != ''
+        uses: actions/attest@v4
+        with:
+          subject-path: release/dist/*.tgz

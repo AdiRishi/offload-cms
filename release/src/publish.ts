@@ -1,6 +1,6 @@
 import { checkoutDir, offloadPackageName, offloadVersion } from "@repo/upstream";
 import { execFile } from "node:child_process";
-import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +16,8 @@ import {
 
 const execFileAsync = promisify(execFile);
 const concurrency = 8;
+/** Every tarball the last publish uploaded, byte for byte, for the Publish workflow to attest. */
+const tarballsDir = path.resolve(import.meta.dirname, "../dist");
 
 /** Runs `task` over `items` with at most `limit` in flight. Results keep the input order. */
 const mapConcurrent = async <T, R>(items: T[], limit: number, task: (item: T) => Promise<R>) => {
@@ -64,6 +66,8 @@ const pack = async (packageDir: string, workDir: string) => {
  * published once: if it is already in the registry, this does nothing.
  */
 export const publish = async ({ registry, token }: { registry: string; token: string }) => {
+  rmSync(tarballsDir, { force: true, recursive: true });
+  mkdirSync(tarballsDir, { recursive: true });
   const workDir = mkdtempSync(path.join(tmpdir(), "offload-release-"));
   const npmrc = path.join(workDir, ".npmrc");
   const registryHost = registry.replace(/^https?:/, "").replace(/\/?$/, "/");
@@ -113,9 +117,21 @@ export const publish = async ({ registry, token }: { registry: string; token: st
           }
         }
 
-        await npm(["publish", directory, "--tag", "latest"]).catch((error: unknown) => {
-          throw new Error(`Publishing ${release.name} failed:\n${String(error)}`);
-        });
+        // Publishing the packed file, not the directory, makes the registry serve exactly the
+        // bytes left in tarballsDir, so an attestation of that file covers what sites install.
+        const { stdout } = await npm([
+          "pack",
+          directory,
+          "--pack-destination",
+          tarballsDir,
+          "--ignore-scripts",
+        ]);
+        const tarball = path.join(tarballsDir, stdout.trim().split("\n").at(-1) ?? "");
+        await npm(["publish", tarball, "--tag", "latest", "--ignore-scripts"]).catch(
+          (error: unknown) => {
+            throw new Error(`Publishing ${release.name} failed:\n${String(error)}`);
+          },
+        );
         console.log(`+ ${release.name}@${offloadVersion}`);
         return release.name;
       },
