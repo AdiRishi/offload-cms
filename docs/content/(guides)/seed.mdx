@@ -1,0 +1,65 @@
+---
+title: Seed content
+description: Fill a local or deployed D1 database and R2 bucket with content from a script, through the Payload CLI.
+---
+
+`payload run` runs a TypeScript file in Node with the site's Payload config. `getBindings()` in the config reaches the same Wrangler environment as the rest of the CLI, so a seed script writes to that environment's D1 database and R2 bucket. Uploads get their Cloudflare Images variants through the Images binding.
+
+## Write the script
+
+```ts src/seed.ts
+import config from "@payload-config";
+import { getPayload } from "payload";
+
+const payload = await getPayload({ config });
+
+await payload.create({
+  collection: "posts",
+  data: { title: "Hello", slug: "hello", _status: "published" },
+  overrideAccess: true,
+});
+
+await payload.create({
+  collection: "media",
+  data: { alt: "The office" },
+  filePath: "seed/office.jpg",
+  overrideAccess: true,
+});
+
+process.exit(0);
+```
+
+Payload v4's Local API applies access control unless you pass `overrideAccess: true` or a `user`.
+
+Don't create users in a seed script. Node hashes passwords with more PBKDF2 iterations than a deployed Worker can verify, so those users can't log in to the deployed site. Create users through the deployed admin or the Worker's API. [Known limits](/limits#passwords) explains why.
+
+## Seed the local environment
+
+Stop `vite dev` and `vite preview` first if they use the same Wrangler environment. Two processes that open one local D1 database at the same time break each other's writes. [Known limits](/limits#d1) has the details.
+
+```bash
+pnpm payload run src/seed.ts
+```
+
+Set `CLOUDFLARE_ENV` to seed another local environment, such as the one your tests use.
+
+## Seed a deployed environment
+
+The `production` environment from [Deploy to Cloudflare](/deploy) has `"remote": true` on D1 and R2, so the CLI writes to the deployed database and bucket. Mark the Images binding remote too:
+
+```jsonc wrangler.jsonc
+"env": {
+  "production": {
+    // d1_databases and r2_buckets as in the deploy guide
+    "images": { "binding": "IMAGES", "remote": true }
+  }
+}
+```
+
+Without `"remote": true`, Wrangler serves a local copy of the Images binding that supports only `width`, `height`, `rotate`, and `format`, and ignores the other options. The transformer also sets options such as `fit` and `quality`, so variants made that way can differ from the ones the deployed Worker makes. The remote binding makes them on Cloudflare, and each transformation counts towards your Images usage.
+
+Then run the script against the environment:
+
+```bash
+CLOUDFLARE_ENV=production pnpm payload run src/seed.ts
+```

@@ -63,6 +63,8 @@ const getPost = createServerFn({ method: "GET" })
 - Email Service: `email: cloudflareEmailAdapter({ binding: env.EMAIL, defaultFromAddress, defaultFromName })` from `@adirishi/offload-email-cloudflare`, with `"send_email": [{ "name": "EMAIL" }]`. The `from` domain must be onboarded to Email Sending.
 - Cloudflare Images: `upload: { transformers: [cloudflareTransformer({ transport: { mode: "binding", binding: () => env.IMAGES }, collections })] }` from `@payloadcms/transformer-cloudflare`, with `"images": { "binding": "IMAGES" }`. Pass the binding as a function, because Cloudflare's upload check loads the config without bindings and the transformer throws on an undefined one. `collections` sets upload `variants`, `crop`, and `focalPoint`, and `dynamic` enables `?width=` resizing.
 
+**Seed with `payload run`.** `pnpm payload run src/seed.ts` runs a script in Node against the Wrangler environment that `CLOUDFLARE_ENV` selects, through `getBindings()`. Pass `overrideAccess: true` to the Local API, don't create users, and stop any dev server or preview on the same environment first. To seed a deployed environment, give it `"remote": true` on D1, R2, and the Images binding.
+
 **Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ config, handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
 
 **GraphQL needs a route.** `src/app/_payload/api.graphql.ts` serves it with `payloadGraphQLHandlers()` from `@adirishi/offload-cloudflare/routes`.
