@@ -30,6 +30,14 @@ the two inserts leaves an order that no query by transaction finds, and a
 retry would create a second one. The key is on the order's own row: the
 unique index refuses a second order, and recovery code can find the first.
 
+Orders also get a unique cartKey, the ID of the cart they bought. A cart is
+bought once, and nothing in the plugin resets purchasedAt, so two payments
+for one cart that settle at the same moment can't both create an order: the
+second insert fails on the index, settlement returns that transaction to
+pending (or rolls back with the database transaction), and throws the
+exported CartAlreadyPurchasedError for the adapter to flag the double
+payment.
+
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
 the browser offered the customer the payment again. When the wait ends with

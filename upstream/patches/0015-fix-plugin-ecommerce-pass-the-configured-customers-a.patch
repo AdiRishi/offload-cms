@@ -136,7 +136,7 @@ index 000000000..ef6c4c5bc
 +  })
 +})
 diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
-index 4649290b4..2c76cf071 100644
+index 54fcffdc5..09707cf65 100644
 --- a/packages/plugin-ecommerce/src/index.ts
 +++ b/packages/plugin-ecommerce/src/index.ts
 @@ -236,7 +236,9 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({

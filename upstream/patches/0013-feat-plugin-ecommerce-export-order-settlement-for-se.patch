@@ -29,6 +29,14 @@ the two inserts leaves an order that no query by transaction finds, and a
 retry would create a second one. The key is on the order's own row: the
 unique index refuses a second order, and recovery code can find the first.
 
+Orders also get a unique cartKey, the ID of the cart they bought. A cart is
+bought once, and nothing in the plugin resets purchasedAt, so two payments
+for one cart that settle at the same moment can't both create an order: the
+second insert fails on the index, settlement returns that transaction to
+pending (or rolls back with the database transaction), and throws the
+exported CartAlreadyPurchasedError for the adapter to flag the double
+payment.
+
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
 the browser offered the customer the payment again. When the wait ends with
@@ -43,14 +51,14 @@ Drop-When: the pinned release lets a payment adapter settle a transaction outsid
 Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/checkout.spec.ts, tests/settlement.spec.ts)
 ---
  docs/ecommerce/payments.mdx                   |  17 +
- .../orders/createOrdersCollection.ts          |  17 +
+ .../orders/createOrdersCollection.ts          |  33 ++
  .../src/endpoints/confirmOrder.spec.ts        |   7 +-
- .../src/endpoints/confirmOrder.ts             | 312 +-------------
- packages/plugin-ecommerce/src/index.ts        |   9 +
- .../src/utilities/ecommerceSlugs.ts           |  26 ++
- .../src/utilities/settleTransaction.spec.ts   | 192 +++++++++
- .../src/utilities/settleTransaction.ts        | 397 ++++++++++++++++++
- 8 files changed, 683 insertions(+), 294 deletions(-)
+ .../src/endpoints/confirmOrder.ts             | 312 +-----------
+ packages/plugin-ecommerce/src/index.ts        |  10 +
+ .../src/utilities/ecommerceSlugs.ts           |  26 +
+ .../src/utilities/settleTransaction.spec.ts   | 214 +++++++++
+ .../src/utilities/settleTransaction.ts        | 444 ++++++++++++++++++
+ 8 files changed, 769 insertions(+), 294 deletions(-)
  create mode 100644 packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.ts
@@ -84,10 +92,10 @@ index 32091fa3f..11a897f1a 100644
  
  You can also add your own webhooks to handle [events from Stripe](https://docs.stripe.com/api/events). This is optional and the plugin internally does not use webhooks for any core functionality. It receives the following arguments:
 diff --git a/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts b/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
-index 2be0a20e5..b20bda847 100644
+index 2be0a20e5..1551e4073 100644
 --- a/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
 +++ b/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
-@@ -117,6 +117,23 @@ export const createOrdersCollection: (props: Props) => CollectionConfig = (props
+@@ -117,6 +117,39 @@ export const createOrdersCollection: (props: Props) => CollectionConfig = (props
          // @ts-expect-error - translations are not typed in plugins yet
          t('plugin-ecommerce:customerEmail'),
      },
@@ -96,6 +104,22 @@ index 2be0a20e5..b20bda847 100644
 +      // relationship below lives in another table, which a database without transactions can
 +      // leave unwritten when a request stops, and the unique index refuses a second order.
 +      name: 'settlementKey',
++      type: 'text',
++      access: {
++        create: access.adminOnlyFieldAccess,
++        read: access.adminOnlyFieldAccess,
++        update: () => false,
++      },
++      admin: {
++        hidden: true,
++      },
++      index: true,
++      unique: true,
++    },
++    {
++      // The cart that settlement created the order for. A cart is bought once, so the unique
++      // index refuses a second order for it even when two payments settle at the same moment.
++      name: 'cartKey',
 +      type: 'text',
 +      access: {
 +        create: access.adminOnlyFieldAccess,
@@ -476,7 +500,7 @@ index 0db80602d..c2e20e2b4 100644
 -  )
 -}
 diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
-index 2661856e8..4649290b4 100644
+index 2661856e8..54fcffdc5 100644
 --- a/packages/plugin-ecommerce/src/index.ts
 +++ b/packages/plugin-ecommerce/src/index.ts
 @@ -17,6 +17,7 @@ import { createVariantTypesCollection } from './collections/variants/createVaria
@@ -496,12 +520,13 @@ index 2661856e8..4649290b4 100644
      const currenciesConfig: Required<SanitizedEcommercePluginConfig['currencies']> =
        sanitizedPluginConfig.currencies
  
-@@ -398,3 +401,9 @@ export { currencyField } from './fields/currencyField.js'
+@@ -398,3 +401,10 @@ export { currencyField } from './fields/currencyField.js'
  export { pricesField } from './fields/pricesField.js'
  export { statusField } from './fields/statusField.js'
  export { variantsFields } from './fields/variantsFields.js'
 +export { getEcommerceCollectionSlugs }
 +export {
++  CartAlreadyPurchasedError,
 +  SettlementInProgressError,
 +  settleTransaction,
 +  type SettleTransactionArgs,
@@ -540,10 +565,10 @@ index 000000000..55128ab0d
 +}
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
 new file mode 100644
-index 000000000..ec8189dab
+index 000000000..6e8f77a9a
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,214 @@
 +import { beforeEach, describe, expect, it, vi } from 'vitest'
 +
 +const payloadUtilities = vi.hoisted(() => ({
@@ -554,7 +579,7 @@ index 000000000..ec8189dab
 +
 +vi.mock('payload', () => payloadUtilities)
 +
-+import { settleTransaction } from './settleTransaction.js'
++import { CartAlreadyPurchasedError, settleTransaction } from './settleTransaction.js'
 +
 +type Request = Parameters<typeof settleTransaction>[0]['req']
 +
@@ -683,7 +708,12 @@ index 000000000..ec8189dab
 +
 +    expect(second.id).toBe(first.id)
 +    expect(state.orders).toHaveLength(1)
-+    expect(state.orders[0]).toMatchObject({ ...orderData, settlementKey: '42', transactions: [42] })
++    expect(state.orders[0]).toMatchObject({
++      ...orderData,
++      cartKey: '3',
++      settlementKey: '42',
++      transactions: [42],
++    })
 +    expect(state.transaction).toMatchObject({ order: first.id, status: 'succeeded' })
 +    expect(state.cart.purchasedAt).toEqual(expect.any(String))
 +    expect(state.inventory.get('variants:11')).toBe(4)
@@ -735,13 +765,30 @@ index 000000000..ec8189dab
 +    )
 +    expect(state.transaction.status).toBe('pending')
 +  })
++
++  it('refuses a second order for a bought cart and returns the transaction to pending', async () => {
++    const { payload, req, state } = createStore(pendingTransaction)
++    const cartKeyTaken = Object.assign(new Error('The following field is invalid: cartKey'), {
++      name: 'ValidationError',
++      data: { errors: [{ message: 'Value must be unique', path: 'cartKey' }] },
++    })
++    payload.create.mockRejectedValueOnce(cartKeyTaken)
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toBeInstanceOf(
++      CartAlreadyPurchasedError,
++    )
++    expect(state.orders).toHaveLength(0)
++    expect(state.transaction.status).toBe('pending')
++    expect(state.cart.purchasedAt).toBeUndefined()
++    expect(state.inventory.get('variants:11')).toBe(5)
++  })
 +})
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
 new file mode 100644
-index 000000000..23f72976f
+index 000000000..0c2ef54e7
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
-@@ -0,0 +1,397 @@
+@@ -0,0 +1,444 @@
 +import {
 +  commitTransaction,
 +  type DefaultDocumentIDType,
@@ -765,6 +812,17 @@ index 000000000..23f72976f
 +  constructor() {
 +    super('Another request is still settling the transaction.')
 +    this.name = 'SettlementInProgressError'
++  }
++}
++
++/**
++ * Another transaction's order already bought the cart: the customer paid twice. Settlement created
++ * nothing for this transaction and left it `pending`, or rolled back with the database transaction.
++ */
++export class CartAlreadyPurchasedError extends Error {
++  constructor(cartID: DefaultDocumentIDType) {
++    super(`Cart ${cartID} was already bought through another transaction.`)
++    this.name = 'CartAlreadyPurchasedError'
 +  }
 +}
 +
@@ -929,17 +987,46 @@ index 000000000..23f72976f
 +    throw new Error('An order already references the claimed transaction.')
 +  }
 +
-+  const order = (await req.payload.create({
-+    collection: ordersSlug,
-+    data: {
-+      ...orderData,
-+      settlementKey: String(transactionID),
-+      transactions: [transactionID],
-+    },
-+    depth: 0,
-+    overrideAccess: true,
-+    req,
-+  })) as RecordValue
++  let order: RecordValue
++
++  try {
++    order = (await req.payload.create({
++      collection: ordersSlug,
++      data: {
++        ...orderData,
++        cartKey: String(cartID),
++        settlementKey: String(transactionID),
++        transactions: [transactionID],
++      },
++      depth: 0,
++      overrideAccess: true,
++      req,
++    })) as RecordValue
++  } catch (error) {
++    if (!isUniqueViolationOf(error, ['cartKey', 'cart_key'])) {
++      throw error
++    }
++
++    // Without a database transaction nothing rolls the claim back, so release it here. Nothing
++    // else was written: the order is settlement's first write.
++    if (!(await req.transactionID)) {
++      await req.payload.db.updateOne({
++        collection: transactionsSlug,
++        data: { status: 'pending' },
++        options: { atomic: true },
++        req,
++        where: {
++          and: [
++            { id: { equals: transactionID } },
++            { status: { equals: 'processing' } },
++            { order: { exists: false } },
++          ],
++        },
++      })
++    }
++
++    throw new CartAlreadyPurchasedError(cartID)
++  }
 +  const orderID = requireDocumentID({ fieldName: 'order ID', value: order.id })
 +
 +  await req.payload.update({
@@ -1127,6 +1214,13 @@ index 000000000..23f72976f
 +
 +const isRecord = (value: unknown): value is RecordValue =>
 +  typeof value === 'object' && value !== null && !Array.isArray(value)
++
++const isUniqueViolationOf = (error: unknown, paths: string[]): boolean =>
++  isRecord(error) &&
++  error.name === 'ValidationError' &&
++  isRecord(error.data) &&
++  Array.isArray(error.data.errors) &&
++  error.data.errors.some((entry) => isRecord(entry) && paths.includes(String(entry.path)))
 +
 +export const isTransientTransactionConflict = (error: unknown): boolean => {
 +  if (!isRecord(error)) {
