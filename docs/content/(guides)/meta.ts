@@ -9,6 +9,7 @@ export default defineMeta({
     "images",
     "live-preview",
     "forms",
+    "checkout",
     "seed",
     "test",
     "update",

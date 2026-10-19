@@ -1,0 +1,202 @@
+---
+title: Take payments at checkout
+description: Sell products with Payload's ecommerce plugin, and take payments through Razorpay or mIPS with orders that settle even when the customer closes the tab.
+---
+
+Payload's ecommerce plugin models products, carts, transactions, and orders. Its payment adapters decide how a customer pays. This guide adds the Razorpay and mIPS adapters from `@adirishi/offload-payments`, and the checkout components from Offload's shadcn registry.
+
+A customer's browser confirms the order after a payment. If the customer closes the tab first, the gateway still tells the site: Razorpay through a webhook, and mIPS through its payment notification (IMN). A job on the Cron Trigger asks the gateways about anything both missed. Each path settles the order only after the gateway's API confirms the payment, and settling twice is harmless. [The package reference](/payments#how-an-order-is-settled) explains the checks.
+
+The site needs the setup from [Getting started](/getting-started), and Tailwind CSS v4 with shadcn as in [Take form submissions](/forms#set-up-tailwind-and-shadcn).
+
+<Steps>
+  <Step title="Install the packages">
+    ```json package.json
+    "@adirishi/offload-payments": "{{version}}",
+    "@payloadcms/plugin-ecommerce": "npm:@adirishi/offload-plugin-ecommerce@{{version}}",
+    "zod": "^4.0.0"
+    ```
+
+    The adapters need Offload's build of the ecommerce plugin, which exports the server-side settlement that webhooks use.
+
+  </Step>
+  <Step title="Get the gateway credentials">
+    For Razorpay, use a merchant account with KYC done. Charging in a currency other than INR needs international payments enabled on the account. From the Dashboard, you need:
+
+    - the key id and key secret;
+    - a webhook for `https://<site>/api/payments/razorpay/webhooks` with the events `payment.authorized`, `payment.captured`, `payment.failed`, and `order.paid`, and its secret.
+
+    Razorpay refuses a webhook URL on `localhost` or a tunnel such as ngrok. Test webhooks on a deployed staging Worker. Test mode has its own keys and its own webhooks.
+
+    For mIPS, MIPS creates the merchant account and sends the credentials: the Basic auth user and password, `id_merchant`, `id_entity`, `id_operator`, `operator_password`, `salt`, and `cipher_key`. Ask MIPS to register `https://<site>/api/payments/mips/imn` as the account's IMN URL. The account starts in test mode, and MIPS's onboarding team switches it to live.
+
+  </Step>
+  <Step title="Add the secrets">
+    Put each value in `.dev.vars` for local runs, and set it on the Worker with `pnpm wrangler secret put <NAME>` for deployments:
+
+    ```ini .dev.vars
+    RAZORPAY_KEY_ID=rzp_test_...
+    RAZORPAY_KEY_SECRET=...
+    RAZORPAY_WEBHOOK_SECRET=...
+    MIPS_USERNAME=...
+    MIPS_PASSWORD=...
+    MIPS_MERCHANT_ID=...
+    MIPS_ENTITY_ID=...
+    MIPS_OPERATOR_ID=...
+    MIPS_OPERATOR_PASSWORD=...
+    MIPS_SALT=...
+    MIPS_CIPHER_KEY=...
+    ```
+
+    Run `pnpm wrangler types` so `env` has a type for each secret.
+
+  </Step>
+  <Step title="Configure the plugin and the adapters">
+    ```ts src/payload.config.ts
+    import { getBindings } from "@adirishi/offload-cloudflare";
+    import { INR, MUR, reconcilePaymentsTask } from "@adirishi/offload-payments";
+    import { mipsAdapter } from "@adirishi/offload-payments/mips";
+    import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
+    import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
+
+    const env = await getBindings();
+
+    const razorpay = razorpayAdapter({
+      keyID: env.RAZORPAY_KEY_ID,
+      keySecret: env.RAZORPAY_KEY_SECRET,
+      webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+    });
+
+    const mips = mipsAdapter({
+      credentials: {
+        username: env.MIPS_USERNAME,
+        password: env.MIPS_PASSWORD,
+        merchantID: env.MIPS_MERCHANT_ID,
+        entityID: env.MIPS_ENTITY_ID,
+        operatorID: env.MIPS_OPERATOR_ID,
+        operatorPassword: env.MIPS_OPERATOR_PASSWORD,
+        salt: env.MIPS_SALT,
+        cipherKey: env.MIPS_CIPHER_KEY,
+      },
+      returnURL: "/checkout/mips",
+    });
+
+    export default buildConfig({
+      jobs: { tasks: [reconcilePaymentsTask({ adapters: [razorpay, mips] })] },
+      plugins: [
+        ecommercePlugin({
+          access: { adminOnlyFieldAccess, adminOrPublishedStatus, isAdmin, isCustomer, isDocumentOwner },
+          currencies: { defaultCurrency: MUR.code, supportedCurrencies: [MUR, INR] },
+          customers: { slug: "users" },
+          payments: { paymentMethods: [razorpay, mips] },
+          products: { variants: true },
+        }),
+      ],
+      // collections, db, editor
+    });
+    ```
+
+    Pass the same adapter objects to `paymentMethods` and to `reconcilePaymentsTask()`. Use only the gateways you have accounts with. Each one is its own entry point, so a site that uses one doesn't bundle the other.
+
+    `access` takes the access functions that Payload's [ecommerce plugin docs](https://payloadcms.com/docs/ecommerce/plugin) describe. A logged-in user of the `customers.slug` collection owns the transactions and orders they start. Anyone else checks out as a guest, known by the email the checkout sends. Guest carts are on by default.
+
+    The plugin adds the products, variants, carts, transactions, and orders collections, among others. Run `pnpm payload migrate:create`, then `pnpm payload generate:types` and `pnpm payload generate:importmap`.
+
+  </Step>
+  <Step title="Run reconciliation on the Cron Trigger">
+    `createPayloadWorker()` queues and runs Payload's scheduled jobs on each Cron Trigger. The task's default schedule is every ten minutes, so the Worker needs a trigger at least that often:
+
+    ```jsonc wrangler.jsonc
+    "triggers": { "crons": ["*/5 * * * *"] }
+    ```
+
+  </Step>
+  <Step title="Install the checkout components">
+    Add Offload's registry to `components.json` if the site doesn't have it, as in [Take form submissions](/forms#add-offloads-registry). Then add the components for your gateways:
+
+    ```bash
+    pnpm dlx shadcn@latest add @offload/razorpay-checkout @offload/mips-payment-zone @offload/mips-confirm-order
+    ```
+
+    The CLI copies them into `src/components/payments/`. [The registry reference](/payments#registry) describes each one.
+
+  </Step>
+  <Step title="Wrap the shop in EcommerceProvider">
+    The components call the plugin's `usePayments()`. A pathless layout route gives every shop page the same provider and cart:
+
+    ```tsx src/app/_frontend/_shop.tsx
+    import {
+      INR,
+      MUR,
+      mipsAdapterClient,
+      razorpayAdapterClient,
+    } from "@adirishi/offload-payments/client";
+    import { EcommerceProvider } from "@payloadcms/plugin-ecommerce/client/react";
+    import { createFileRoute, Outlet } from "@tanstack/react-router";
+
+    export const Route = createFileRoute("/_frontend/_shop")({ component: ShopLayout });
+
+    const currenciesConfig = { defaultCurrency: MUR.code, supportedCurrencies: [MUR, INR] };
+    const paymentMethods = [razorpayAdapterClient(), mipsAdapterClient()];
+
+    function ShopLayout() {
+      return (
+        <EcommerceProvider
+          currenciesConfig={currenciesConfig}
+          enableVariants
+          paymentMethods={paymentMethods}
+        >
+          <Outlet />
+        </EcommerceProvider>
+      );
+    }
+    ```
+
+    Import the currencies from `/client` in browser code. The main entry point holds server code.
+
+  </Step>
+  <Step title="Add the checkout and return pages">
+    On the checkout page, render `RazorpayCheckout` and `MipsPaymentZone`, and pass a guest's email as `customerEmail`. MIPS sends the customer to the mIPS adapter's `returnURL` after a successful payment. Render `MipsConfirmOrder` there:
+
+    ```tsx src/app/_frontend/_shop/checkout.mips.tsx
+    import { createFileRoute } from "@tanstack/react-router";
+    import { useState } from "react";
+
+    import { type ConfirmedOrder, MipsConfirmOrder } from "@/components/payments/mips-confirm-order";
+
+    export const Route = createFileRoute("/_frontend/_shop/checkout/mips")({
+      validateSearch: (search: Record<string, unknown>): { reference: string } => ({
+        reference: typeof search.reference === "string" ? search.reference : "",
+      }),
+      component: MipsReturnPage,
+    });
+
+    function MipsReturnPage() {
+      const { reference } = Route.useSearch();
+      const [order, setOrder] = useState<ConfirmedOrder>();
+      return order ? (
+        <p role="status">Order {order.orderID} is confirmed.</p>
+      ) : (
+        <MipsConfirmOrder reference={reference} onConfirmed={setOrder} />
+      );
+    }
+    ```
+
+  </Step>
+  <Step title="Allow the gateways in a Content-Security-Policy">
+    Offload, Payload's TanStack Start adapter, and TanStack Start send no Content-Security-Policy for pages. Skip this step unless the site adds one.
+
+    - Razorpay Checkout loads `https://checkout.razorpay.com/v1/checkout.js` and opens its own iframe. Allow `https://checkout.razorpay.com` in `script-src`, and the Razorpay hosts that Checkout frames and calls in `frame-src` and `connect-src`. Check the hosts in your browser's console with test keys, because Razorpay's docs don't list them.
+    - The mIPS payment zone is a script, `https://go.mips.mu/gomips.js`, and an iframe on `https://go.mips.mu`. Allow that host in `script-src` and `frame-src`. If the card's 3-D Secure page opens inside the iframe, `frame-src` must allow the bank's host too.
+    - `MipsPaymentZone` inserts the zone's script itself, so the script carries no nonce. A policy that allows scripts only by nonce must also allow `https://go.mips.mu` or use `'strict-dynamic'`.
+
+  </Step>
+</Steps>
+
+## Check the result
+
+1. In the admin, create a product with a price in MUR, and publish it.
+2. Run `pnpm vite build` and `pnpm vite preview`, add the product to the cart, and pay with the gateway's test credentials.
+3. In the admin, open **Orders**. The order is there, and its transaction is `succeeded`.
+
+Payments with test keys never reach a local Worker's webhook, because Razorpay won't call `localhost`. The browser's confirmation still creates the order. To check webhooks and the IMN, deploy a staging Worker and point the gateways at it.

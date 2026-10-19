@@ -75,6 +75,8 @@ const getPost = createServerFn({ method: "GET" })
 
 **Read Payload in server functions, not server routes.** Server functions run in the RSC environment, which holds the Worker's copy of Payload. Server routes and `src/server.ts` run in the SSR environment, and importing `payload` or `@payload-config` there bundles a second copy, about 1.1 MB compressed. A server route can call a server function instead.
 
+**Take payments with `@adirishi/offload-payments`.** Payload's ecommerce plugin ships only a Stripe adapter. For Razorpay or mIPS, use `razorpayAdapter()` from `@adirishi/offload-payments/razorpay` or `mipsAdapter()` from `@adirishi/offload-payments/mips` in `payments.paymentMethods`, and add `reconcilePaymentsTask({ adapters })` to `jobs.tasks` so the Cron Trigger settles payments that the browser and the gateway's webhook missed. The checkout components come from Offload's shadcn registry. Never settle an order from a client-supplied amount or a gateway redirect: the adapters settle only after the gateway's API confirms the payment. https://adirishi.github.io/offload-cms/checkout
+
 **Workers runtime limits:**
 
 - Create users through the Worker, with the admin or the API. A user created in Node, through the Payload CLI or a seed script, gets a password hash that a deployed Worker can't verify.
