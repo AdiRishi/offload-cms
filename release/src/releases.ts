@@ -12,10 +12,15 @@ const shippedPaths = [
   "upstream/payload.json",
   ":!*AGENTS.md",
   ":!*.test.ts",
+  ":!release/src/e2e.ts",
 ];
 
-const gitSucceeds = (args: string[]) =>
-  spawnSync("git", args, { cwd: repoRoot, stdio: "ignore" }).status === 0;
+const gitSucceeds = (args: string[], cwd: string) =>
+  spawnSync("git", args, { cwd, stdio: "ignore" }).status === 0;
+
+/** Whether the commit `to` changes, since `from`, anything the packages ship. */
+export const changesShippedFiles = ({ cwd, from, to }: { cwd: string; from: string; to: string }) =>
+  !gitSucceeds(["diff", "--quiet", from, to, "--", ...shippedPaths], cwd);
 
 export type NextRelease = { publish: true; version: string } | { publish: false; reason: string };
 
@@ -28,10 +33,10 @@ export const nextRelease = (): NextRelease => {
   if (latest === undefined) return { publish: true, version: offloadVersion(0) };
 
   // CI for an older commit can finish after a newer commit was released.
-  if (gitSucceeds(["merge-base", "--is-ancestor", "HEAD", latest.tag])) {
+  if (gitSucceeds(["merge-base", "--is-ancestor", "HEAD", latest.tag], repoRoot)) {
     return { publish: false, reason: `HEAD is already part of ${latest.version}.` };
   }
-  if (gitSucceeds(["diff", "--quiet", latest.tag, "HEAD", "--", ...shippedPaths])) {
+  if (!changesShippedFiles({ cwd: repoRoot, from: latest.tag, to: "HEAD" })) {
     return {
       publish: false,
       reason: `Nothing the packages ship has changed since ${latest.version}.`,

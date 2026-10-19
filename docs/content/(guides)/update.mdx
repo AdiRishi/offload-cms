@@ -17,7 +17,7 @@ Leave out the version to use the latest release.
 
 ## Verify a package
 
-Every published tarball has a signed build provenance attestation. It ties the tarball to the commit and the workflow run that built it. To check a package, download it and verify it with the GitHub CLI:
+Every published tarball has a signed build provenance attestation, except `4.0.0-beta.2-offload.10`, whose attestation step failed on a Sigstore outage ([details](/contributing/releasing#a-release-without-an-attestation)). It ties the tarball to the commit and the workflow run that built it. To check a package, download it and verify it with the GitHub CLI:
 
 ```bash
 npm pack @adirishi/offload-payload@{{version}}
