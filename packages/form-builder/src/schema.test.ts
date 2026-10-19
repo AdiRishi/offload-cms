@@ -65,6 +65,24 @@ test("turns a valid submission into submission rows, leaving out empty optional 
   ]);
 });
 
+test("accepts a submission that leaves out its optional fields", () => {
+  const { fullName, email, country, consent } = complete;
+  const result = schema.parse({ fullName, email, country, consent });
+
+  assert.deepEqual(submissionData(fields, result), [
+    { field: "fullName", value: "Asha Ramdin" },
+    { field: "email", value: "asha@example.mu" },
+    { field: "country", value: "Mauritius" },
+    { field: "consent", value: "Yes" },
+  ]);
+});
+
+test("reports a required field that the submission leaves out as required", () => {
+  const { email, ...withoutEmail } = complete;
+
+  assert.deepEqual(errorsOf(withoutEmail).email, ["This field is required."]);
+});
+
 test("reports every required field that is missing", () => {
   const errors = errorsOf({ ...complete, fullName: " ", email: "", country: "", consent: false });
 

@@ -41,7 +41,7 @@ Returns the Zod schema that a form's values must match, with one key per field `
 | `text`     | `string`  | At most 500 characters                     | Keep this under 500 characters.   |
 | `textarea` | `string`  | At most 5,000 characters                   | Keep this under 5,000 characters. |
 
-The schema trims string values. A required string field fails on an empty value with "This field is required." An optional string field accepts an empty value.
+The schema trims string values. A required field fails on an empty or missing value with "This field is required." An optional field accepts an empty value, or no key at all, so a component can send only some of a form's fields.
 
 ## defaultValues()
 
@@ -57,7 +57,7 @@ Returns each field's `defaultValue`, or an empty value, as the values a form sta
 submissionData(fields: readonly InputField[], values: FormValues): { field: string; value: string }[]
 ```
 
-Turns validated values into the rows of a submission's `submissionData` field. An optional field left empty has no row. A checkbox answers `"Yes"` or `"No"`.
+Turns validated values into the rows of a submission's `submissionData` field. An optional field left empty or left out has no row. A checkbox answers `"Yes"` or `"No"`.
 
 ## isInputField()
 
@@ -71,11 +71,11 @@ Returns `true` for the supported blocks that take an answer, and `false` for `me
 
 The Zod schema for the input of the site's submission server function. Pass it to `.validator()`.
 
-| Key              | Type                                | Rule                                       |
-| ---------------- | ----------------------------------- | ------------------------------------------ |
-| `form`           | `number \| string`                  | A positive integer, or 1 to 100 characters |
-| `values`         | `Record<string, string \| boolean>` | The visitor's answers by field name        |
-| `turnstileToken` | `string`                            | 1 to 2,048 characters                      |
+| Key              | Type               | Rule                                       |
+| ---------------- | ------------------ | ------------------------------------------ |
+| `form`           | `number \| string` | A positive integer, or 1 to 100 characters |
+| `values`         | `FormValues`       | The visitor's answers by field name        |
+| `turnstileToken` | `string`           | 1 to 2,048 characters                      |
 
 To send more, such as the page that a form is on, extend it: `submissionInput.extend({ page: z.number() })`.
 
@@ -89,7 +89,7 @@ A readonly array of ISO 3166-1 countries by their English short name. A `country
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | `InputField`       | A field that takes an answer. A site's generated field type fits it when the form builder has only the supported blocks. |
 | `FormField`        | An `InputField`, or a `message` block.                                                                                   |
-| `FormValues`       | `Record<string, string \| boolean>`. A checkbox answers with a boolean, and every other field with a string.             |
+| `FormValues`       | `Partial<Record<string, string \| boolean>>`. A checkbox answers with a boolean, and every other field with a string.    |
 | `SubmissionInput`  | The type of `submissionInput`.                                                                                           |
 | `SubmissionResult` | What a submission server function returns to the form.                                                                   |
 
@@ -148,11 +148,11 @@ It returns `false` when Siteverify answers with an error status, rejects the tok
 
 Offload's shadcn registry installs the form's UI as source files that the site owns and edits. The docs build publishes each item at `https://adirishi.github.io/offload-cms/r/<item>.json`, from [`packages/form-builder/registry.json`](https://github.com/AdiRishi/offload-cms/blob/main/packages/form-builder/registry.json).
 
-| Item                | Installs                                                                | Registry dependencies                                                                                    | npm dependencies                 |
-| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `turnstile`         | `components/form-builder/turnstile.tsx`                                 | None                                                                                                     | None                             |
-| `form-builder-form` | `components/form-builder/fields.tsx`, `form.tsx`, and `form-client.tsx` | `button`, `checkbox`, `field`, `input`, `native-select`, `spinner`, `textarea`, and `@offload/turnstile` | `@tanstack/react-form`           |
-| `newsletter-signup` | `components/form-builder/newsletter-signup.tsx`                         | `button`, `field`, `input-group`, `spinner`, and `@offload/turnstile`                                    | `@tanstack/react-form` and `zod` |
+| Item                | Installs                                                                | Registry dependencies                                                                                    | npm dependencies       |
+| ------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `turnstile`         | `components/form-builder/turnstile.tsx`                                 | None                                                                                                     | None                   |
+| `form-builder-form` | `components/form-builder/fields.tsx`, `form.tsx`, and `form-client.tsx` | `button`, `checkbox`, `field`, `input`, `native-select`, `spinner`, `textarea`, and `@offload/turnstile` | `@tanstack/react-form` |
+| `newsletter-signup` | `components/form-builder/newsletter-signup.tsx`                         | `button`, `field`, `input-group`, `spinner`, and `@offload/turnstile`                                    | `@tanstack/react-form` |
 
 `turnstile` also adds `VITE_TURNSTILE_SITE_KEY` with Cloudflare's testing site key to `.env.local`. The registry doesn't list `@adirishi/offload-form-builder`, so the shadcn CLI never changes its version.
 
@@ -174,7 +174,7 @@ After a successful submission, the client form shows the confirmation message, o
 <NewsletterSignup form={form} />
 ```
 
-A client component from `components/form-builder/newsletter-signup.tsx`. `form` needs `id` and `fields`. It renders one email input and a subscribe button, and submits the answer as the form's first `email` field.
+A client component from `components/form-builder/newsletter-signup.tsx`. `form` needs `id` and `fields`. It renders one email input and a subscribe button, and submits the answer as the form's first `email` field. It validates the address with `formSchema()`, as required, and sends no other field, so the form's other fields must be optional.
 
 ### Turnstile
 

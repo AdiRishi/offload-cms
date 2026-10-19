@@ -59,7 +59,7 @@
       "type": "registry:component",
       "title": "Newsletter sign-up",
       "description": "A one-line email sign-up that submits a form-builder form with a Turnstile token.",
-      "dependencies": ["@tanstack/react-form", "zod"],
+      "dependencies": ["@tanstack/react-form"],
       "registryDependencies": ["button", "field", "input-group", "spinner", "@offload/turnstile"],
       "docs": "The sign-up imports @adirishi/offload-form-builder, which installs at your Offload version, and submitForm from @/server/forms.functions, which you write. See https://adirishi.github.io/offload-cms/forms",
       "files": [

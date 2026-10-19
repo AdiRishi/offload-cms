@@ -26,8 +26,11 @@ export type InputField =
 /** A form-builder field: an input, or a message block between inputs. */
 export type FormField = InputField | { blockType: "message" };
 
-/** A form's answers by field name. Checkboxes answer with a boolean, every other field with a string. */
-export type FormValues = Record<string, string | boolean>;
+/**
+ * A form's answers by field name. Checkboxes answer with a boolean, every other field with a
+ * string. A submission may leave out an optional field.
+ */
+export type FormValues = Partial<Record<string, string | boolean>>;
 
 const inputBlockTypes: ReadonlySet<string> = new Set<InputField["blockType"]>([
   "checkbox",
@@ -52,22 +55,28 @@ export const isInputField = <F extends { blockType: string }>(
 const required = "This field is required.";
 
 const text = (field: InputField, rule: z.ZodType<string, string>) => {
-  const value = z.string().trim();
+  const value = z
+    .string({ error: (issue) => (issue.input === undefined ? required : undefined) })
+    .trim();
   return field.required
     ? value.min(1, required).pipe(rule)
-    : value.pipe(
-        z.union([z.literal(""), rule], {
-          // Report why a filled-in value failed, not that it was also not empty.
-          error: (issue) =>
-            issue.code === "invalid_union" ? issue.errors[1]?.[0]?.message : undefined,
-        }),
-      );
+    : value
+        .pipe(
+          z.union([z.literal(""), rule], {
+            // Report why a filled-in value failed, not that it was also not empty.
+            error: (issue) =>
+              issue.code === "invalid_union" ? issue.errors[1]?.[0]?.message : undefined,
+          }),
+        )
+        .optional();
 };
 
-const fieldSchema = (field: InputField): z.ZodType<string | boolean, string | boolean> => {
+const fieldSchema = (
+  field: InputField,
+): z.ZodType<string | boolean | undefined, string | boolean | undefined> => {
   switch (field.blockType) {
     case "checkbox":
-      return field.required ? z.literal(true, required) : z.boolean();
+      return field.required ? z.literal(true, required) : z.boolean().optional();
     case "country":
       return text(field, z.enum(countries, "Choose a country from the list."));
     case "email":
@@ -94,7 +103,7 @@ const fieldSchema = (field: InputField): z.ZodType<string | boolean, string | bo
 /**
  * The schema a form's values must match, derived from the fields an editor built in the form
  * builder. The browser validates with it as the visitor types, and the server validates again
- * against the stored form.
+ * against the stored form. An optional field may be left out of the values.
  */
 export const formSchema = (fields: readonly InputField[]) =>
   z.object(Object.fromEntries(fields.map((field) => [field.name, fieldSchema(field)])));
@@ -115,8 +124,8 @@ export const defaultValues = (fields: readonly InputField[]): FormValues =>
   );
 
 /**
- * Turns validated values into form-builder submission rows. An optional field left empty has no
- * row, and a checkbox answers `Yes` or `No`.
+ * Turns validated values into form-builder submission rows. An optional field left empty or left
+ * out has no row, and a checkbox answers `Yes` or `No`.
  */
 export const submissionData = (fields: readonly InputField[], values: FormValues) =>
   fields.flatMap((field) => {
@@ -131,7 +140,7 @@ export const submissionData = (fields: readonly InputField[], values: FormValues
  */
 export const submissionInput = z.object({
   form: z.union([z.number().int().positive(), z.string().min(1).max(100)]),
-  values: z.record(z.string(), z.union([z.string(), z.boolean()])),
+  values: z.record(z.string(), z.union([z.string(), z.boolean()]).optional()),
   turnstileToken: z.string().min(1).max(2048),
 });
 

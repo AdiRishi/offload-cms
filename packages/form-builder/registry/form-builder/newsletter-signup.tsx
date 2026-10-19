@@ -1,11 +1,16 @@
 "use client";
 
-import { type FormField, isInputField } from "@adirishi/offload-form-builder";
+import {
+  defaultValues,
+  type FormField,
+  formSchema,
+  type InputField,
+  isInputField,
+} from "@adirishi/offload-form-builder";
 import { revalidateLogic, useForm } from "@tanstack/react-form";
 import { useHydrated } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useId, useRef, useState } from "react";
-import { z } from "zod";
+import { useId, useMemo, useRef, useState } from "react";
 
 import { Turnstile, type TurnstileHandle } from "@/components/form-builder/turnstile";
 import { Button } from "@/components/ui/button";
@@ -13,14 +18,6 @@ import { FieldError } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
 import { submitForm } from "@/server/forms.functions";
-
-const schema = z.object({
-  email: z
-    .string()
-    .trim()
-    .min(1, "Enter your email address.")
-    .pipe(z.email("Enter a valid email address.")),
-});
 
 const signupProblems = {
   invalid: "Enter a valid email address.",
@@ -46,9 +43,16 @@ export function NewsletterSignup({
   const [engaged, setEngaged] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const emailField = form.fields?.filter(isInputField).find((field) => field.blockType === "email");
+  const name = emailField?.name ?? "email";
+  // The form's other fields must be optional, because the sign-up sends only the email address.
+  const fields = useMemo(
+    (): InputField[] => [{ blockType: "email", name, required: true }],
+    [name],
+  );
+  const schema = useMemo(() => formSchema(fields), [fields]);
 
   const signup = useForm({
-    defaultValues: { email: "" },
+    defaultValues: defaultValues(fields),
     validationLogic: revalidateLogic(),
     validators: {
       onDynamic: schema,
@@ -56,9 +60,7 @@ export function NewsletterSignup({
         try {
           if (!turnstile.current || !emailField) throw new Error("The form cannot submit.");
           const turnstileToken = await turnstile.current.token();
-          const result = await send({
-            data: { form: form.id, values: { [emailField.name]: value.email }, turnstileToken },
-          });
+          const result = await send({ data: { form: form.id, values: value, turnstileToken } });
           turnstile.current.reset();
           return result.status === "sent" ? undefined : signupProblems[result.status];
         } catch {
@@ -92,7 +94,7 @@ export function NewsletterSignup({
         void signup.handleSubmit();
       }}
     >
-      <signup.Field name="email">
+      <signup.Field name={name}>
         {(field) => (
           <>
             <label htmlFor={id} className="sr-only">
@@ -105,7 +107,7 @@ export function NewsletterSignup({
                 type="email"
                 autoComplete="email"
                 placeholder="Email"
-                value={field.state.value}
+                value={typeof field.state.value === "string" ? field.state.value : ""}
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
                 aria-invalid={!field.state.meta.isValid}
