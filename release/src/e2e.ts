@@ -9,7 +9,7 @@ import { runServer } from "verdaccio";
 import { repoRoot, run } from "./exec.ts";
 import { withOffloadVersion } from "./manifest.ts";
 import { readManifest, writeManifest } from "./packages.ts";
-import { publish } from "./publish.ts";
+import { pack, publish } from "./publish.ts";
 
 const e2eDir = path.join(repoRoot, "e2e");
 /** The port e2e/.npmrc installs @adirishi packages from. */
@@ -53,9 +53,10 @@ const startRegistry = async () => {
  * also checks the Worker's compressed size against its budget.
  */
 export const e2e = async ({ postgres }: { postgres: boolean }) => {
+  await pack(workingTreeVersion);
   const registry = await startRegistry();
   try {
-    await publish({ registry: registry.url, token: "local-registry", version: workingTreeVersion });
+    await publish({ registry: registry.url, token: "local-registry" });
     writeManifest(e2eDir, withOffloadVersion(readManifest(e2eDir), workingTreeVersion));
     // Every run publishes the same version with new contents, so pnpm must forget the last one.
     // pnpm keeps an installed package directory whose version matches, even when the lockfile

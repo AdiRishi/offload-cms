@@ -13,22 +13,34 @@ Each release has a git tag, `v<version>`, on the commit it was published from. T
 
 ## What the Publish job does
 
-The Publish job runs `pnpm release publish` on the commit that passed the checks:
+The Publish job releases the commit that passed the checks in three steps. Nothing reaches the registry until the last step, so a failure in an earlier step leaves no release, and re-running the failed job starts the release again.
+
+First, `pnpm release pack` decides whether to release and packs the release:
 
 1. Find the latest release tag for the pinned Payload tag.
-2. Stop if the commit is already part of that release, or if nothing the packages ship changed since it. Shipped files are `packages/`, `release/src/`, `release/package.json`, `upstream/patches/`, and `upstream/payload.json`. `AGENTS.md` files and tests don't count.
+2. Stop if the commit is already part of that release, or if nothing the packages ship changed since it. Shipped files are `packages/`, `release/src/`, `release/package.json`, `upstream/patches/`, and `upstream/payload.json`. `AGENTS.md` files, tests, and `release/src/e2e.ts` don't count. When `pack` stops here, `release/dist` stays empty and the job skips the next two steps.
 3. Build `upstream/payload` and `packages/` through Turborepo. The Payload build stops if `upstream/payload` doesn't match the pin and the patches.
-4. Pack every package with pnpm. Each Payload package becomes `@adirishi/offload-<name>` at the new version, with internal dependencies rewritten to npm aliases and a README that points back to Offload.
-5. Publish the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
-6. Tag the commit `v<version>` and push the tag.
+4. Pack every package into `release/dist`. Each Payload package becomes `@adirishi/offload-<name>` at the new version, with internal dependencies rewritten to npm aliases and a README that points back to Offload.
+
+Second, `actions/attest` signs every tarball in `release/dist`. See [Provenance](#provenance).
+
+Third, `pnpm release publish` uploads the tarballs and tags the commit:
+
+1. Stop if the version is already in `OFFLOAD_REGISTRY`.
+2. Publish each tarball in `release/dist`, unchanged, to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
+3. Tag the commit `v<version>` and push the tag.
 
 Offload's own packages are the public workspace packages that `release/package.json` depends on.
 
-To try a change without releasing it, run `pnpm release e2e`. It publishes the working tree as `<Payload version>-offload.dev` to a registry that exists only for that run.
+To try a change without releasing it, run `pnpm release e2e`. It packs the working tree as `<Payload version>-offload.dev` and publishes it to a registry that exists only for that run.
 
 ## Provenance
 
-npm's `--provenance` works only on the public npm registry. Instead, the Publish job signs each published tarball with [`actions/attest`](https://github.com/actions/attest). The attestation is SLSA build provenance, recorded through Sigstore, and names the commit, workflow, and run that produced the file. `publish` uploads the exact tarballs that the job attests. [Update Offload](/update#verify-a-package) shows how a site checks a package.
+npm's `--provenance` works only on the public npm registry. Instead, the Publish job signs each tarball with [`actions/attest`](https://github.com/actions/attest) before it publishes any of them. The attestation is SLSA build provenance, recorded through Sigstore, and names the commit, workflow, and run that produced the file. `publish` uploads the attested files, not a new pack of the packages, so the registry serves the bytes the attestation covers. [Update Offload](/update#verify-a-package) shows how a site checks a package.
+
+### A release without an attestation
+
+The job published releases up to `4.0.0-beta.2-offload.10` before it attested them. The attestation of `offload.10` failed when Sigstore's transparency log timed out, so that release has none. A re-run can't add one, because the release tag on its commit makes `pack` pack nothing. Leave such a release in place. The next release has an attestation, so a site that verifies its packages should move to it.
 
 ## Continuous integration
 
