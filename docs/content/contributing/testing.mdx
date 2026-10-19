@@ -68,6 +68,7 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 | `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, then again with `CLOUDFLARE_ENV=postgres`.  |
 | `src/jobs.ts`                                  | A job task, a workflow, and two endpoints that queue work for the Cron Trigger                                                            |
 | `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                   |
+| `src/blocks.ts`                                | A block defined in the config's `blocks`, which pages and the posts editor reference by slug                                              |
 
 The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and a real site should keep it closed.
 

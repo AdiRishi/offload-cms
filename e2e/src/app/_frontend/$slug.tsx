@@ -26,6 +26,14 @@ const getPage = createServerFn({ method: "GET" })
       if (block.blockType === "cta") {
         return { id: block.id, kind: "cta" as const, href: block.href, label: block.label };
       }
+      if (block.blockType === "pullQuote") {
+        return {
+          attribution: block.attribution ?? "",
+          id: block.id,
+          kind: "pullQuote" as const,
+          quote: block.quote,
+        };
+      }
       return { id: block.id, kind: "content" as const };
     });
     return {
@@ -60,6 +68,14 @@ function PageView() {
             <a href={block.href} key={block.id}>
               {block.label}
             </a>
+          );
+        }
+        if (block.kind === "pullQuote") {
+          return (
+            <figure key={block.id}>
+              <p>{block.quote}</p>
+              <figcaption>{block.attribution}</figcaption>
+            </figure>
           );
         }
         return null;

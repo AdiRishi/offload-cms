@@ -57,6 +57,7 @@ export const Posts: CollectionConfig = {
                   { name: "message", type: "text", required: true },
                 ],
               },
+              "pullQuote",
             ],
           }),
         ],

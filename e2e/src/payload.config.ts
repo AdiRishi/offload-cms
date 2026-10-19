@@ -14,6 +14,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
+import { PullQuote } from "./blocks";
 import { AuditLogs } from "./collections/AuditLogs";
 import { Categories } from "./collections/Categories";
 import { FieldTypes } from "./collections/FieldTypes";
@@ -51,6 +52,7 @@ export default buildConfig({
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
   },
+  blocks: [PullQuote],
   collections: [Users, Pages, Posts, Categories, Media, FieldTypes, Folders, Tags, AuditLogs],
   db: databaseAdapter(),
   editor: lexicalEditor(),

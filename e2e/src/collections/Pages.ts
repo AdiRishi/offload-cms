@@ -33,6 +33,7 @@ export const Pages: CollectionConfig = {
           ],
         },
         { slug: "content", fields: [{ name: "body", type: "richText" }] },
+        "pullQuote",
       ],
     },
   ],

@@ -11,6 +11,7 @@ test("a page renders its blocks", async ({ api, page }) => {
     layout: [
       { blockType: "quote", text: "Content belongs to its editors." },
       { blockType: "cta", href: "/contact", label: "Get in touch" },
+      { attribution: "An editor", blockType: "pullQuote", quote: "Defined once, used anywhere." },
     ],
     slug,
     title: "Front page",
@@ -23,6 +24,8 @@ test("a page renders its blocks", async ({ api, page }) => {
     "href",
     "/contact",
   );
+  await expect(page.locator("figure p")).toHaveText("Defined once, used anywhere.");
+  await expect(page.locator("figcaption")).toHaveText("An editor");
 });
 
 test("a post renders rich text, blocks and relationships", async ({ api, page }) => {
@@ -31,7 +34,11 @@ test("a post renders rich text, blocks and relationships", async ({ api, page })
   await api.create("posts", {
     _status: "published",
     categories: [category.id],
-    content: lexical(["Rich text from Lexical."], { message: "Watch out", tone: "warning" }),
+    content: lexical(["Rich text from Lexical."], {
+      blockType: "callout",
+      message: "Watch out",
+      tone: "warning",
+    }),
     slug,
     title: "Rendered post",
   });
