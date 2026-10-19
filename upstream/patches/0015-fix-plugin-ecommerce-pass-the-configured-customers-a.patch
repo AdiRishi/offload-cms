@@ -27,17 +27,17 @@ Drop-When: the pinned release passes customersSlug, cartsSlug and the currencies
 Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/index.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that a logged-in customer owns a checkout and an admin user never does)
 ---
  .../src/endpoints/initiatePayment.ts          |  1 +
- packages/plugin-ecommerce/src/index.spec.ts   | 61 +++++++++++++++++++
+ packages/plugin-ecommerce/src/index.spec.ts   | 84 +++++++++++++++++++
  packages/plugin-ecommerce/src/index.ts        |  3 +
  packages/plugin-ecommerce/src/types/index.ts  |  5 ++
- 4 files changed, 70 insertions(+)
+ 4 files changed, 93 insertions(+)
  create mode 100644 packages/plugin-ecommerce/src/index.spec.ts
 
 diff --git a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
-index 8ec08999f..d70016718 100644
+index 617fbc003..37ce44c16 100644
 --- a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
 +++ b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
-@@ -328,6 +328,7 @@ export const initiatePaymentHandler: InitiatePayment =
+@@ -363,6 +363,7 @@ export const initiatePaymentHandler: InitiatePayment =
  
      try {
        const paymentResponse = await paymentMethod.initiatePayment({
@@ -47,10 +47,10 @@ index 8ec08999f..d70016718 100644
            billingAddress,
 diff --git a/packages/plugin-ecommerce/src/index.spec.ts b/packages/plugin-ecommerce/src/index.spec.ts
 new file mode 100644
-index 000000000..07c4f8c35
+index 000000000..ef6c4c5bc
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/index.spec.ts
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,84 @@
 +import type { Config, Endpoint, PayloadRequest } from 'payload'
 +
 +import { describe, expect, it, vi } from 'vitest'
@@ -111,12 +111,35 @@ index 000000000..07c4f8c35
 +      }),
 +    )
 +  })
++
++  it('pass the configured customers and carts slugs to confirm-order', async () => {
++    const paymentMethod = adapter()
++    const config = await ecommercePlugin({
++      customers: { slug: 'customers' },
++      payments: { paymentMethods: [paymentMethod] },
++      slugMap: { carts: 'baskets' },
++    })({ collections: [], secret: 'test' } as unknown as Config)
++
++    const findByID = vi.fn(async () => ({ id: 'cart-1', items: [], subtotal: 1000 }))
++    const req = {
++      data: { cartID: 'cart-1', customerEmail: 'buyer@example.com' },
++      payload: { db: {}, findByID, logger: { error: vi.fn() } },
++      query: {},
++    } as unknown as PayloadRequest
++
++    await endpoint(config, '/payments/test/confirm-order')(req)
++
++    expect(findByID).toHaveBeenCalledWith(expect.objectContaining({ collection: 'baskets' }))
++    expect(paymentMethod.confirmOrder).toHaveBeenCalledWith(
++      expect.objectContaining({ cartsSlug: 'baskets', customersSlug: 'customers' }),
++    )
++  })
 +})
 diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
-index 17e3cd167..58629a957 100644
+index 4649290b4..2c76cf071 100644
 --- a/packages/plugin-ecommerce/src/index.ts
 +++ b/packages/plugin-ecommerce/src/index.ts
-@@ -233,7 +233,9 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
+@@ -236,7 +236,9 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
  
            const initiatePayment: Endpoint = {
              handler: initiatePaymentHandler({
@@ -126,7 +149,7 @@ index 17e3cd167..58629a957 100644
                inventory: sanitizedPluginConfig.inventory,
                paymentMethod,
                productsSlug: collectionSlugMap.products,
-@@ -249,6 +251,7 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
+@@ -252,6 +254,7 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
              handler: confirmOrderHandler({
                cartsSlug: collectionSlugMap.carts,
                currenciesConfig,
