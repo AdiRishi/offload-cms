@@ -431,25 +431,64 @@ test("sign-up and password reset answer the same for a registered email", async 
   }
 });
 
-test("failed logins past the limit for one email are refused, on REST too", async ({
+test("wrong passwords from many IPs never keep a customer out", async ({
   api,
   playwright,
   baseURL,
 }) => {
-  const email = customerEmail("limited");
+  const email = customerEmail("not-locked");
   await createCustomer(api, email);
-  const statuses: number[] = [];
-  // A window can end between attempts, so allow two windows' worth before the refusal.
-  for (let attempt = 0; attempt <= 2 * attemptsPerMinute && !statuses.includes(429); attempt++) {
+  const attempt = async (secret: string) => {
     const request = await playwright.request.newContext({
       baseURL,
       extraHTTPHeaders: visitorHeaders(),
     });
-    statuses.push((await restLogin(request, email, "wrong-password")).status());
+    const status = (await restLogin(request, email, secret)).status();
     await request.dispose();
+    return status;
+  };
+  const failures = await Promise.all(
+    Array.from({ length: 2 * attemptsPerMinute + 1 }, () => attempt("wrong-password")),
+  );
+  expect(failures).toEqual(failures.map(() => 401));
+  expect(await attempt(password)).toBe(200);
+});
+
+test("REST logins past the limit for one visitor IP get 429", async ({ api, visitor }) => {
+  const email = customerEmail("rest-limited");
+  await createCustomer(api, email);
+  const statuses: number[] = [];
+  // A window can end between attempts, so allow two windows' worth before the refusal.
+  for (let attempt = 0; attempt <= 2 * attemptsPerMinute && !statuses.includes(429); attempt++) {
+    statuses.push((await restLogin(visitor, email, "wrong-password")).status());
   }
   expect(statuses.at(-1)).toBe(429);
   expect(statuses.filter((status) => status === 401).length).toBeGreaterThanOrEqual(
+    attemptsPerMinute,
+  );
+});
+
+test("password reset requests past the limit for one email are refused", async ({
+  api,
+  playwright,
+  baseURL,
+}) => {
+  const email = customerEmail("reset-limited");
+  await createCustomer(api, email);
+  const statuses: string[] = [];
+  for (let attempt = 0; attempt <= 2 * attemptsPerMinute && !statuses.includes("limited"); attempt++) {
+    const request = await playwright.request.newContext({
+      baseURL,
+      extraHTTPHeaders: visitorHeaders(),
+    });
+    const outcome = await callServerFn(request, requestPasswordReset, { email, turnstileToken });
+    await request.dispose();
+    statuses.push(
+      isRecord(outcome) && isRecord(outcome.result) ? String(outcome.result.status) : "",
+    );
+  }
+  expect(statuses.at(-1)).toBe("limited");
+  expect(statuses.filter((status) => status === "sent").length).toBeGreaterThanOrEqual(
     attemptsPerMinute,
   );
 });

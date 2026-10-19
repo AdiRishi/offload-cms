@@ -57,10 +57,12 @@ The hook runs for the `login` and `forgotPassword` operations of the collection,
 
 | Operation        | Keys                                                                        |
 | ---------------- | --------------------------------------------------------------------------- |
-| `login`          | `<slug>:login:ip:<ip>` and `<slug>:login:email:<email>`                     |
+| `login`          | `<slug>:login:ip:<ip>`                                                      |
 | `forgotPassword` | `<slug>:forgot-password:ip:<ip>` and `<slug>:forgot-password:email:<email>` |
 
-`<ip>` is the `cf-connecting-ip` header, and `<email>` is the address trimmed and in lowercase. A request without the header, such as one under `vite dev`, gets only the email key. Every attempt counts, whether or not the password is right.
+`<ip>` is the `cf-connecting-ip` header, and `<email>` is the address trimmed and in lowercase. A request without the header, such as one under `vite dev`, gets only the keys that don't need it. Every attempt counts, whether or not the password is right.
+
+Logins have no key per email, because anyone could spend an email's allowance and keep the customer out, which is the lockout `maxLoginAttempts: 0` turns off. Password reset requests have one, so nobody floods an inbox.
 
 If any key is over its limit, the hook throws an `APIError` with status 429 and the message "Too many attempts. Wait a minute and try again." REST answers 429, and the server helpers return `limited`. The binding counts per Cloudflare location and is eventually consistent.
 
@@ -264,7 +266,7 @@ type ChangePasswordResult = {
 | `invalid`          | `resetPassword`, `verifyEmail`                    | The link expired, was already used, or never existed.                                          |
 | `email-unverified` | `logIn`                                           | The password is right, but the account hasn't verified its email.                              |
 | `locked`           | `logIn`                                           | Payload locked the account. Only a collection that sets `auth.maxLoginAttempts` returns it.    |
-| `limited`          | `logIn`, `requestPasswordReset`, `changePassword` | The visitor's IP or the email is over the [rate limit](#rate-limit).                           |
+| `limited`          | `logIn`, `requestPasswordReset`, `changePassword` | The visitor's IP, or for a reset request the email, is over the [rate limit](#rate-limit).     |
 | `unverified`       | `signUp`, `requestPasswordReset`                  | The Turnstile check failed.                                                                    |
 | `error`            | Every helper                                      | Something unexpected failed. The helper logged it.                                             |
 

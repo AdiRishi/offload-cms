@@ -86,16 +86,21 @@ const adminOrSelf =
     return { id: { equals: req.user.id } };
   };
 
+/**
+ * Logins count per visitor IP only. A count per email would let anyone keep a customer out with a
+ * few wrong guesses a minute, which is the lockout this collection turns off. Password reset
+ * requests also count per email, so nobody floods one inbox with reset emails.
+ */
 const rateLimitHook =
   (slug: string, rateLimit: () => RateLimiter): CollectionBeforeOperationHook =>
   async ({ args, operation, req }) => {
     if (operation !== "login" && operation !== "forgotPassword") return args;
-    const email = args.data.email?.trim().toLowerCase();
     const ip = req.headers.get("cf-connecting-ip");
+    const email = args.data.email?.trim().toLowerCase();
     const action = operation === "login" ? "login" : "forgot-password";
     const keys = [
       ...(ip ? [`${slug}:${action}:ip:${ip}`] : []),
-      ...(email ? [`${slug}:${action}:email:${email}`] : []),
+      ...(action === "forgot-password" && email ? [`${slug}:${action}:email:${email}`] : []),
     ];
     const binding = rateLimit();
     const outcomes = await Promise.all(keys.map((key) => binding.limit({ key })));
@@ -184,8 +189,8 @@ const defaultResetPassword =
  *
  * - Sessions that last 14 days, which `createAccountHelpers()` extends while the visitor is active.
  * - A `Secure`, `SameSite=Lax` cookie, and no lockout after failed logins.
- * - A rate limit on logins and password reset requests, per visitor IP and per email, that covers
- *   the REST endpoints too.
+ * - A rate limit on logins per visitor IP, and on password reset requests per visitor IP and per
+ *   email, that covers the REST endpoints too.
  * - Email verification, unless `verify` is `false`, and emails that link to the site's pages.
  * - `POST /first-register` answering 403, so the empty collection can't get its first account
  *   past access control.

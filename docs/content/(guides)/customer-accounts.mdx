@@ -29,11 +29,11 @@ The site needs:
     ```jsonc wrangler.jsonc
     "vars": { "SITE_URL": "https://example.com" },
     "ratelimits": [
-      { "name": "ACCOUNTS", "namespace_id": "1002", "simple": { "limit": 5, "period": 60 } }
+      { "name": "ACCOUNTS", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
     ]
     ```
 
-    The limit applies to each visitor IP and to each email address on its own, so this binding allows five login attempts a minute from one IP and five a minute for one email. `period` must be `10` or `60`. The links in account emails start with `SITE_URL`, so give each environment its own, such as `http://localhost:4173` for `vite preview`.
+    The limit applies to each key on its own. This binding allows ten login attempts a minute from one IP, and ten password reset requests a minute from one IP or for one email. Visitors behind one shared address, such as an office network or a mobile carrier's NAT, share an IP's allowance, so don't set it much lower. `period` must be `10` or `60`. The links in account emails start with `SITE_URL`, so give each environment its own, such as `http://localhost:4173` for `vite preview`.
 
     Put the Turnstile secret key in `.dev.vars`. For local runs, use Cloudflare's testing secret, which passes every token:
 
@@ -508,9 +508,14 @@ To test the site as a customer while you edit content, use a second browser or a
 
 Payload locks an account after five failed logins by default. Anyone who knows a customer's email could then keep that customer locked out, so `accountCollection()` turns lockout off with `maxLoginAttempts: 0`.
 
-The `ACCOUNTS` binding limits logins and password reset requests instead, per visitor IP and per email address. The limit runs as a `beforeOperation` hook, so it also covers Payload's REST endpoints, `POST /api/customers/login` and `POST /api/customers/forgot-password`, which answer 429 over the limit. The server functions return `limited`.
+The `ACCOUNTS` binding limits these instead:
 
-The binding counts per Cloudflare location, and its counts are eventually consistent. It slows down password guessing, but it isn't an exact limit. Sign-up has no rate limit. Turnstile protects it.
+- Logins, per visitor IP. A limit per email would lock a customer out the same way lockout does, because anyone can spend an email's allowance with a few wrong guesses a minute. Wrong passwords use up only the allowance of the IP that sends them.
+- Password reset requests, per visitor IP and per email. The email limit stops anyone from flooding one inbox with reset emails. Payload also sends one account at most one reset email every 15 seconds.
+
+The limit runs as a `beforeOperation` hook, so it also covers Payload's REST endpoints, `POST /api/customers/login` and `POST /api/customers/forgot-password`, which answer 429 over the limit. The server functions return `limited`. `changePassword()` checks the current password with a login, so it shares the login limit.
+
+The binding counts per Cloudflare location, and its counts are eventually consistent. It slows down password guessing from one IP, but it isn't an exact limit, and it doesn't stop guessing spread over many IPs. Sign-up has no rate limit. Turnstile protects it.
 
 ## Sign-up doesn't reveal which emails have accounts
 
