@@ -5,6 +5,14 @@
     "build": {
       "dependsOn": [],
       "cache": false
+    },
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/*/registry.json",
+        "$TURBO_ROOT$/packages/*/registry/**",
+        "$TURBO_ROOT$/e2e/src/components/**"
+      ]
     }
   }
 }

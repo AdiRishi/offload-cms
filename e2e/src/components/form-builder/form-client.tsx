@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  countries,
   defaultValues,
   formSchema,
   type InputField,
@@ -11,8 +12,8 @@ import { useHydrated, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 
-import { useAppForm } from "@/components/form-builder/fields";
 import { Turnstile, type TurnstileHandle } from "@/components/form-builder/turnstile";
+import { useAppForm } from "@/components/form-fields";
 import { submitForm } from "@/server/forms.functions";
 
 export type ClientField =
@@ -135,7 +136,14 @@ export function FormBuilderFormClient({
                   case "checkbox":
                     return <control.CheckboxField label={label} required={field.required} />;
                   case "country":
-                    return <control.CountryField label={label} required={field.required} />;
+                    return (
+                      <control.SelectField
+                        label={label}
+                        required={field.required}
+                        placeholder="Choose a country"
+                        options={countries}
+                      />
+                    );
                   case "email":
                     return (
                       <control.TextField

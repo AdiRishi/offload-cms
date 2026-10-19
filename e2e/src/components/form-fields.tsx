@@ -1,14 +1,18 @@
 "use client";
 
-import { countries } from "@adirishi/offload-form-builder";
 import { createFormHook, createFormHookContexts } from "@tanstack/react-form";
 import { type ComponentProps, type ReactNode, useId } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -41,8 +45,12 @@ function Label({ htmlFor, label, required }: FieldProps & { htmlFor: string }) {
 function TextField({
   label,
   required,
+  description,
   ...input
-}: FieldProps & Pick<ComponentProps<"input">, "autoComplete" | "inputMode" | "type">) {
+}: FieldProps & { description?: string } & Pick<
+    ComponentProps<"input">,
+    "autoComplete" | "inputMode" | "type"
+  >) {
   const { field, id, invalid, errors } = useControl<string>();
   return (
     <Field data-invalid={invalid}>
@@ -56,7 +64,11 @@ function TextField({
         onChange={(event) => field.handleChange(event.target.value)}
         aria-invalid={invalid}
         aria-required={required ?? undefined}
+        aria-describedby={description ? `${id}-description` : undefined}
       />
+      {description ? (
+        <FieldDescription id={`${id}-description`}>{description}</FieldDescription>
+      ) : null}
       <FieldError errors={errors} />
     </Field>
   );
@@ -82,6 +94,10 @@ function TextareaField({ label, required }: FieldProps) {
   );
 }
 
+// A native select styled like shadcn's input, so the item needs no select component.
+const selectClassName =
+  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&>option]:bg-[Canvas] [&>option]:text-[CanvasText]";
+
 function SelectField({
   label,
   required,
@@ -95,30 +111,26 @@ function SelectField({
   return (
     <Field data-invalid={invalid}>
       <Label htmlFor={id} label={label} required={required} />
-      <NativeSelect
+      <select
         id={id}
         name={field.name}
-        className="w-full"
+        className={selectClassName}
         value={field.state.value}
         onBlur={field.handleBlur}
         onChange={(event) => field.handleChange(event.target.value)}
         aria-invalid={invalid}
         aria-required={required ?? undefined}
       >
-        <NativeSelectOption value="">{placeholder || "Choose an option"}</NativeSelectOption>
+        <option value="">{placeholder || "Choose an option"}</option>
         {options.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
+          <option key={option.value} value={option.value}>
             {option.label}
-          </NativeSelectOption>
+          </option>
         ))}
-      </NativeSelect>
+      </select>
       <FieldError errors={errors} />
     </Field>
   );
-}
-
-function CountryField(props: FieldProps) {
-  return <SelectField {...props} placeholder="Choose a country" options={countries} />;
 }
 
 function CheckboxField({ label, required }: FieldProps) {
@@ -171,10 +183,13 @@ function FormError() {
   );
 }
 
-/** TanStack Form with a shadcn component for each form-builder field type. */
+/**
+ * TanStack Form with shadcn components for text, textarea, select, and checkbox fields, a submit
+ * button, and the message that a failed submit returns.
+ */
 export const { useAppForm } = createFormHook({
   fieldContext,
   formContext,
-  fieldComponents: { CheckboxField, CountryField, SelectField, TextareaField, TextField },
+  fieldComponents: { CheckboxField, SelectField, TextareaField, TextField },
   formComponents: { FormError, SubmitButton },
 });
