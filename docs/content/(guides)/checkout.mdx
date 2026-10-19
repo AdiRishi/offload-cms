@@ -7,7 +7,7 @@ Payload's ecommerce plugin models products, carts, transactions, and orders. Its
 
 A customer's browser confirms the order after a payment. If the customer closes the tab first, the gateway still tells the site: Razorpay through a webhook, and mIPS through its payment notification (IMN). A job on the Cron Trigger asks the gateways about anything both missed. Each path settles the order only after the gateway's API confirms the payment, and settling twice is harmless. [The package reference](/payments#how-an-order-is-settled) explains the checks.
 
-The site needs the setup from [Getting started](/getting-started), and Tailwind CSS v4 with shadcn as in [Take form submissions](/forms#set-up-tailwind-and-shadcn).
+The site needs the setup from [Getting started](/getting-started), and Tailwind CSS v4 with shadcn, as the **Set up Tailwind and shadcn** step of [Take form submissions](/forms) describes.
 
 <Steps>
   <Step title="Install the packages">
@@ -112,13 +112,15 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
 
   </Step>
   <Step title="Install the checkout components">
-    Add Offload's registry to `components.json` if the site doesn't have it, as in [Take form submissions](/forms#add-offloads-registry). Then add the components for your gateways:
+    Add Offload's registry to `components.json` if the site doesn't have it, as the **Add Offload's registry** step of [Take form submissions](/forms) describes. Then add the components for your gateways:
 
     ```bash
     pnpm dlx shadcn@latest add @offload/razorpay-checkout @offload/mips-payment-zone @offload/mips-confirm-order
     ```
 
-    The CLI copies them into `src/components/payments/`. [The registry reference](/payments#registry) describes each one.
+    The CLI copies them into `src/components/payments/`. They use the shadcn `button` and `spinner`, which they don't install. Add the ones the site lacks with `pnpm dlx shadcn@latest add button spinner`, without `--overwrite`. [The registry reference](/payments#registry) describes each item.
+
+    When you update `@adirishi/offload-payments`, add the items again with `--overwrite`, which replaces only the files in `src/components/payments/`, and merge your own edits back in.
 
   </Step>
   <Step title="Wrap the shop in EcommerceProvider">
