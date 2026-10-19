@@ -97,6 +97,7 @@ export const createPendingTransaction = async (
 
   const transaction = await req.payload.create({
     collection: transactionsSlug,
+    depth: 0,
     data: {
       ...(req.user?.collection === customersSlug ? { customer: req.user.id } : { customerEmail }),
       amount,
