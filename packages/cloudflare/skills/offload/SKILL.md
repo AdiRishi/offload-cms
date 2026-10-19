@@ -103,12 +103,10 @@ Third-party plugins that list `payload` as a peer dependency install normally. C
 
 **Return rich text from a server function as a rendered element.** TanStack Start rejects Lexical JSON as not serializable. Render it with `renderServerComponent(<RichText data={doc.content} />)` from `@tanstack/react-start/rsc`, and return the result.
 
-**Server functions import bindings from the config.** `payload.config.ts` exports `export const env = await getBindings()`, and a server function reads `const { env } = await import("@payload-config")`.
-
 **Public forms use `@adirishi/offload-form-builder`** and the form UI from Offload's shadcn registry:
 
 - Install the components with `pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup`. `components.json` needs `"rsc": true` and the `@offload` registry.
-- Write `submitForm` in `src/server/forms.functions.ts`. It wraps `saveFormSubmission()` from `@adirishi/offload-form-builder/server`, with `.validator(submissionInput)`, a `ratelimits` binding, `TURNSTILE_SECRET_KEY`, and an `isOffered` rule.
+- Write `submitForm` in `src/server/forms.functions.ts`. It wraps `saveFormSubmission()` from `@adirishi/offload-form-builder/server`, with `.validator(submissionInput)`, an `isOffered` rule, and a `ratelimits` binding and `TURNSTILE_SECRET_KEY` from `getBindings()`.
 - Render `FormBuilderForm` with `renderServerComponent()` in the page's server function.
 - Add `import "@/server/forms.functions";` to every route that renders a form. TanStack Start's build registers a server function only when a route imports its module. Without the import, each submission fails on a production build with "Server function info not found", while `vite dev` works. Check forms with `vite build && vite preview`.
 

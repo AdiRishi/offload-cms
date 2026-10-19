@@ -64,16 +64,6 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     Then run `pnpm wrangler types`, so `env.SUBMISSIONS` and `env.TURNSTILE_SECRET_KEY` have types.
 
   </Step>
-  <Step title="Export the bindings from the config">
-    A server function reads bindings from the config module. Export the bindings that `payload.config.ts` reads:
-
-    ```ts src/payload.config.ts
-    export const env = await getBindings();
-    ```
-
-    A server function then imports them with `const { env } = await import("@payload-config")`. Under `vite dev`, this reuses the Wrangler platform proxy that the config started.
-
-  </Step>
   <Step title="Create the Payload helpers">
     Skip this step if the site has `src/lib/payload.server.ts` from [Preview drafts and Live Preview](/live-preview).
 
@@ -90,6 +80,7 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     The registry components import `submitForm` from `@/server/forms.functions`. Create that file:
 
     ```ts src/server/forms.functions.ts
+    import { getBindings } from "@adirishi/offload-cloudflare";
     import { submissionInput } from "@adirishi/offload-form-builder";
     import { saveFormSubmission } from "@adirishi/offload-form-builder/server";
     import { hideServerErrors } from "@adirishi/offload-tanstack";
@@ -102,7 +93,7 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
       .middleware([hideServerErrors])
       .validator(submissionInput)
       .handler(async ({ data }) => {
-        const { env } = await import("@payload-config");
+        const env = await getBindings();
         return saveFormSubmission({
           submission: data,
           payload: await getVisitorPayload(),
@@ -112,6 +103,8 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
         });
       });
     ```
+
+    `getBindings()` returns the Worker's bindings and secrets. Under `vite dev`, it reuses the Wrangler platform proxy that `payload.config.ts` started.
 
     Without `isOffered`, every form that a visitor can read takes submissions. [Choose which forms take submissions](#choose-which-forms-take-submissions) adds the rule.
 
@@ -275,7 +268,7 @@ This rule accepts a form when a page that a visitor can read has it in a block:
 
 ```ts src/server/forms.functions.ts
 .handler(async ({ data }) => {
-  const { env } = await import("@payload-config");
+  const env = await getBindings();
   const payload = await getVisitorPayload();
   return saveFormSubmission({
     submission: data,

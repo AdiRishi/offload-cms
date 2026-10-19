@@ -35,6 +35,7 @@ pnpm dlx shadcn@latest add @offload/form-builder-form
 
 ```ts
 // src/server/forms.functions.ts
+import { getBindings } from "@adirishi/offload-cloudflare";
 import { submissionInput } from "@adirishi/offload-form-builder";
 import { saveFormSubmission } from "@adirishi/offload-form-builder/server";
 import { createServerFn } from "@tanstack/react-start";
@@ -43,9 +44,10 @@ import { getRequest } from "@tanstack/react-start/server";
 export const submitForm = createServerFn({ method: "POST" })
   .validator(submissionInput)
   .handler(async ({ data }) => {
-    const [{ getPayload }, { default: config, env }] = await Promise.all([
+    const [{ getPayload }, { default: config }, env] = await Promise.all([
       import("payload"),
       import("@payload-config"),
+      getBindings(),
     ]);
     return saveFormSubmission({
       submission: data,
