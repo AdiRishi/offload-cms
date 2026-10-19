@@ -290,11 +290,13 @@ test("a failed payment's late webhook doesn't make the payment that settled look
   // Then the webhooks arrive: the failure first, late, then the capture.
   const failure = sent(failed.deliveries.find((delivery) => delivery.event === "payment.failed"));
   const capture = sent(paid.deliveries.find((delivery) => delivery.event === "payment.captured"));
+  // The failure is handled before the answer, and must not touch the settled transaction.
   expect((await razorpay.send(anonymous.request, failure.id)).response?.status).toBe(200);
+  expect((await razorpayTransactionOf(api, orderID)).razorpay).toMatchObject({
+    paymentID: paid.payment.id,
+  });
+  // The capture of the payment that settled the transaction needs nothing.
   expect((await razorpay.send(anonymous.request, capture.id)).response?.status).toBe(200);
-  await expect
-    .poll(async () => (await razorpayTransactionOf(api, orderID)).razorpay.lastEventID)
-    .toBe(capture.headers["x-razorpay-event-id"]);
 
   const transaction = await razorpayTransactionOf(api, orderID);
   expect(transaction.status).toBe("succeeded");
