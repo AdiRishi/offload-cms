@@ -225,8 +225,8 @@ const otherPurchase = async (req: PayloadRequest, transaction: Transaction) => {
   return docs[0]?.id;
 };
 
-const secondPayment = (paymentID: string, transaction: Transaction, other: unknown) =>
-  `Payment ${paymentID} is a second payment for cart ${transaction.cart}, which transaction ${String(other)} bought. The customer paid twice. Refund payment ${paymentID} from the gateway's dashboard.`;
+const secondPayment = (paymentID: string, transaction: Transaction, other: string) =>
+  `Payment ${paymentID} is a second payment for cart ${transaction.cart}, which ${other} bought. The customer paid twice. Refund payment ${paymentID} from the gateway's dashboard.`;
 
 /**
  * Throws `PaymentRefused` when another transaction already bought the transaction's cart, so a
@@ -238,7 +238,8 @@ export const assertCartOpen = async (
   paymentID: string,
 ) => {
   const other = await otherPurchase(req, transaction);
-  if (other !== undefined) throw new PaymentRefused(secondPayment(paymentID, transaction, other));
+  if (other !== undefined)
+    throw new PaymentRefused(secondPayment(paymentID, transaction, `transaction ${other}`));
 };
 
 /**
@@ -320,9 +321,9 @@ export const settlePaidTransaction = async ({
     });
   } catch (error) {
     if (!(error instanceof CartAlreadyPurchasedError)) throw error;
-    throw new PaymentRefused(
-      secondPayment(paid.id, transaction, (await otherPurchase(req, transaction)) ?? "another"),
-    );
+    // On Postgres in confirm-order, the failed insert has aborted core's database transaction, so
+    // this can't look up which transaction bought the cart.
+    throw new PaymentRefused(secondPayment(paid.id, transaction, "another transaction"));
   }
 };
 
