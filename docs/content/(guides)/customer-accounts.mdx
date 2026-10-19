@@ -523,6 +523,8 @@ Sign-up answers `check-email` both for a new email and for an email that already
 
 With email verification on, which is the default, nothing that the site shows tells a visitor which emails are registered. To turn verification off, pass `verify: false` to `accountCollection()`. A new account then logs in at once, while an existing email still gets `check-email`, so sign-up shows which emails are new.
 
+Response times can still show which emails are registered. Payload's login hashes the password only for an email that has an account, and answers at once for an unknown email, so a failed login for a registered email takes about 10 ms longer. Sign-up and password reset requests also do different work for the two cases. The login rate limit per IP slows down anyone who probes many emails this way, but hiding the difference needs a change in Payload's login.
+
 ## Sessions last 14 days and slide
 
 A login lasts 14 days. When the session has used half of that, `getAccount()` replaces the cookie with a new 14-day one, so an active customer stays logged in, and a customer who stays away for 14 days logs in again. To change the lifetime, set `auth.tokenExpiration` in seconds on the collection.
