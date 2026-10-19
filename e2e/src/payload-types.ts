@@ -1441,6 +1441,7 @@ export interface Order {
   };
   customer?: (number | null) | Customer;
   customerEmail?: string | null;
+  settlementKey?: string | null;
   transactions?: (number | Transaction)[] | null;
   status?: OrderStatus;
   amount?: number | null;
@@ -1480,6 +1481,7 @@ export interface Transaction {
   };
   mips?: {
     reference?: string | null;
+    decimals?: number | null;
     paymentMethod?: string | null;
     shippingAddress?:
       | {
@@ -2576,6 +2578,7 @@ export interface OrdersSelect<T extends boolean = true> {
       };
   customer?: T;
   customerEmail?: T;
+  settlementKey?: T;
   transactions?: T;
   status?: T;
   amount?: T;
@@ -2610,6 +2613,7 @@ export interface TransactionsSelect<T extends boolean = true> {
     | T
     | {
         reference?: T;
+        decimals?: T;
         paymentMethod?: T;
         shippingAddress?: T;
         lastError?: T;
@@ -2990,7 +2994,13 @@ export interface UploadDropzoneWidget {
  */
 export interface TaskReconcilePayments {
   input?: unknown;
-  output?: unknown;
+  output: {
+    checked: number;
+    settled: number;
+    expired: number;
+    pending: number;
+    failed: number;
+  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

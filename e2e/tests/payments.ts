@@ -3,6 +3,7 @@
 
 import type { APIRequestContext, Page } from "@playwright/test";
 
+import { createHmac } from "node:crypto";
 import { z } from "zod";
 
 import { type Doc, expect, type PayloadApi, unique } from "./fixtures";
@@ -207,7 +208,10 @@ const stubPost = async (request: APIRequestContext, url: string, data: Record<st
 
 /** The Razorpay stub's test-only controls. */
 export const razorpay = {
-  /** Pays a Razorpay order, as a customer in Checkout would. */
+  /**
+   * Pays a Razorpay order, as a customer in Checkout would. `authorized` leaves the payment for the
+   * merchant to capture. The webhooks have answered when it returns, unless `wait` is false.
+   */
   pay: async (
     request: APIRequestContext,
     orderID: string,
@@ -216,10 +220,14 @@ export const razorpay = {
       amount?: number;
       currency?: string;
       deliver?: boolean;
+      wait?: boolean;
     },
   ) =>
     razorpayPaid.parse(
-      await stubPost(request, `${razorpayStub}/__stub/orders/${orderID}/pay`, payment),
+      await stubPost(request, `${razorpayStub}/__stub/orders/${orderID}/pay`, {
+        wait: true,
+        ...payment,
+      }),
     ),
   /** Moves a payment to another status, as a late authorisation or capture does. */
   setStatus: async (
@@ -227,11 +235,18 @@ export const razorpay = {
     paymentID: string,
     change: { status: "authorized" | "captured" | "failed"; deliver?: boolean },
   ) =>
-    razorpayPaid
-      .omit({ checkout: true })
-      .parse(
-        await stubPost(request, `${razorpayStub}/__stub/payments/${paymentID}/status`, change),
-      ),
+    razorpayPaid.omit({ checkout: true }).parse(
+      await stubPost(request, `${razorpayStub}/__stub/payments/${paymentID}/status`, {
+        wait: true,
+        ...change,
+      }),
+    ),
+  /** Redelivers a webhook with the same bytes and event ID, as Razorpay's retries do. */
+  send: async (request: APIRequestContext, deliveryID: string) =>
+    z
+      .object({ delivery })
+      .parse(await stubPost(request, `${razorpayStub}/__stub/deliveries/${deliveryID}/send`, {}))
+      .delivery,
   /** A Razorpay order's payments and webhook deliveries, oldest first. */
   order: async (request: APIRequestContext, orderID: string) => {
     const response = await request.get(`${razorpayStub}/__stub/orders/${orderID}`);
@@ -246,7 +261,10 @@ const mipsPaid = z.object({ delivery: delivery.nullable() });
 
 /** The mIPS stub's test-only controls. */
 export const mips = {
-  /** Pays an mIPS order, as a customer in the payment zone would. */
+  /**
+   * Pays an mIPS order, as a customer in the payment zone would. The IMN has answered when it
+   * returns, unless `wait` is false. `amountUnits` is how mIPS reports the order's amount.
+   */
   pay: async (
     request: APIRequestContext,
     reference: string,
@@ -255,15 +273,91 @@ export const mips = {
       amount?: number;
       currency?: string;
       deliver?: boolean;
+      wait?: boolean;
+      amountUnits?: "major" | "cents";
     },
   ) =>
-    mipsPaid.parse(await stubPost(request, `${mipsStub}/__stub/orders/${reference}/pay`, payment)),
+    mipsPaid.parse(
+      await stubPost(request, `${mipsStub}/__stub/orders/${reference}/pay`, {
+        wait: true,
+        ...payment,
+      }),
+    ),
+  /** Sets the status mIPS reports for an order, without a payment. */
+  setStatus: async (
+    request: APIRequestContext,
+    reference: string,
+    status: "waiting" | "expired" | "fail" | "success",
+  ) => stubPost(request, `${mipsStub}/__stub/orders/${reference}/status`, { order_status: status }),
+  /** Cancels an order through mIPS's API, as the merchant can. */
+  cancel: async (request: APIRequestContext, reference: string) => {
+    const response = await request.post(`${mipsStub}/api/orders_management`, {
+      data: {
+        authentify: {
+          id_entity: process.env.MIPS_ENTITY_ID,
+          id_merchant: process.env.MIPS_MERCHANT_ID,
+          id_operator: process.env.MIPS_OPERATOR_ID,
+          operator_password: process.env.MIPS_OPERATOR_PASSWORD,
+        },
+        instruction: "cancel_order",
+        order: { id_order: reference },
+      },
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${process.env.MIPS_USERNAME}:${process.env.MIPS_PASSWORD}`).toString("base64")}`,
+      },
+    });
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toMatchObject({ operation_status: "success" });
+  },
   /** An mIPS order's IMN deliveries, oldest first. */
   deliveries: async (request: APIRequestContext, reference: string) => {
     const response = await request.get(`${mipsStub}/__stub/orders/${reference}`);
     expect(response.status()).toBe(200);
     return z.object({ deliveries: z.array(delivery) }).parse(await response.json()).deliveries;
   },
+};
+
+/** A webhook body signed with the site's webhook secret, as Razorpay signs one. */
+export const signedWebhook = (body: string) => ({
+  "content-type": "application/json",
+  "x-razorpay-event-id": unique("evt").replaceAll("-", ""),
+  "x-razorpay-signature": createHmac("sha256", process.env.RAZORPAY_WEBHOOK_SECRET ?? "")
+    .update(body)
+    .digest("hex"),
+});
+
+const group = z.object({ lastError: z.string().nullish(), lastEventID: z.string().nullish() });
+
+const razorpayTransaction = z.object({
+  id: z.union([z.number(), z.string()]),
+  status: z.string(),
+  razorpay: group.extend({ orderID: z.string(), paymentID: z.string().nullish() }),
+});
+
+/** The transaction that holds a Razorpay order. */
+export const razorpayTransactionOf = async (api: PayloadApi, orderID: string) => {
+  const { docs } = await api.find(
+    "transactions",
+    `?where[razorpay.orderID][equals]=${orderID}&depth=0`,
+  );
+  expect(docs).toHaveLength(1);
+  return razorpayTransaction.parse(docs[0]);
+};
+
+const mipsTransaction = z.object({
+  id: z.union([z.number(), z.string()]),
+  status: z.string(),
+  mips: group.extend({ reference: z.string() }),
+});
+
+/** The transaction that holds an mIPS order. */
+export const mipsTransactionOf = async (api: PayloadApi, reference: string) => {
+  const { docs } = await api.find(
+    "transactions",
+    `?where[mips.reference][equals]=${reference}&depth=0`,
+  );
+  expect(docs).toHaveLength(1);
+  return mipsTransaction.parse(docs[0]);
 };
 
 /** The site loads Razorpay's Checkout script. The browser gets the stub's instead. */

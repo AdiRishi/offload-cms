@@ -33,7 +33,7 @@ import { Posts } from "./collections/Posts";
 import { Tags } from "./collections/Tags";
 import { Users } from "./collections/Users";
 import { Header, SiteSettings } from "./globals";
-import { createJobs, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
+import { createJobs, listJobsEndpoint, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const env = await getBindings();
@@ -75,6 +75,7 @@ const paymentMethods = [
       salt: env.MIPS_SALT,
       username: env.MIPS_USERNAME,
     },
+    rateLimit: () => env.PAYMENTS,
     returnURL: "/checkout/mips-return",
   }),
 ];
@@ -105,7 +106,7 @@ export default buildConfig({
     defaultFromAddress: "noreply@example.com",
     defaultFromName: "Offload e2e",
   }),
-  endpoints: [queueJobEndpoint, schedulePublishEndpoint],
+  endpoints: [listJobsEndpoint, queueJobEndpoint, schedulePublishEndpoint],
   globals: [SiteSettings, Header],
   jobs: createJobs({ paymentMethods }),
   localization: {

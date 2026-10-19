@@ -2492,6 +2492,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`shipping_address_phone\` text,
   	\`customer_id\` integer,
   	\`customer_email\` text,
+  	\`settlement_key\` text,
   	\`status\` text DEFAULT 'processing',
   	\`amount\` numeric,
   	\`currency\` text DEFAULT 'MUR',
@@ -2501,6 +2502,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   );
   `)
   await db.run(sql`CREATE INDEX \`orders_customer_idx\` ON \`orders\` (\`customer_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`orders_settlement_key_idx\` ON \`orders\` (\`settlement_key\`);`)
   await db.run(sql`CREATE INDEX \`orders_updated_at_idx\` ON \`orders\` (\`updated_at\`);`)
   await db.run(sql`CREATE INDEX \`orders_created_at_idx\` ON \`orders\` (\`created_at\`);`)
   await db.run(sql`CREATE TABLE \`orders_rels\` (
@@ -2550,6 +2552,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`version_shipping_address_phone\` text,
   	\`version_customer_id\` integer,
   	\`version_customer_email\` text,
+  	\`version_settlement_key\` text,
   	\`version_status\` text DEFAULT 'processing',
   	\`version_amount\` numeric,
   	\`version_currency\` text DEFAULT 'MUR',
@@ -2563,6 +2566,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`_orders_v_parent_idx\` ON \`_orders_v\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_customer_idx\` ON \`_orders_v\` (\`version_customer_id\`);`)
+  await db.run(sql`CREATE INDEX \`_orders_v_version_version_settlement_key_idx\` ON \`_orders_v\` (\`version_settlement_key\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_updated_at_idx\` ON \`_orders_v\` (\`version_updated_at\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_created_at_idx\` ON \`_orders_v\` (\`version_created_at\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_created_at_idx\` ON \`_orders_v\` (\`created_at\`);`)
@@ -2606,6 +2610,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`razorpay_shipping_address\` text,
   	\`razorpay_last_error\` text,
   	\`mips_reference\` text,
+  	\`mips_decimals\` numeric,
   	\`mips_payment_method\` text,
   	\`mips_shipping_address\` text,
   	\`mips_last_error\` text,
@@ -2668,6 +2673,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`version_razorpay_shipping_address\` text,
   	\`version_razorpay_last_error\` text,
   	\`version_mips_reference\` text,
+  	\`version_mips_decimals\` numeric,
   	\`version_mips_payment_method\` text,
   	\`version_mips_shipping_address\` text,
   	\`version_mips_last_error\` text,

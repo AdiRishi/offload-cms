@@ -7,6 +7,8 @@ import { type ConfirmedOrder, RazorpayCheckout } from "@/components/payments/raz
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const mipsOrigins: string[] = [import.meta.env.VITE_MIPS_ORIGIN];
+
 export const Route = createFileRoute("/_frontend/_shop/checkout/")({
   component: CheckoutPage,
 });
@@ -69,7 +71,7 @@ function CheckoutPage() {
         name="Offload e2e"
         onConfirmed={setOrder}
       />
-      <MipsPaymentZone customerEmail={customerEmail} disabled={!ready} />
+      <MipsPaymentZone customerEmail={customerEmail} disabled={!ready} origins={mipsOrigins} />
     </main>
   );
 }

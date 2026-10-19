@@ -18,9 +18,13 @@ export const createJobs = ({
   paymentMethods: OffloadPaymentAdapter[];
 }): NonNullable<Config["jobs"]> => ({
   tasks: [
-    // The suite queues reconciliation itself. A scheduled run could settle a payment that a
-    // test running in parallel expects to stay pending.
-    reconcilePaymentsTask({ adapters: paymentMethods, schedule: [] }),
+    // The schedule queues a run that never comes due during the suite, which queues
+    // reconciliation itself. A scheduled run could settle a payment that a test running in
+    // parallel expects to stay pending.
+    reconcilePaymentsTask({
+      adapters: paymentMethods,
+      schedule: [{ cron: "0 0 0 1 1 *", queue: "default" }],
+    }),
     {
       slug: "recordHeartbeat",
       inputSchema: [{ name: "message", type: "text", required: true }],
@@ -131,5 +135,27 @@ export const schedulePublishEndpoint: Endpoint = {
       waitUntil: new Date(),
     });
     return Response.json({ id: job.id });
+  },
+};
+
+/** Lists the jobs of one task, so the suite can see what the Cron Trigger queued. */
+export const listJobsEndpoint: Endpoint = {
+  path: "/e2e/jobs",
+  method: "get",
+  handler: async (req) => {
+    if (!isStaff({ req })) return Response.json({ error: "Forbidden" }, { status: 403 });
+    const task = req.searchParams.get("task");
+    if (!task) return Response.json({ error: "Send ?task=<slug>" }, { status: 400 });
+    const { docs } = await req.payload.find({
+      collection: "payload-jobs",
+      depth: 0,
+      overrideAccess: true,
+      pagination: false,
+      req,
+      where: { taskSlug: { equals: task } },
+    });
+    return Response.json({
+      jobs: docs.map(({ completedAt, meta, waitUntil }) => ({ completedAt, meta, waitUntil })),
+    });
   },
 };

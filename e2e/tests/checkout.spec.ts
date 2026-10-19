@@ -122,12 +122,19 @@ test.describe("a guest", () => {
     expect(await inventoryOf(api, variants.Large)).toBe(stock - 1);
     const [transaction] = await transactionsOf(api, email);
     const { orderID } = razorpayGroup.parse(transaction).razorpay;
-    const { deliveries } = await razorpay.order(api.request, orderID);
-    expect(deliveries.map((sent) => [sent.event, sent.response?.status])).toEqual([
-      ["payment.authorized", 200],
-      ["payment.captured", 200],
-      ["order.paid", 200],
-    ]);
+    // Razorpay sends the webhooks while Checkout reports the payment, and each in turn.
+    await expect
+      .poll(async () =>
+        (await razorpay.order(api.request, orderID)).deliveries.map((sent) => [
+          sent.event,
+          sent.response?.status,
+        ]),
+      )
+      .toEqual([
+        ["payment.authorized", 200],
+        ["payment.captured", 200],
+        ["order.paid", 200],
+      ]);
   });
 
   test("who closes the tab after paying with mIPS gets the order from the IMN", async ({
@@ -151,8 +158,11 @@ test.describe("a guest", () => {
     expect(await inventoryOf(api, variants.Large)).toBe(stock - 1);
     const [transaction] = await transactionsOf(api, email);
     const { reference } = mipsGroup.parse(transaction).mips;
-    const deliveries = await mips.deliveries(api.request, reference);
-    expect(deliveries.map((sent) => sent.response)).toEqual([{ status: 200, body: "success" }]);
+    await expect
+      .poll(async () =>
+        (await mips.deliveries(api.request, reference)).map((sent) => sent.response),
+      )
+      .toEqual([{ status: 200, body: "success" }]);
   });
 
   test("can't pay for a product at the price of another product's variant", async ({
@@ -171,6 +181,48 @@ test.describe("a guest", () => {
     ]);
     expect(responses.map((response) => response.status())).toEqual([400, 400]);
     expect(await transactionsOf(api, cart.customerEmail)).toEqual([]);
+  });
+
+  test("can't start paying for a cart that was bought", async ({ anonymous, api }) => {
+    const { product, variants } = await seedProduct(api);
+    const cart = await guestCart(anonymous.request, [
+      { product: product.id, variant: variants.Large.id, quantity: 1 },
+    ]);
+    const { orderID } = await initiateRazorpay(anonymous.request, cart);
+    await razorpay.pay(anonymous.request, orderID, { outcome: "captured" });
+    await expect.poll(async () => (await ordersOf(api, cart.customerEmail)).length).toBe(1);
+
+    expect((await initiate(anonymous.request, "razorpay", cart)).status()).toBe(400);
+    expect(await transactionsOf(api, cart.customerEmail)).toHaveLength(1);
+  });
+
+  test("can't buy part of an item", async ({ anonymous, api }) => {
+    const { product, variants } = await seedProduct(api);
+    const cart = await guestCart(anonymous.request, [
+      { product: product.id, variant: variants.Small.id, quantity: 1.5 },
+    ]);
+
+    expect((await initiate(anonymous.request, "mips", cart)).status()).toBe(400);
+    expect(await transactionsOf(api, cart.customerEmail)).toEqual([]);
+  });
+
+  test("is told to review the cart when a price changed after it was saved", async ({
+    anonymous,
+    api,
+  }) => {
+    const { product, variants } = await seedProduct(api);
+    const cart = await guestCart(anonymous.request, [
+      { product: product.id, variant: variants.Large.id, quantity: 1 },
+    ]);
+    const newPrice = prices.Large + 10000;
+    await api.update("variants", variants.Large.id, { _status: "published", priceInMUR: newPrice });
+
+    const refused = await initiate(anonymous.request, "razorpay", cart);
+    expect(refused.status(), await refused.text()).toBe(409);
+    expect(await transactionsOf(api, cart.customerEmail)).toEqual([]);
+    const saved = await anonymous.request.get(`/api/carts/${cart.id}?secret=${cart.secret}`);
+    expect(await saved.json()).toMatchObject({ subtotal: newPrice });
+    expect((await initiateRazorpay(anonymous.request, cart)).amount).toBe(newPrice);
   });
 
   test("can't buy a product with variants without choosing one", async ({ anonymous, api }) => {
@@ -241,6 +293,18 @@ const payWithRazorpay = async (api: PayloadApi, request: APIRequestContext, cart
   const { order } = settled.parse(transaction);
   return { order: await api.findByID("orders", order, "?depth=0"), transaction };
 };
+
+test("a product that was never published can't be bought", async ({ api }) => {
+  const draft = await api.create("products", {
+    _status: "draft",
+    priceInMUR: 125050,
+    priceInMUREnabled: true,
+    title: unique("Draft"),
+  });
+  const cart = await userCart(api.request, api.token, [{ product: draft.id, quantity: 1 }]);
+
+  expect((await initiate(api.request, "razorpay", cart)).status()).toBe(404);
+});
 
 test("a logged-in customer owns the transaction and the order of their checkout", async ({
   api,

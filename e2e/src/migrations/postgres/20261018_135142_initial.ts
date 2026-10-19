@@ -1738,6 +1738,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"shipping_address_phone" varchar,
   	"customer_id" integer,
   	"customer_email" varchar,
+  	"settlement_key" varchar,
   	"status" "enum_orders_status" DEFAULT 'processing',
   	"amount" numeric,
   	"currency" "enum_orders_currency" DEFAULT 'MUR',
@@ -1779,6 +1780,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"version_shipping_address_phone" varchar,
   	"version_customer_id" integer,
   	"version_customer_email" varchar,
+  	"version_settlement_key" varchar,
   	"version_status" "enum__orders_v_version_status" DEFAULT 'processing',
   	"version_amount" numeric,
   	"version_currency" "enum__orders_v_version_currency" DEFAULT 'MUR',
@@ -1814,6 +1816,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"razorpay_shipping_address" jsonb,
   	"razorpay_last_error" varchar,
   	"mips_reference" varchar,
+  	"mips_decimals" numeric,
   	"mips_payment_method" varchar,
   	"mips_shipping_address" jsonb,
   	"mips_last_error" varchar,
@@ -1859,6 +1862,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"version_razorpay_shipping_address" jsonb,
   	"version_razorpay_last_error" varchar,
   	"version_mips_reference" varchar,
+  	"version_mips_decimals" numeric,
   	"version_mips_payment_method" varchar,
   	"version_mips_shipping_address" jsonb,
   	"version_mips_last_error" varchar,
@@ -3006,6 +3010,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "orders_items_product_idx" ON "orders_items" USING btree ("product_id");
   CREATE INDEX "orders_items_variant_idx" ON "orders_items" USING btree ("variant_id");
   CREATE INDEX "orders_customer_idx" ON "orders" USING btree ("customer_id");
+  CREATE UNIQUE INDEX "orders_settlement_key_idx" ON "orders" USING btree ("settlement_key");
   CREATE INDEX "orders_updated_at_idx" ON "orders" USING btree ("updated_at");
   CREATE INDEX "orders_created_at_idx" ON "orders" USING btree ("created_at");
   CREATE INDEX "orders_rels_order_idx" ON "orders_rels" USING btree ("order");
@@ -3018,6 +3023,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_orders_v_version_items_variant_idx" ON "_orders_v_version_items" USING btree ("variant_id");
   CREATE INDEX "_orders_v_parent_idx" ON "_orders_v" USING btree ("parent_id");
   CREATE INDEX "_orders_v_version_version_customer_idx" ON "_orders_v" USING btree ("version_customer_id");
+  CREATE INDEX "_orders_v_version_version_settlement_key_idx" ON "_orders_v" USING btree ("version_settlement_key");
   CREATE INDEX "_orders_v_version_version_updated_at_idx" ON "_orders_v" USING btree ("version_updated_at");
   CREATE INDEX "_orders_v_version_version_created_at_idx" ON "_orders_v" USING btree ("version_created_at");
   CREATE INDEX "_orders_v_created_at_idx" ON "_orders_v" USING btree ("created_at");
