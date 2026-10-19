@@ -6,10 +6,6 @@ import { renderServerComponent } from "@tanstack/react-start/rsc";
 import { FormBuilderForm } from "@/components/form-builder/form";
 import { NewsletterSignup } from "@/components/form-builder/newsletter-signup";
 import { getPayloadForRequest, redirectOrNotFound } from "@/lib/payload.server";
-// The form components render only inside server components, so the build doesn't see their
-// server function. Importing its module here lets TanStack Start register it.
-// oxlint-disable-next-line import/no-unassigned-import
-import "@/server/forms.functions";
 
 type PageInput = { locale?: string; slug: string };
 

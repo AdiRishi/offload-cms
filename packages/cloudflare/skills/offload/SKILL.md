@@ -108,7 +108,7 @@ Third-party plugins that list `payload` as a peer dependency install normally. C
 - Install the components with `pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup`. `components.json` needs `"rsc": true` and the `@offload` registry.
 - Write `submitForm` in `src/server/forms.functions.ts`. It wraps `saveFormSubmission()` from `@adirishi/offload-form-builder/server`, with `.validator(submissionInput)`, a required `isOffered` rule that receives the stored form (every form is publicly readable, so the rule keeps drafts and retired forms closed), and a `ratelimits` binding and `TURNSTILE_SECRET_KEY` from `getBindings()`.
 - Render `FormBuilderForm` with `renderServerComponent()` in the page's server function.
-- Add `import "@/server/forms.functions";` to every route that renders a form. TanStack Start's build registers a server function only when a route imports its module. Without the import, each submission fails on a production build with "Server function info not found", while `vite dev` works. Check forms with `vite build && vite preview`.
+- Add `import "@/server/forms.functions";` once, to the `_frontend` layout route. TanStack Start's build registers a server function only when a route reaches its module, and the form components render only inside server components. An import in a server component doesn't register it. Without the layout import, each submission fails on a production build with "Server function info not found", while `vite dev` works. Check forms with `vite build && vite preview`.
 
 The [forms guide](https://adirishi.github.io/offload-cms/forms) and the [Live Preview guide](https://adirishi.github.io/offload-cms/live-preview) have the full setup.
 

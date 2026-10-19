@@ -203,8 +203,6 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
 
     import { FormBuilderForm } from "@/components/form-builder/form";
     import { getPayloadForRequest } from "@/lib/payload.server";
-    // The form renders only inside server components. This import lets the build register submitForm.
-    import "@/server/forms.functions";
 
     const getPage = createServerFn({ method: "GET" })
       .middleware([hideServerErrors])
@@ -252,11 +250,17 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     }
     ```
 
-    :::warning
-    Import `@/server/forms.functions` in every route that renders a form. TanStack Start's build registers a server function only when its module is reachable from the route graph, and the form components render only inside server components. Without the import, each submission on a production build fails with "Server function info not found". `vite dev` doesn't show the problem.
-    :::
-
     Render `NewsletterSignup` the same way, from a block whose relationship picks a form with an `email` field. `depth: 1` populates the form, which both components need.
+
+  </Step>
+  <Step title="Register the submission server function">
+    Import `@/server/forms.functions` once, in the `_frontend` layout route:
+
+    ```tsx src/app/_frontend.tsx
+    import "@/server/forms.functions";
+    ```
+
+    TanStack Start's production build registers a server function only when a route reaches its module. The form components call `submitForm`, but only server components render them, and the build doesn't register a server function that it reaches only through server components, even from an import in `form.tsx`. Without the layout import, each submission on a production build fails with "Server function info not found". `vite dev` doesn't show the problem. The layout import covers every page under `_frontend`.
 
   </Step>
 </Steps>
@@ -268,7 +272,7 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
 3. Send the form. It shows the form's confirmation message.
 4. In the admin, open **Form Submissions**. The submission is there.
 
-The production build in the second step is what catches a missing route import.
+The production build in the second step is what catches a missing layout import.
 
 ## Choose which forms take submissions
 

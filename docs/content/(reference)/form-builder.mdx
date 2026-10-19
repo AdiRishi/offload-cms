@@ -163,7 +163,7 @@ Each item targets one release of `@adirishi/offload-form-builder`, and its `meta
 
 `turnstile` also adds `VITE_TURNSTILE_SITE_KEY` with Cloudflare's testing site key to `.env.local`. The registry doesn't list `@adirishi/offload-form-builder`, so the shadcn CLI never changes its version.
 
-The components import `submitForm` from `@/server/forms.functions`, which the site writes. They use only the shadcn components whose props Radix and Base UI share, so they install into a project on either library. Select and country fields use `native-select`.
+The components import `submitForm` from `@/server/forms.functions`, which the site writes and imports once in its `_frontend` layout route, so that the production build registers it. They use only the shadcn components whose props Radix and Base UI share, so they install into a project on either library. Select and country fields use `native-select`.
 
 ### FormBuilderForm
 

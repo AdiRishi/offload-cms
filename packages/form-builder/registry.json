@@ -35,7 +35,7 @@
         "textarea",
         "@offload/turnstile"
       ],
-      "docs": "The form imports @adirishi/offload-form-builder, which installs at your Offload version, and submitForm from @/server/forms.functions, which you write. See https://adirishi.github.io/offload-cms/forms",
+      "docs": "Install @adirishi/offload-form-builder at the version in this item's meta. The form calls submitForm from @/server/forms.functions, which you write and import once in the _frontend layout route. See https://adirishi.github.io/offload-cms/forms",
       "files": [
         {
           "path": "registry/form-builder/fields.tsx",
@@ -61,7 +61,7 @@
       "description": "A one-line email sign-up that submits a form-builder form with a Turnstile token.",
       "dependencies": ["@tanstack/react-form"],
       "registryDependencies": ["button", "field", "input-group", "spinner", "@offload/turnstile"],
-      "docs": "The sign-up imports @adirishi/offload-form-builder, which installs at your Offload version, and submitForm from @/server/forms.functions, which you write. See https://adirishi.github.io/offload-cms/forms",
+      "docs": "Install @adirishi/offload-form-builder at the version in this item's meta. The sign-up calls submitForm from @/server/forms.functions, which you write and import once in the _frontend layout route. See https://adirishi.github.io/offload-cms/forms",
       "files": [
         {
           "path": "registry/form-builder/newsletter-signup.tsx",
