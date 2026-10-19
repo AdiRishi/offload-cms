@@ -43,11 +43,12 @@ before(async () => {
 });
 after(() => server.close());
 
-test("sends amounts in decimal major units", () => {
-  assert.equal(JSON.stringify(toMajorUnits(1999)), "19.99");
-  assert.equal(JSON.stringify(toMajorUnits(100)), "1");
-  assert.equal(JSON.stringify(toMajorUnits(1)), "0.01");
-  assert.equal(JSON.stringify(toMajorUnits(123456789)), "1234567.89");
+test("sends amounts in decimal major units of the currency's configured decimals", () => {
+  assert.equal(JSON.stringify(toMajorUnits(1999, 2)), "19.99");
+  assert.equal(JSON.stringify(toMajorUnits(100, 2)), "1");
+  assert.equal(JSON.stringify(toMajorUnits(1, 2)), "0.01");
+  assert.equal(JSON.stringify(toMajorUnits(123456789, 2)), "1234567.89");
+  assert.equal(JSON.stringify(toMajorUnits(1999, 0)), "1999");
 });
 
 test("loads a payment zone with the documented request and returns its HTML", async () => {
@@ -55,6 +56,7 @@ test("loads a payment zone with the documented request and returns its HTML", as
   const html = await api.loadPaymentZone({
     amount: 1999,
     currency: "MUR",
+    decimals: 2,
     redirectURL: `https://shop.example/checkout/confirm?reference=${reference}`,
     reference,
   });
@@ -74,12 +76,28 @@ test("loads a payment zone with the documented request and returns its HTML", as
   });
 });
 
+test("sends a whole amount for a currency configured without decimals", async () => {
+  respond({ answer: { operation_status: "success", payment_zone_data: "<iframe></iframe>" } });
+  await api.loadPaymentZone({
+    amount: 1999,
+    currency: "MUR",
+    decimals: 0,
+    redirectURL: "https://shop.example/checkout/confirm",
+    reference,
+  });
+  assert.match(
+    received.body,
+    /"order":\{"id_order":"Ab3dE5gH7jK9mN1pQ3sT","currency":"MUR","amount":1999\}/,
+  );
+});
+
 test("fails when mIPS refuses to load a payment zone", async () => {
   respond({ answer: { operation_status: "fail" } });
   await assert.rejects(
     api.loadPaymentZone({
       amount: 1999,
       currency: "MUR",
+      decimals: 2,
       redirectURL: "https://x.example",
       reference,
     }),
@@ -90,7 +108,7 @@ test("asks for an order with get_order_all_data", async () => {
   const order = { id_order: reference, amount: 19.99, currency: "MUR", order_status: "success" };
   respond({ operation_status: "success", orders: [order] });
 
-  const result = await api.getOrder({ amount: 1999, currency: "MUR", reference });
+  const result = await api.getOrder({ amount: 1999, currency: "MUR", decimals: 2, reference });
 
   assert.deepEqual(result, { operation_status: "success", orders: [order] });
   assert.equal(received.path, "/api/orders_management");
@@ -101,19 +119,45 @@ test("asks for an order with get_order_all_data", async () => {
   });
 });
 
-test("returns the notification mIPS decrypted", async () => {
-  respond({
-    amount: "1999",
-    currency: "MUR",
-    status: "success",
-    id_order: reference,
-    transaction_id: "8812",
-    payment_method: "card",
+test("reads an answer whose lookup failed, without the order", async () => {
+  respond({ operation_status: "fail", operation_details: "Order not found" });
+  const result = await api.getOrder({ amount: 1999, currency: "MUR", decimals: 2, reference });
+  assert.deepEqual(result, { operation_status: "fail", operation_details: "Order not found" });
+});
+
+test("cancels an order with cancel_order", async () => {
+  respond({ operation_status: "success" });
+
+  const result = await api.cancelOrder({ amount: 1999, currency: "MUR", decimals: 2, reference });
+
+  assert.deepEqual(result, { operation_status: "success" });
+  assert.equal(received.path, "/api/orders_management");
+  assert.deepEqual(JSON.parse(received.body), {
+    authentify,
+    instruction: "cancel_order",
+    order: { id_order: reference, currency: "MUR", amount: 19.99 },
   });
+});
 
-  const notification = await api.decryptNotification("crypted+/data==");
+const decrypted = {
+  amount: "1999",
+  currency: "MUR",
+  status: "success",
+  id_order: reference,
+  transaction_id: "8812",
+  payment_method: "card",
+  card_details: { masked_card_number: "512345xxxxxx0008", expiry_date: "06/30" },
+};
 
-  assert.deepEqual(notification, { id_order: reference, payment_method: "card" });
+test("returns the notification mIPS decrypted, without its card details", async () => {
+  respond(decrypted);
+
+  const result = await api.decryptNotification("crypted+/data==");
+
+  assert.deepEqual(result, {
+    result: "decrypted",
+    notification: { id_order: reference, payment_method: "card" },
+  });
   assert.equal(received.path, "/api/decrypt_imn_data");
   assert.deepEqual(JSON.parse(received.body), {
     authentify,
@@ -123,14 +167,30 @@ test("returns the notification mIPS decrypted", async () => {
   });
 });
 
-test("treats a notification mIPS won't decrypt as refused", async () => {
-  respond({ operation_status: "fail", operation_details: "Decryption failed" });
-  assert.equal(await api.decryptNotification("forged"), undefined);
-  respond({ error: "bad request" }, 400);
-  assert.equal(await api.decryptNotification("forged"), undefined);
+test("reads a decrypted notification wrapped in data", async () => {
+  respond({ status: "success", data: decrypted });
+  assert.deepEqual(await api.decryptNotification("crypted"), {
+    result: "decrypted",
+    notification: { id_order: reference, payment_method: "card" },
+  });
 });
 
-test("fails, rather than refusing the notification, when mIPS is down", async () => {
-  respond({}, 502);
-  await assert.rejects(api.decryptNotification("crypted"));
+test("treats a notification mIPS says it can't decrypt as refused", async () => {
+  respond({ operation_status: "fail", operation_details: "Decryption failed" });
+  assert.deepEqual(await api.decryptNotification("forged"), { result: "refused" });
+  respond({ status: "fail", message: "Invalid data" });
+  assert.deepEqual(await api.decryptNotification("forged"), { result: "refused" });
+});
+
+const failsAfter = async (body: object, status: number) => {
+  respond(body, status);
+  await assert.rejects(api.decryptNotification("crypted"), Error, String(status));
+};
+
+test("fails, so that mIPS retries, when decryption errs without refusing", async () => {
+  await failsAfter({ status: "fail" }, 400);
+  await failsAfter({ status: "fail" }, 401);
+  await failsAfter({ status: "fail" }, 429);
+  await failsAfter({}, 502);
+  await failsAfter({ result: "ok" }, 200);
 });

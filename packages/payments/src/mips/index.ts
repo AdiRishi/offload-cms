@@ -1,6 +1,7 @@
 import type { PaymentAdapterArgs } from "@payloadcms/plugin-ecommerce/types";
 import type { DefaultDocumentIDType, Endpoint, PayloadRequest } from "payload";
 
+import { waitUntil } from "@adirishi/offload-cloudflare";
 import { z } from "zod";
 
 import type { OffloadPaymentAdapter } from "../reconcile.ts";
@@ -8,23 +9,36 @@ import type { OrderCheck } from "./order.ts";
 
 import {
   createPendingTransaction,
+  currencyDecimals,
   expireTransaction,
   type Finalize,
   findTransaction,
   gatewayFields,
   gatewayGroup,
-  PaymentMismatch,
+  PaymentRefused,
+  reopenForLatePayment,
   settleOnServer,
   settlePaidTransaction,
   transactionSchema,
   updateGatewayGroup,
 } from "../transactions.ts";
-import { type MipsAPI, type MipsCredentials, mipsAPI, mipsCurrency } from "./api.ts";
+import {
+  type MipsAPI,
+  type MipsCredentials,
+  type MipsNotification,
+  mipsAPI,
+  mipsCurrency,
+} from "./api.ts";
 import { readCryptedCallback } from "./notification.ts";
-import { checkOrder } from "./order.ts";
+import { checkOrder, expiryStep } from "./order.ts";
 import { createReference, referenceSchema } from "./reference.ts";
 
 export type { MipsCredentials } from "./api.ts";
+
+/** A Workers Rate Limiting binding, or anything else with its `limit` method. */
+export type MipsRateLimiter = {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+};
 
 export type MipsAdapterOptions = {
   credentials: MipsCredentials;
@@ -34,6 +48,11 @@ export type MipsAdapterOptions = {
    * `confirmOrder("mips", { additionalData: { reference } })`.
    */
   returnURL: string;
+  /**
+   * Returns the rate limiter for payment notifications, which the adapter keys by the sender's
+   * `cf-connecting-ip`. It is a getter because a Worker reads its bindings inside a request.
+   */
+  rateLimit: () => MipsRateLimiter | Promise<MipsRateLimiter>;
   /** The mIPS API. Defaults to `https://api.mips.mu/api`. */
   apiURL?: string;
   label?: string;
@@ -42,18 +61,20 @@ export type MipsAdapterOptions = {
 
 const name = "mips";
 
-/** How long reconciliation waits for a payment on an order that mIPS doesn't report as paid. */
-const unpaidLifetimeMs = 24 * 60 * 60 * 1000;
+const maxNotificationBytes = 16 * 1024;
 
 const documentID = z.union([z.number(), z.string()]);
 
-const mipsTransaction = transactionSchema.extend({
-  mips: z.looseObject({
-    reference: z.string(),
-    paymentMethod: z.string().nullish(),
-    ...gatewayFields,
-  }),
+const mipsGroup = z.looseObject({
+  reference: z.string(),
+  decimals: z.number().int(),
+  paymentMethod: z.string().nullish(),
+  ...gatewayFields,
 });
+
+type MipsGroup = z.infer<typeof mipsGroup>;
+
+const mipsTransaction = transactionSchema.extend({ mips: mipsGroup });
 
 type MipsTransaction = z.infer<typeof mipsTransaction>;
 
@@ -61,57 +82,148 @@ const confirmData = z.object({ cartID: documentID, reference: referenceSchema })
 
 const createdOrder = z.object({ id: documentID });
 
-type Settlement =
-  | Exclude<OrderCheck, { result: "paid" }>
-  | { result: "settled"; orderID: DefaultDocumentIDType };
+/** The result of acting on mIPS's record of an order. */
+type Outcome =
+  | { result: "settled"; orderID: DefaultDocumentIDType }
+  | { result: "refused"; reason: string }
+  | Extract<OrderCheck, { result: "unpaid" | "unanswered" }>;
 
-/** Asks mIPS about the transaction's order and settles the transaction if mIPS holds the payment. */
-const settle = async (
-  api: MipsAPI,
-  transaction: MipsTransaction,
-  finalize: Finalize,
-): Promise<Settlement> => {
-  const expected = {
-    amount: transaction.amount,
-    currency: transaction.currency,
-    reference: transaction.mips.reference,
-  };
-  const check = checkOrder(await api.getOrder(expected), expected);
-  if (check.result !== "paid") return check;
-  try {
-    const order = await settlePaidTransaction({
-      finalize,
-      paid: check.paid,
-      shippingAddress: transaction.mips.shippingAddress,
-      transaction,
-    });
-    return { result: "settled", orderID: createdOrder.parse(order).id };
-  } catch (error) {
-    if (error instanceof PaymentMismatch) return { result: "mismatch", reason: error.message };
-    throw error;
-  }
-};
+const orderOf = (transaction: MipsTransaction) => ({
+  amount: transaction.amount,
+  currency: transaction.currency,
+  decimals: transaction.mips.decimals,
+  reference: transaction.mips.reference,
+});
 
 const findByReference = (req: PayloadRequest, reference: string) =>
   findTransaction(req, { "mips.reference": { equals: reference } }, mipsTransaction);
 
+/** Logs `message` and writes it to the transaction's `lastError`. */
+const record = async (
+  req: PayloadRequest,
+  transaction: MipsTransaction,
+  group: MipsGroup,
+  message: string,
+  level: "warn" | "error",
+) => {
+  req.payload.logger[level](message);
+  await updateGatewayGroup(req, transaction, name, { ...group, lastError: message });
+};
+
+/** Asks mIPS about the transaction's order and checks the answer against the transaction. */
+const lookUp = async (api: MipsAPI, req: PayloadRequest, transaction: MipsTransaction) => {
+  const order = orderOf(transaction);
+  const check = checkOrder(await api.getOrder(order), order);
+  if (check.result === "paid") {
+    req.payload.logger.warn(
+      `mIPS wrote the amount of order ${order.reference} in ${check.unit === "decimal" ? "decimal major units" : "minor units"}.`,
+    );
+  }
+  return check;
+};
+
+/**
+ * Settles the transaction when `check` reports a matching payment. A payment that can't settle,
+ * because it contradicts the transaction or arrived for a transaction that can't take it any more,
+ * goes to `lastError` and the error log. `group` is the group as last written.
+ */
+const resolve = async (
+  req: PayloadRequest,
+  transaction: MipsTransaction,
+  group: MipsGroup,
+  check: OrderCheck,
+  finalize: Finalize,
+): Promise<Outcome> => {
+  if (check.result === "unpaid" || check.result === "unanswered") return check;
+  try {
+    if (check.result === "refused") throw new PaymentRefused(check.reason);
+    const paymentID = transaction.mips.reference;
+    const order = await settlePaidTransaction({
+      finalize,
+      group,
+      name,
+      paid: { ...check.paid, id: paymentID },
+      req,
+      transaction: await reopenForLatePayment(req, transaction, paymentID),
+    });
+    return { result: "settled", orderID: createdOrder.parse(order).id };
+  } catch (error) {
+    if (!(error instanceof PaymentRefused)) throw error;
+    await record(req, transaction, group, error.message, "error");
+    return { result: "refused", reason: error.message };
+  }
+};
+
 const reply = (body: "success" | "fail", status = 200) =>
   new Response(body, { status, headers: { "content-type": "text/plain" } });
 
+const settleNotified = async (
+  api: MipsAPI,
+  req: PayloadRequest,
+  transaction: MipsTransaction,
+  notification: MipsNotification,
+) => {
+  const group = {
+    ...transaction.mips,
+    paymentMethod: notification.payment_method ?? transaction.mips.paymentMethod,
+  };
+  if (group.paymentMethod !== transaction.mips.paymentMethod) {
+    await updateGatewayGroup(req, transaction, name, group);
+  }
+
+  const check = await lookUp(api, req, transaction);
+  const outcome = await resolve(req, transaction, group, check, settleOnServer(req));
+  if (outcome.result === "settled") return reply("success");
+  if (outcome.result === "refused") return reply("fail");
+  if (outcome.result === "unanswered") {
+    await record(req, transaction, group, outcome.problem, "warn");
+    return reply("fail", 500);
+  }
+  if (outcome.status === "waiting") return reply("fail", 500);
+  await record(
+    req,
+    transaction,
+    group,
+    outcome.problem ??
+      `mIPS notified a payment, but reports order ${group.reference} as ${outcome.status}.`,
+    "warn",
+  );
+  return reply("fail");
+};
+
 /**
  * mIPS's Instant Merchant Notification, which it sends after a successful payment. The message
- * carries no signature, and a captured one replays cleanly, so it only prompts a lookup of the order.
+ * carries no signature, and a captured one replays cleanly, so it only prompts a lookup of the
+ * order. The answer waits for the settlement, so `success` means the transaction is settled.
  */
-const notificationEndpoint = (api: MipsAPI): Endpoint => ({
+const notificationEndpoint = (
+  api: MipsAPI,
+  rateLimit: MipsAdapterOptions["rateLimit"],
+): Endpoint => ({
   path: "/imn",
   method: "post",
   handler: async (req) => {
     try {
+      const limiter = await rateLimit();
+      const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+      if (!(await limiter.limit({ key: ip })).success) return reply("fail", 429);
+      if (Number(req.headers.get("content-length")) > maxNotificationBytes) {
+        return reply("fail", 413);
+      }
       if (!req.text) throw new Error("Payload passed the notification without its body.");
-      const cryptedCallback = readCryptedCallback(await req.text());
+      const body = await req.text();
+      if (new TextEncoder().encode(body).byteLength > maxNotificationBytes) {
+        return reply("fail", 413);
+      }
+
+      const cryptedCallback = readCryptedCallback(body);
       if (!cryptedCallback) return reply("fail", 400);
-      const notification = await api.decryptNotification(cryptedCallback);
-      if (!notification) return reply("fail", 400);
+      const decrypted = await api.decryptNotification(cryptedCallback);
+      if (decrypted.result === "refused") {
+        req.payload.logger.warn("mIPS refused to decrypt a payment notification.");
+        return reply("fail", 400);
+      }
+      const { notification } = decrypted;
 
       const transaction = await findByReference(req, notification.id_order);
       if (!transaction) {
@@ -122,34 +234,19 @@ const notificationEndpoint = (api: MipsAPI): Endpoint => ({
       }
       if (transaction.order !== null && transaction.order !== undefined) return reply("success");
 
-      const group = {
-        ...transaction.mips,
-        paymentMethod: notification.payment_method ?? transaction.mips.paymentMethod,
-      };
-      if (transaction.status !== "pending" && transaction.status !== "processing") {
-        await updateGatewayGroup(req, transaction, name, {
-          ...group,
-          lastError: `mIPS notified a payment for this ${transaction.status} transaction. Check whether mIPS charged the customer.`,
-        });
-        return reply("fail");
-      }
-
-      const settlement = await settle(api, transaction, settleOnServer(req));
-      if (settlement.result === "settled") {
-        await updateGatewayGroup(req, transaction, name, group);
-        return reply("success");
-      }
-      if (settlement.result === "unpaid" && settlement.status === "waiting") {
-        return reply("fail", 500);
-      }
-      await updateGatewayGroup(req, transaction, name, {
-        ...group,
-        lastError:
-          settlement.result === "mismatch"
-            ? settlement.reason
-            : `mIPS notified a payment, but reports order ${transaction.mips.reference} as ${settlement.status}.`,
-      });
-      return reply("fail");
+      // If mIPS stops waiting, the Worker still finishes the settlement. On D1, a settlement cut
+      // short leaves the transaction in processing for an admin.
+      const settlement = settleNotified(api, req, transaction, notification).catch(
+        (error: unknown) => {
+          req.payload.logger.error({
+            err: error,
+            msg: `Settling mIPS order ${notification.id_order} failed`,
+          });
+          return reply("fail", 500);
+        },
+      );
+      await waitUntil(settlement);
+      return await settlement;
     } catch (error) {
       req.payload.logger.error({ err: error, msg: "Handling a mIPS payment notification failed" });
       return reply("fail", 500);
@@ -167,6 +264,7 @@ export const mipsAdapter = ({
   credentials,
   groupOverrides,
   label = "Card (mIPS)",
+  rateLimit,
   returnURL,
 }: MipsAdapterOptions): OffloadPaymentAdapter => {
   const api = mipsAPI({ apiURL, credentials });
@@ -179,46 +277,72 @@ export const mipsAdapter = ({
       overrides: groupOverrides,
       fields: [
         { name: "reference", type: "text", unique: true, admin: { readOnly: true } },
+        { name: "decimals", type: "number", admin: { readOnly: true } },
         { name: "paymentMethod", type: "text", admin: { readOnly: true } },
       ],
     }),
-    endpoints: [notificationEndpoint(api)],
+    endpoints: [notificationEndpoint(api, rateLimit)],
 
     initiatePayment: async (args) => {
       const currency = mipsCurrency.safeParse(args.data.currency.toUpperCase());
       if (!currency.success) throw new Error(`mIPS does not take ${args.data.currency}.`);
+      const decimals = currencyDecimals(args);
+      if (decimals > 2) {
+        throw new Error(
+          `mIPS takes amounts with at most 2 decimals, but ${currency.data} is configured with ${decimals}.`,
+        );
+      }
+      const { subtotal } = args.data.cart;
+      if (subtotal !== undefined && subtotal < 10 ** decimals) {
+        throw new Error(`mIPS charges at least 1.00 ${currency.data}.`);
+      }
       const reference = createReference();
       const redirectURL = new URL(returnURL, args.req.url);
       redirectURL.searchParams.set("reference", reference);
 
-      const transaction = await createPendingTransaction(args, { name, gateway: { reference } });
-      const paymentZone = await api.loadPaymentZone({
-        amount: transaction.amount,
-        currency: currency.data,
-        redirectURL: redirectURL.href,
-        reference,
+      const transaction = await createPendingTransaction(args, {
+        name,
+        gateway: { reference, decimals },
       });
-      return { message: "Payment zone loaded.", reference, paymentZone };
+      try {
+        const paymentZone = await api.loadPaymentZone({
+          amount: transaction.amount,
+          currency: currency.data,
+          decimals,
+          redirectURL: redirectURL.href,
+          reference,
+        });
+        return { message: "Payment zone loaded.", reference, paymentZone };
+      } catch (error) {
+        // The customer never saw a payment zone, so no payment can arrive.
+        await expireTransaction(args.req, transaction);
+        throw error;
+      }
     },
 
     confirmOrder: async ({ data, finalizeOrder, req }) => {
       const { cartID, reference } = confirmData.parse(data);
       const transaction = await findByReference(req, reference);
       if (!transaction) throw new Error(`No mIPS transaction has reference ${reference}.`);
-      if (String(transaction.cart) !== String(cartID)) {
+      if (transaction.cart !== cartID) {
         throw new Error(`Transaction ${transaction.id} belongs to another cart.`);
       }
 
-      const settlement = await settle(api, transaction, finalizeOrder);
-      if (settlement.result === "mismatch") throw new PaymentMismatch(settlement.reason);
-      if (settlement.result === "unpaid") {
-        throw new Error(`mIPS reports order ${reference} as ${settlement.status}.`);
+      const check = await lookUp(api, req, transaction);
+      const outcome = await resolve(req, transaction, transaction.mips, check, finalizeOrder);
+      if (outcome.result === "settled") {
+        return {
+          message: "Payment confirmed.",
+          orderID: outcome.orderID,
+          transactionID: transaction.id,
+        };
       }
-      return {
-        message: "Payment confirmed.",
-        orderID: settlement.orderID,
-        transactionID: transaction.id,
-      };
+      if (outcome.result === "refused") throw new PaymentRefused(outcome.reason);
+      throw new Error(
+        outcome.result === "unanswered"
+          ? outcome.problem
+          : `mIPS reports order ${reference} as ${outcome.status}.`,
+      );
     },
 
     reconcile: async ({ req, transactionID }) => {
@@ -228,20 +352,33 @@ export const mipsAdapter = ({
         mipsTransaction,
       );
       if (!transaction) throw new Error(`Transaction ${transactionID} does not exist.`);
+      const { createdAt, mips } = transaction;
+      const now = new Date();
 
-      const settlement = await settle(api, transaction, settleOnServer(req));
-      if (settlement.result === "settled") return "settled";
-      if (settlement.result === "mismatch") {
-        await updateGatewayGroup(req, transaction, name, {
-          ...transaction.mips,
-          lastError: settlement.reason,
-        });
-        return "pending";
+      let check = await lookUp(api, req, transaction);
+      if (check.result === "unpaid" && expiryStep(check, createdAt, now) === "cancel") {
+        const cancel = await api.cancelOrder(orderOf(transaction));
+        check = await lookUp(api, req, transaction);
+        if (check.result === "unpaid" && expiryStep(check, createdAt, now) === "cancel") {
+          await record(
+            req,
+            transaction,
+            mips,
+            `mIPS answered the cancellation of order ${mips.reference} with ${cancel.operation_details ?? cancel.operation_status}, but still reports it as ${check.status}.`,
+            "warn",
+          );
+          return "pending";
+        }
       }
-      const abandoned =
-        settlement.status === "expired" ||
-        Date.now() - Date.parse(transaction.createdAt) > unpaidLifetimeMs;
-      return abandoned && (await expireTransaction(req, transaction)) ? "expired" : "pending";
+
+      const outcome = await resolve(req, transaction, mips, check, settleOnServer(req));
+      if (outcome.result === "settled") return "settled";
+      if (outcome.result === "refused") return "pending";
+      if (expiryStep(outcome, createdAt, now) === "expire") {
+        return (await expireTransaction(req, transaction)) ? "expired" : "pending";
+      }
+      if (outcome.problem) await record(req, transaction, mips, outcome.problem, "warn");
+      return "pending";
     },
   };
 };

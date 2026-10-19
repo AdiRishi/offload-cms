@@ -8,6 +8,11 @@ test("reads the ciphertext from a form-encoded notification", () => {
   assert.equal(readCryptedCallback(body), "aGVsbG8+d29y/bGQ=");
 });
 
+test("restores a + that the sender didn't percent-encode", () => {
+  const body = "crypted_callback=aGVsbG8+d29y/bGQ=&id_order=Ab3dE5gH7jK9mN1pQ3sT";
+  assert.equal(readCryptedCallback(body), "aGVsbG8+d29y/bGQ=");
+});
+
 test("reads the ciphertext from a JSON notification", () => {
   assert.equal(
     readCryptedCallback(' {"crypted_callback":"aGVsbG8+d29y/bGQ="}'),
