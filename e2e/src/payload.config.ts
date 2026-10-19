@@ -1,4 +1,5 @@
 import { getBindings, hyperdrivePoolConfig } from "@adirishi/offload-cloudflare";
+import { cloudflareEmailAdapter } from "@adirishi/offload-email-cloudflare";
 import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";
@@ -8,6 +9,7 @@ import { searchPlugin } from "@payloadcms/plugin-search";
 import { seoPlugin } from "@payloadcms/plugin-seo";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { r2Storage } from "@payloadcms/storage-r2";
+import { cloudflareTransformer } from "@payloadcms/transformer-cloudflare";
 import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
@@ -52,6 +54,11 @@ export default buildConfig({
   collections: [Users, Pages, Posts, Categories, Media, FieldTypes, Folders, Tags, AuditLogs],
   db: databaseAdapter(),
   editor: lexicalEditor(),
+  email: cloudflareEmailAdapter({
+    binding: env.EMAIL,
+    defaultFromAddress: "noreply@example.com",
+    defaultFromName: "Offload e2e",
+  }),
   endpoints: [queueJobEndpoint, schedulePublishEndpoint],
   globals: [SiteSettings, Header],
   jobs,
@@ -82,4 +89,13 @@ export default buildConfig({
   storage: [r2Storage({ bucket: env.R2, collections: { media: true } })],
   telemetry: false,
   typescript: { outputFile: path.resolve(dirname, "payload-types.ts") },
+  upload: {
+    transformers: [
+      cloudflareTransformer({
+        // A function: cloudflareTransformer() throws on an undefined binding, as in upload validation.
+        transport: { mode: "binding", binding: () => env.IMAGES },
+        collections: { media: { variants: [{ name: "thumbnail", width: 160, height: 120 }] } },
+      }),
+    ],
+  },
 });

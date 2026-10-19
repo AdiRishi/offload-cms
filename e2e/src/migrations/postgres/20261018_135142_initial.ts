@@ -327,7 +327,15 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"original_prefix" varchar,
   	"original__objectkey" varchar,
   	"focal_x" numeric,
-  	"focal_y" numeric
+  	"focal_y" numeric,
+  	"variants_thumbnail_url" varchar,
+  	"variants_thumbnail_width" numeric,
+  	"variants_thumbnail_height" numeric,
+  	"variants_thumbnail_mime_type" varchar,
+  	"variants_thumbnail_filesize" numeric,
+  	"variants_thumbnail_filename" varchar,
+  	"variants_thumbnail_prefix" varchar,
+  	"variants_thumbnail__objectkey" varchar
   );
   
   CREATE TABLE "media_locales" (
@@ -372,6 +380,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"version_original__objectkey" varchar,
   	"version_focal_x" numeric,
   	"version_focal_y" numeric,
+  	"version_variants_thumbnail_url" varchar,
+  	"version_variants_thumbnail_width" numeric,
+  	"version_variants_thumbnail_height" numeric,
+  	"version_variants_thumbnail_mime_type" varchar,
+  	"version_variants_thumbnail_filesize" numeric,
+  	"version_variants_thumbnail_filename" varchar,
+  	"version_variants_thumbnail_prefix" varchar,
+  	"version_variants_thumbnail__objectkey" varchar,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
@@ -1709,6 +1725,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "media_created_at_idx" ON "media" USING btree ("created_at");
   CREATE UNIQUE INDEX "media_filename_idx" ON "media" USING btree ("filename");
   CREATE INDEX "media_original_original_filename_idx" ON "media" USING btree ("original_filename");
+  CREATE INDEX "media_variants_thumbnail_variants_thumbnail_filename_idx" ON "media" USING btree ("variants_thumbnail_filename");
   CREATE UNIQUE INDEX "media_locales_locale_parent_id_unique" ON "media_locales" USING btree ("_locale","_parent_id");
   CREATE INDEX "media_rels_order_idx" ON "media_rels" USING btree ("order");
   CREATE INDEX "media_rels_parent_idx" ON "media_rels" USING btree ("parent_id");
@@ -1721,6 +1738,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_media_v_version_version_created_at_idx" ON "_media_v" USING btree ("version_created_at");
   CREATE INDEX "_media_v_version_version_filename_idx" ON "_media_v" USING btree ("version_filename");
   CREATE INDEX "_media_v_version_original_version_original_filename_idx" ON "_media_v" USING btree ("version_original_filename");
+  CREATE INDEX "_media_v_version_variants_thumbnail_version_variants_thu_idx" ON "_media_v" USING btree ("version_variants_thumbnail_filename");
   CREATE INDEX "_media_v_created_at_idx" ON "_media_v" USING btree ("created_at");
   CREATE INDEX "_media_v_updated_at_idx" ON "_media_v" USING btree ("updated_at");
   CREATE UNIQUE INDEX "_media_v_locales_locale_parent_id_unique" ON "_media_v_locales" USING btree ("_locale","_parent_id");

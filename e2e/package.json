@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@adirishi/offload-cloudflare": "4.0.0-beta.2-offload.dev",
+    "@adirishi/offload-email-cloudflare": "4.0.0-beta.2-offload.dev",
     "@payloadcms/db-d1-sqlite": "npm:@adirishi/offload-db-d1-sqlite@4.0.0-beta.2-offload.dev",
     "@payloadcms/db-postgres": "npm:@adirishi/offload-db-postgres@4.0.0-beta.2-offload.dev",
     "@payloadcms/graphql": "npm:@adirishi/offload-graphql@4.0.0-beta.2-offload.dev",
@@ -23,6 +24,7 @@
     "@payloadcms/richtext-lexical": "npm:@adirishi/offload-richtext-lexical@4.0.0-beta.2-offload.dev",
     "@payloadcms/storage-r2": "npm:@adirishi/offload-storage-r2@4.0.0-beta.2-offload.dev",
     "@payloadcms/tanstack-start": "npm:@adirishi/offload-tanstack-start@4.0.0-beta.2-offload.dev",
+    "@payloadcms/transformer-cloudflare": "npm:@adirishi/offload-transformer-cloudflare@4.0.0-beta.2-offload.dev",
     "@payloadcms/ui": "npm:@adirishi/offload-ui@4.0.0-beta.2-offload.dev",
     "@tanstack/react-router": "1.170.45",
     "@tanstack/react-start": "1.169.3",
