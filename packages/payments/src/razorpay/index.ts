@@ -1,25 +1,37 @@
 import type { PaymentAdapterArgs } from "@payloadcms/plugin-ecommerce/types";
 import type { PayloadRequest } from "payload";
 
+import { waitUntil } from "@adirishi/offload-cloudflare";
 import { z } from "zod";
 
 import type { OffloadPaymentAdapter } from "../reconcile.ts";
 
 import {
+  assertCartOpen,
   assertPaymentMatches,
   createPendingTransaction,
+  currencyDecimals,
   expireTransaction,
   type Finalize,
   findTransaction,
   gatewayFields,
   gatewayGroup,
-  PaymentMismatch,
+  PaymentRefused,
+  reopenForLatePayment,
   settleOnServer,
   settlePaidTransaction,
   transactionSchema,
   updateGatewayGroup,
 } from "../transactions.ts";
-import { paymentToSettle, paymentWindowEnd, razorpayAPI, type RazorpayPayment } from "./api.ts";
+import {
+  checkoutTimeoutSeconds,
+  mayExpire,
+  paymentToSettle,
+  razorpayAPI,
+  RazorpayAPIError,
+  type RazorpayPayment,
+  takesDecimals,
+} from "./api.ts";
 import { parseWebhookEvent } from "./events.ts";
 import { verifyPaymentSignature, verifyWebhookSignature } from "./signature.ts";
 
@@ -36,7 +48,6 @@ export type RazorpayAdapterOptions = {
 };
 
 const name = "razorpay";
-const hour = 60 * 60 * 1000;
 
 const documentID = z.union([z.number(), z.string()]);
 
@@ -51,7 +62,7 @@ const razorpayGroup = z.looseObject({
 const razorpayTransaction = transactionSchema.extend({ razorpay: razorpayGroup.nullish() });
 
 type RazorpayTransaction = z.infer<typeof razorpayTransaction>;
-type GroupChanges = Partial<z.infer<typeof razorpayGroup>>;
+type RazorpayGroup = z.infer<typeof razorpayGroup>;
 
 const confirmData = z.object({
   cartID: documentID,
@@ -61,7 +72,6 @@ const confirmData = z.object({
 });
 
 const settledOrder = z.object({ id: documentID });
-const cartSchema = z.object({ purchasedAt: z.string().nullish() }).nullable();
 
 type Outcome =
   | { kind: "settled"; orderID: z.infer<typeof documentID> }
@@ -70,21 +80,22 @@ type Outcome =
 const findByOrderID = (req: PayloadRequest, orderID: string) =>
   findTransaction(req, { "razorpay.orderID": { equals: orderID } }, razorpayTransaction);
 
-const writeGroup = (req: PayloadRequest, transaction: RazorpayTransaction, changes: GroupChanges) =>
-  updateGatewayGroup(req, transaction, name, { ...transaction.razorpay, ...changes });
+const writeGroup = async (
+  req: PayloadRequest,
+  transaction: RazorpayTransaction,
+  changes: Partial<RazorpayGroup>,
+) => {
+  const group = { ...transaction.razorpay, ...changes };
+  await updateGatewayGroup(req, transaction, name, group);
+  return group;
+};
 
-const cartPurchased = async (req: PayloadRequest, transaction: RazorpayTransaction) => {
-  if (transaction.cart === null || transaction.cart === undefined) return false;
-  const cart = await req.payload.findByID({
-    collection: "carts",
-    id: transaction.cart,
-    depth: 0,
-    disableErrors: true,
-    overrideAccess: true,
-    req,
-    select: { purchasedAt: true },
-  });
-  return Boolean(cartSchema.parse(cart)?.purchasedAt);
+/** A receipt unique across every database that shares the Razorpay keys, at most 40 characters. */
+const receiptFor = (transactionID: string | number) => {
+  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  return `${String(transactionID).slice(0, 27)}-${suffix}`;
 };
 
 /**
@@ -116,10 +127,11 @@ export const razorpayAdapter = ({
   };
 
   /**
-   * Settles the transaction with a captured payment, capturing an authorized one first. Leaves an
-   * authorized payment alone when the cart was already bought through another transaction, so
-   * Razorpay refunds it. Writes the payment, `changes`, and any reason it didn't settle to the
-   * group. Throws only for errors that a retry may fix.
+   * Settles the transaction with a captured payment, capturing an authorized one first. A payment
+   * for a transaction that reconciliation expired reopens it, unless the cart was bought through
+   * another transaction. Then, and for a mismatched payment, it writes why to `lastError` and the
+   * error log: the customer may have been charged with no order, and an admin refunds the payment
+   * from the Razorpay Dashboard. Throws only for errors that a retry may fix.
    */
   const settle = async ({
     changes = {},
@@ -128,47 +140,67 @@ export const razorpayAdapter = ({
     req,
     transaction,
   }: {
-    changes?: GroupChanges;
+    changes?: Partial<RazorpayGroup>;
     finalize: Finalize;
     payment: RazorpayPayment | undefined;
     req: PayloadRequest;
     transaction: RazorpayTransaction;
   }): Promise<Outcome> => {
-    const attempt = async (): Promise<Outcome> => {
-      if (!payment) return { kind: "unsettled" };
+    const settledPayment = transaction.status === "succeeded" && transaction.razorpay?.paymentID;
+    const group = await writeGroup(req, transaction, {
+      ...changes,
+      ...(payment && !settledPayment && { paymentID: payment.id }),
+    });
+    if (!payment || (payment.status !== "authorized" && payment.status !== "captured")) {
+      return { kind: "unsettled" };
+    }
+    try {
+      if (settledPayment && settledPayment !== payment.id) {
+        throw new PaymentRefused(
+          `Payment ${payment.id} was ${payment.status} for transaction ${transaction.id}, which payment ${settledPayment} already settled. Refund payment ${payment.id} from the Razorpay Dashboard.`,
+        );
+      }
+      const open = await reopenForLatePayment(req, transaction, payment.id);
       if (payment.status === "authorized") {
-        assertPaymentMatches(payment, transaction);
-        if (await cartPurchased(req, transaction)) {
-          return {
-            kind: "unsettled",
-            error: `Payment ${payment.id} is authorized, but the cart was already bought. Razorpay will refund it.`,
-          };
-        }
-        await capture(payment, transaction);
-      } else if (payment.status !== "captured") {
-        return { kind: "unsettled" };
+        if (open.status !== "pending") return { kind: "unsettled" };
+        assertPaymentMatches(payment, open);
+        await assertCartOpen(req, open, payment.id);
+        await capture(payment, open);
       }
       const order = await settlePaidTransaction({
         finalize,
+        group,
+        name,
         paid: payment,
-        shippingAddress: transaction.razorpay?.shippingAddress,
-        transaction,
+        req,
+        transaction: open,
       });
       return { kind: "settled", orderID: settledOrder.parse(order).id };
-    };
+    } catch (error) {
+      if (!(error instanceof PaymentRefused)) throw error;
+      req.payload.logger.error(error.message);
+      await updateGatewayGroup(req, transaction, name, { ...group, lastError: error.message });
+      return { kind: "unsettled", error: error.message };
+    }
+  };
 
-    const outcome = await attempt().catch((error: unknown) => {
-      if (error instanceof PaymentMismatch) {
-        return { kind: "unsettled", error: error.message } satisfies Outcome;
-      }
-      throw error;
+  /** Settles with the event's payment, or with the order's paid payment when the event names none. */
+  const settleFromWebhook = async (
+    req: PayloadRequest,
+    transaction: RazorpayTransaction,
+    event: { orderID: string; paymentID: string | undefined },
+    eventID: string | null,
+  ) => {
+    const payment = event.paymentID
+      ? await api.fetchPayment(event.paymentID)
+      : paymentToSettle(await api.fetchOrderPayments(event.orderID), event.orderID);
+    await settle({
+      changes: { lastEventID: eventID },
+      finalize: settleOnServer(req),
+      payment: payment?.order_id === event.orderID ? payment : undefined,
+      req,
+      transaction,
     });
-    await writeGroup(req, transaction, {
-      ...changes,
-      ...(payment && { paymentID: payment.id }),
-      ...(outcome.kind === "unsettled" && outcome.error && { lastError: outcome.error }),
-    });
-    return outcome;
   };
 
   return {
@@ -185,11 +217,17 @@ export const razorpayAdapter = ({
     }),
 
     initiatePayment: async (args) => {
+      const { currency } = args.data;
+      if (!takesDecimals(currency, currencyDecimals(args))) {
+        throw new Error(
+          `Razorpay takes ${currency} in its smallest unit, which the configured decimals don't match.`,
+        );
+      }
       const transaction = await createPendingTransaction(args, { name, gateway: {} });
       const order = await api.createOrder({
         amount: transaction.amount,
         currency: transaction.currency,
-        receipt: String(transaction.id),
+        receipt: receiptFor(transaction.id),
         notes: { transactionID: String(transaction.id) },
       });
       await updateGatewayGroup(args.req, transaction, name, {
@@ -202,6 +240,7 @@ export const razorpayAdapter = ({
         orderID: order.id,
         amount: transaction.amount,
         currency: transaction.currency,
+        timeout: checkoutTimeoutSeconds,
       };
     },
 
@@ -225,7 +264,7 @@ export const razorpayAdapter = ({
 
       const payment = await api.fetchPayment(confirmation.razorpay_payment_id);
       if (payment.order_id !== orderID) {
-        throw new PaymentMismatch(`Payment ${payment.id} doesn't belong to order ${orderID}.`);
+        throw new PaymentRefused(`Payment ${payment.id} doesn't belong to order ${orderID}.`);
       }
       const outcome = await settle({ finalize: finalizeOrder, payment, req, transaction });
       if (outcome.kind !== "settled") {
@@ -254,44 +293,52 @@ export const razorpayAdapter = ({
           if (!authentic) {
             return Response.json({ message: "The webhook signature is invalid." }, { status: 400 });
           }
-          const event = parseWebhookEvent(body);
-          if (!event) {
-            return Response.json(
-              { message: "The webhook body is not a Razorpay event." },
-              { status: 400 },
-            );
-          }
 
           const eventID = req.headers.get("x-razorpay-event-id");
+          // Razorpay retries any other answer for 24 hours, then disables the webhook, and a retry
+          // can't make an event readable.
+          const event = parseWebhookEvent(body);
+          if (!event) {
+            req.payload.logger.error(`Razorpay event ${eventID} is signed but unreadable.`);
+            return Response.json({ received: true });
+          }
+          if (event.kind === "ignored") return Response.json({ received: true });
+
           try {
-            if (event.kind === "ignored") return Response.json({ received: true });
             const transaction = await findByOrderID(req, event.orderID);
             if (
               !transaction ||
-              transaction.status !== "pending" ||
               (eventID !== null && transaction.razorpay?.lastEventID === eventID)
             ) {
               return Response.json({ received: true });
             }
+            const settledByThisPayment =
+              transaction.status === "succeeded" &&
+              (event.kind === "failed" ||
+                !transaction.razorpay?.paymentID ||
+                transaction.razorpay.paymentID === event.paymentID);
+            if (transaction.status === "processing" || settledByThisPayment) {
+              return Response.json({ received: true });
+            }
 
             if (event.kind === "failed") {
-              await writeGroup(req, transaction, {
-                lastError: event.error,
-                lastEventID: eventID,
-                paymentID: event.paymentID,
-              });
-            } else {
-              await settle({
-                changes: { lastEventID: eventID },
-                finalize: settleOnServer(req),
-                payment: paymentToSettle(
-                  await api.fetchOrderPayments(event.orderID),
-                  event.orderID,
-                ),
-                req,
-                transaction,
-              });
+              if (transaction.status === "pending") {
+                await writeGroup(req, transaction, {
+                  lastError: event.error,
+                  lastEventID: eventID,
+                  paymentID: event.paymentID,
+                });
+              }
+              return Response.json({ received: true });
             }
+
+            // Razorpay waits 5 seconds for an answer, and settling can take longer on D1. Settle
+            // after answering. If it fails, reconciliation settles the pending transaction later.
+            await waitUntil(
+              settleFromWebhook(req, transaction, event, eventID).catch((error: unknown) =>
+                req.payload.logger.error({ err: error, msg: `Razorpay event ${eventID} failed` }),
+              ),
+            );
             return Response.json({ received: true });
           } catch (error) {
             req.payload.logger.error({ err: error, msg: `Razorpay event ${eventID} failed` });
@@ -309,14 +356,29 @@ export const razorpayAdapter = ({
       );
       if (transaction?.status !== "pending") return "pending";
       const createdAt = Date.parse(transaction.createdAt);
-      const expireAfter = async (due: number) =>
-        Date.now() > due && (await expireTransaction(req, transaction)) ? "expired" : "pending";
+      const expire = async (lastError?: string) => {
+        const expired = await expireTransaction(req, transaction);
+        if (expired && lastError) await writeGroup(req, transaction, { lastError });
+        return expired ? "expired" : "pending";
+      };
 
       const orderID = transaction.razorpay?.orderID;
-      if (!orderID) return expireAfter(createdAt + hour);
-      const payments = await api.fetchOrderPayments(orderID);
+      if (!orderID) {
+        return mayExpire({ createdAt, now: Date.now(), payments: [] }) ? expire() : "pending";
+      }
+      const payments = await api.fetchOrderPayments(orderID).catch((error: unknown) => {
+        if (error instanceof RazorpayAPIError && error.status === 404) return undefined;
+        throw error;
+      });
+      if (!payments) {
+        return expire(
+          `Razorpay has no order ${orderID}. The site's keys may have changed since the checkout.`,
+        );
+      }
       const payment = paymentToSettle(payments, orderID);
-      if (!payment) return expireAfter(paymentWindowEnd(payments, createdAt));
+      if (!payment) {
+        return mayExpire({ createdAt, now: Date.now(), payments }) ? expire() : "pending";
+      }
       const outcome = await settle({ finalize: settleOnServer(req), payment, req, transaction });
       return outcome.kind === "settled" ? "settled" : "pending";
     },

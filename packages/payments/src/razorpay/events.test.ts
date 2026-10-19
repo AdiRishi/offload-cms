@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { orderPaymentsSchema, paymentToSettle, paymentWindowEnd } from "./api.ts";
+import { mayExpire, orderPaymentsSchema, paymentToSettle, takesDecimals } from "./api.ts";
 import { parseWebhookEvent } from "./events.ts";
 
 // Payment entities as Razorpay's webhook and API samples show them. `notes` is `[]` when empty.
@@ -45,6 +45,7 @@ test("a captured, authorized or paid event asks to settle the payment's order", 
     assert.deepEqual(parseWebhookEvent(event(name, { payment: { entity: payment({}) } })), {
       kind: "paid",
       orderID: "order_DESlLckIVRkHWj",
+      paymentID: "pay_DESlfW9H8K9uqM",
     });
   }
   const order = {
@@ -62,7 +63,7 @@ test("a captured, authorized or paid event asks to settle the payment's order", 
     parseWebhookEvent(
       event("order.paid", { payment: { entity: payment({}) }, order: { entity: order } }),
     ),
-    { kind: "paid", orderID: "order_DESlLckIVRkHWj" },
+    { kind: "paid", orderID: "order_DESlLckIVRkHWj", paymentID: "pay_DESlfW9H8K9uqM" },
   );
 });
 
@@ -162,17 +163,29 @@ test("finds nothing to settle in failed, pending or refunded payments, or anothe
   assert.equal(paymentToSettle(itemsOf(orderPayments), "order_DESlLckIVRkHWj"), undefined);
 });
 
-test("keeps an unpaid order open for 3 days and an hour after its last payment attempt", () => {
-  const initiatedAt = Date.UTC(2026, 9, 1, 12, 0);
-  assert.equal(paymentWindowEnd([], initiatedAt), Date.UTC(2026, 9, 4, 13, 0));
+test("expires a checkout with no payment attempt an hour after Checkout's 15-minute timeout", () => {
+  const createdAt = Date.UTC(2026, 9, 1, 12, 0);
+  assert.equal(mayExpire({ createdAt, now: Date.UTC(2026, 9, 1, 13, 15), payments: [] }), false);
+  assert.equal(mayExpire({ createdAt, now: Date.UTC(2026, 9, 1, 13, 16), payments: [] }), true);
+});
 
+test("keeps an unpaid order open for 3 days and an hour after its last payment attempt", () => {
+  const createdAt = Date.UTC(2026, 9, 1, 12, 0);
   const timedOut = payment({
     status: "failed",
     captured: false,
     created_at: Date.UTC(2026, 9, 1, 14, 30) / 1000,
   });
-  assert.equal(
-    paymentWindowEnd(itemsOf({ items: [timedOut] }), initiatedAt),
-    Date.UTC(2026, 9, 4, 15, 30),
-  );
+  const payments = itemsOf({ items: [timedOut] });
+  assert.equal(mayExpire({ createdAt, now: Date.UTC(2026, 9, 4, 15, 30), payments }), false);
+  assert.equal(mayExpire({ createdAt, now: Date.UTC(2026, 9, 4, 15, 31), payments }), true);
+});
+
+test("takes a currency only in the smallest unit of its ISO 4217 exponent", () => {
+  assert.equal(takesDecimals("INR", 2), true);
+  assert.equal(takesDecimals("MUR", 2), true);
+  assert.equal(takesDecimals("JPY", 0), true);
+  assert.equal(takesDecimals("KWD", 3), true);
+  assert.equal(takesDecimals("MUR", 0), false);
+  assert.equal(takesDecimals("JPY", 2), false);
 });

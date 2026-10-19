@@ -30,13 +30,47 @@ export const paymentToSettle = (payments: RazorpayPayment[], orderID: string) =>
 
 const hour = 60 * 60 * 1000;
 
+/** How long Checkout lets the customer start a payment, in seconds. */
+export const checkoutTimeoutSeconds = 15 * 60;
+
 /**
- * When no payment of an order can still be authorised, in milliseconds since the epoch. Razorpay
- * can late-authorise a payment for 3 days after the payment starts, so the window runs 3 days and
- * an hour from the last attempt, or from `since` when there is none.
+ * Whether reconciliation may expire a pending transaction that no payment settled, at `now`, in
+ * milliseconds since the epoch. With no payment attempt, Checkout's timeout stops any from
+ * starting, so the transaction can expire an hour after it. Razorpay can late-authorise a payment
+ * for 3 days after the attempt starts, so with attempts the window runs 3 days and an hour from
+ * the last one.
  */
-export const paymentWindowEnd = (payments: RazorpayPayment[], since: number) =>
-  Math.max(since, ...payments.map((payment) => payment.created_at * 1000)) + 3 * 24 * hour + hour;
+export const mayExpire = ({
+  createdAt,
+  now,
+  payments,
+}: {
+  createdAt: number;
+  now: number;
+  payments: RazorpayPayment[];
+}) =>
+  payments.length === 0
+    ? now > createdAt + checkoutTimeoutSeconds * 1000 + hour
+    : now >
+      Math.max(...payments.map((payment) => payment.created_at * 1000)) + 3 * 24 * hour + hour;
+
+/**
+ * Whether Razorpay takes amounts of `currency` in units of `10 ** decimals`. Razorpay takes the
+ * smallest unit of the ISO 4217 currency, so the configured decimals must be its exponent.
+ */
+export const takesDecimals = (currency: string, decimals: number) =>
+  new Intl.NumberFormat("en", { currency, style: "currency" }).resolvedOptions()
+    .maximumFractionDigits === decimals;
+
+/** Razorpay answered with an error status. */
+export class RazorpayAPIError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
 
 /** The Razorpay API calls the adapter makes, authenticated with the key ID and secret. */
 export const razorpayAPI = ({
@@ -59,9 +93,11 @@ export const razorpayAPI = ({
       method: body ? "POST" : "GET",
       headers: body ? { authorization, "content-type": "application/json" } : { authorization },
       body: body && JSON.stringify(body),
+      signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) {
-      throw new Error(
+      throw new RazorpayAPIError(
+        response.status,
         `Razorpay answered ${path} with ${response.status}: ${await response.text()}`,
       );
     }

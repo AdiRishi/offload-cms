@@ -23,7 +23,7 @@ const webhookEventSchema = z.object({
  * because Razorpay can still capture the payment.
  */
 export type WebhookEvent =
-  | { kind: "paid"; orderID: string }
+  | { kind: "paid"; orderID: string; paymentID: string | undefined }
   | { kind: "failed"; orderID: string; paymentID: string; error: string }
   | { kind: "ignored" };
 
@@ -43,7 +43,8 @@ export const parseWebhookEvent = (body: string): WebhookEvent | undefined => {
   const { event, payload } = parsed.data;
   const orderID = payload.payment?.entity.order_id ?? payload.order?.entity.id;
   if (!orderID) return { kind: "ignored" };
-  if (paidEvents.has(event)) return { kind: "paid", orderID };
+  if (paidEvents.has(event))
+    return { kind: "paid", orderID, paymentID: payload.payment?.entity.id };
   if (event === "payment.failed" && payload.payment) {
     const { error_code, error_description, id } = payload.payment.entity;
     const reason = error_description || error_code || "Razorpay gave no reason";
