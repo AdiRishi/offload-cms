@@ -18,21 +18,25 @@ variant. It refuses a variant that belongs to another product and a product
 with variants enabled that has no variant, then runs the products validation
 with both, which checks the variant's price and stock.
 
+Initiate also refuses a cart that has already been bought, which a second
+payment would charge again, and a quantity that isn't a whole number of at
+least 1, which would decrement stock by a fraction.
+
 Offload-Patch: ecommerce-initiate-variant-validation
 Drop-When: the pinned release validates variant items in the initiate endpoint and checks that each variant belongs to its item's product
 Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that refuse a tampered variant cart)
 ---
- .../src/endpoints/initiatePayment.spec.ts     | 108 ++++++++++++
- .../src/endpoints/initiatePayment.ts          | 156 ++++++++----------
- 2 files changed, 180 insertions(+), 84 deletions(-)
+ .../src/endpoints/initiatePayment.spec.ts     | 127 ++++++++++++
+ .../src/endpoints/initiatePayment.ts          | 182 ++++++++++--------
+ 2 files changed, 224 insertions(+), 85 deletions(-)
  create mode 100644 packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts
 
 diff --git a/packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts b/packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts
 new file mode 100644
-index 000000000..a754c3547
+index 000000000..c99afe329
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,127 @@
 +import { beforeEach, describe, expect, it, vi } from 'vitest'
 +
 +vi.mock('payload', () => ({ addDataAndFileToRequest: vi.fn() }))
@@ -60,7 +64,10 @@ index 000000000..a754c3547
 +  },
 +}
 +
-+const initiate = async (items: Record<string, unknown>[]) => {
++const initiate = async (
++  items: Record<string, unknown>[],
++  cartFields: Record<string, unknown> = {},
++) => {
 +  const initiatePayment = vi.fn(async () => ({ message: 'Payment initiated' }))
 +  const handler = initiatePaymentHandler({
 +    currenciesConfig: {
@@ -74,7 +81,7 @@ index 000000000..a754c3547
 +      name: 'test',
 +    },
 +  })
-+  const cart = { currency: 'MUR', id: 'cart-1', items, subtotal: 0 }
++  const cart = { currency: 'MUR', id: 'cart-1', items, subtotal: 0, ...cartFields }
 +  const req = {
 +    data: { cartID: 'cart-1', customerEmail: 'buyer@example.com' },
 +    payload: {
@@ -140,20 +147,69 @@ index 000000000..a754c3547
 +    expect(response.status).toBe(400)
 +    expect(initiatePayment).not.toHaveBeenCalled()
 +  })
++
++  it('refuses a fractional quantity, which would decrement stock by a fraction', async () => {
++    const { initiatePayment, response } = await initiate([{ product: 'sticker', quantity: 1.5 }])
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
++
++  it('refuses a cart that has already been bought', async () => {
++    const { initiatePayment, response } = await initiate([{ product: 'sticker', quantity: 1 }], {
++      purchasedAt: '2026-10-20T00:00:00.000Z',
++    })
++
++    expect(response.status).toBe(400)
++    expect(initiatePayment).not.toHaveBeenCalled()
++  })
 +})
 diff --git a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
-index 995417e07..9abfd096f 100644
+index 995417e07..8ec08999f 100644
 --- a/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
 +++ b/packages/plugin-ecommerce/src/endpoints/initiatePayment.ts
-@@ -197,26 +197,52 @@ export const initiatePaymentHandler: InitiatePayment =
+@@ -123,6 +123,7 @@ export const initiatePaymentHandler: InitiatePayment =
+             currency: true,
+             customerEmail: true,
+             items: true,
++            purchasedAt: true,
+             subtotal: true,
+           },
+         })
+@@ -193,30 +194,79 @@ export const initiatePaymentHandler: InitiatePayment =
+       )
+     }
+ 
++    // A second payment for a bought cart would charge the customer again for the same items.
++    if (cart.purchasedAt) {
++      return Response.json(
++        {
++          message: 'This cart has already been bought.',
++        },
++        {
++          status: 400,
++        },
++      )
++    }
++
+     for (const item of cart.items) {
        // Target field to check the price based on the currency so we can validate the total
        const priceField = `priceIn${currency.toUpperCase()}`
-       const quantity = item.quantity || 1
+-      const quantity = item.quantity || 1
++      const quantity = item.quantity
++
++      if (!Number.isInteger(quantity) || quantity < 1) {
++        return Response.json(
++          {
++            message: 'Each cart item needs a whole-number quantity of at least 1.',
++          },
++          {
++            status: 400,
++          },
++        )
++      }
 +      const productID = typeof item.product === 'object' ? item.product.id : item.product
- 
--      // If the item has a product but no variant, we assume the product has a price in the specified currency
--      if (item.product && !item.variant) {
--        const id = typeof item.product === 'object' ? item.product.id : item.product
++
 +      const product = await payload.findByID({
 +        id: productID,
 +        collection: productsSlug,
@@ -177,11 +233,14 @@ index 995417e07..9abfd096f 100644
 +        )
 +      }
  
+-      // If the item has a product but no variant, we assume the product has a price in the specified currency
+-      if (item.product && !item.variant) {
+-        const id = typeof item.product === 'object' ? item.product.id : item.product
++      let variant = undefined
+ 
 -        const product = await payload.findByID({
 -          id,
 -          collection: productsSlug,
-+      let variant = undefined
-+
 +      if (item.variant) {
 +        const variantID = typeof item.variant === 'object' ? item.variant.id : item.variant
 +
@@ -206,7 +265,7 @@ index 995417e07..9abfd096f 100644
              },
              {
                status: 404,
-@@ -224,93 +250,55 @@ export const initiatePaymentHandler: InitiatePayment =
+@@ -224,93 +274,55 @@ export const initiatePaymentHandler: InitiatePayment =
            )
          }
  

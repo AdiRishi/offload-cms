@@ -19,6 +19,10 @@ variant. It refuses a variant that belongs to another product and a product
 with variants enabled that has no variant, then runs the products validation
 with both, which checks the variant's price and stock.
 
+Initiate also refuses a cart that has already been bought, which a second
+payment would charge again, and a quantity that isn't a whole number of at
+least 1, which would decrement stock by a fraction.
+
 - **Patch:** `ecommerce-initiate-variant-validation`, committed as `fix(plugin-ecommerce): validate variant items before a payment starts`
 - **Upstream:** Not proposed
 - **Tests:** `pnpm exec vitest run --project unit packages/plugin-ecommerce/src/endpoints/initiatePayment.spec.ts; e2e suite (tests/checkout.spec.ts, the tests that refuse a tampered variant cart)`
