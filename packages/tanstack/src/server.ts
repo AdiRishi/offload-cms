@@ -33,8 +33,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 /**
- * Payload's Local API for TanStack Start server functions, routes, and server components, plus
- * the redirect lookup for a path with no page.
+ * Payload's Local API for TanStack Start server functions and server components, plus the
+ * redirect lookup for a path with no page. A server route that calls these bundles a second copy
+ * of Payload, because server routes run in the SSR environment.
  */
 export const createPayloadHelpers = ({ getConfig, documentPath }: PayloadHelpersOptions) => {
   /**

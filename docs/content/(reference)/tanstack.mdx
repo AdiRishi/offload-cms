@@ -27,7 +27,7 @@ createPayloadHelpers(options: PayloadHelpersOptions): {
 }
 ```
 
-Returns Payload's Local API for server functions, server routes, and server components, and the redirect lookup for a path with no page. A site calls it once, in a server-only module:
+Returns Payload's Local API for server functions and server components, and the redirect lookup for a path with no page. A site calls it once, in a server-only module:
 
 ```ts src/lib/payload.server.ts
 import { createPayloadHelpers } from "@adirishi/offload-tanstack/server";
@@ -45,7 +45,9 @@ export const { getPayloadForRequest, getRequestPayload, getVisitorPayload, redir
 | `getConfig`    | `() => Promise<SanitizedConfig>`         | Required. Loads the site's config.                                                                                           |
 | `documentPath` | `(document: RedirectDocument) => string` | The public path of a document that a redirect points to. `redirectOrNotFound` throws on a redirect to a document without it. |
 
-The package takes the config as a function because it can't import `@payload-config` itself. Under `vite dev`, Vite leaves the package to Node, and Node rejects `@payload-config` with `ERR_INVALID_MODULE_SPECIFIER`. Payload's `payloadApiHandlers()` takes its config the same way.
+The package takes the config as a function because it can't import `@payload-config` itself. Under `vite dev`, Vite leaves the package to Node, and Node rejects `@payload-config` with `ERR_INVALID_MODULE_SPECIFIER`.
+
+The helpers import Payload, so call them in server functions and server components, which run in the RSC environment with the Worker's copy of Payload. A server route that calls a helper bundles a second copy. Have the route call a server function instead. [Where Payload runs](/cloudflare#where-payload-runs) explains the two environments.
 
 `RedirectDocument` is `{ relationTo, value }` for each collection that the redirects plugin can point to, where `value` is the populated document from the site's generated types.
 
