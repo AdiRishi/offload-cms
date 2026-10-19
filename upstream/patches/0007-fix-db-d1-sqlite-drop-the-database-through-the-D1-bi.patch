@@ -16,29 +16,31 @@ fails with "no such table" when another table that references it also
 references a table that is already dropped, so the batch drops each table
 before the tables it references, read from PRAGMA foreign_key_list. It also
 sets PRAGMA defer_foreign_keys, so tables that reference each other can drop
-with rows in them. The libSQL adapter keeps the SQLite dropDatabase.
+with rows in them. Each statement is DROP TABLE IF EXISTS, as in the SQLite
+adapter, because dropping an FTS5 table also drops its shadow tables. The
+libSQL adapter keeps the SQLite dropDatabase.
 
 Offload-Patch: d1-drop-database
 Upstream: https://github.com/payloadcms/payload/issues/15415
 Drop-When: the pinned release's D1 adapter drops the database without the libSQL client
 Tests: pnpm exec vitest run --project unit packages/db-d1-sqlite/src/dropDatabase.spec.ts; e2e suite (e2e/scripts/prepare.ts runs migrate:fresh on D1)
 ---
- .../db-d1-sqlite/src/dropDatabase.spec.ts     | 87 +++++++++++++++++++
- packages/db-d1-sqlite/src/dropDatabase.ts     | 40 +++++++++
- packages/db-d1-sqlite/src/dropOrder.ts        | 35 ++++++++
+ .../db-d1-sqlite/src/dropDatabase.spec.ts     | 99 +++++++++++++++++++
+ packages/db-d1-sqlite/src/dropDatabase.ts     | 43 ++++++++
+ packages/db-d1-sqlite/src/dropOrder.ts        | 35 +++++++
  packages/db-d1-sqlite/src/index.ts            |  2 +-
  packages/db-d1-sqlite/src/types.ts            |  3 +-
- 5 files changed, 165 insertions(+), 2 deletions(-)
+ 5 files changed, 180 insertions(+), 2 deletions(-)
  create mode 100644 packages/db-d1-sqlite/src/dropDatabase.spec.ts
  create mode 100644 packages/db-d1-sqlite/src/dropDatabase.ts
  create mode 100644 packages/db-d1-sqlite/src/dropOrder.ts
 
 diff --git a/packages/db-d1-sqlite/src/dropDatabase.spec.ts b/packages/db-d1-sqlite/src/dropDatabase.spec.ts
 new file mode 100644
-index 000000000..9453348d4
+index 000000000..72618bdae
 --- /dev/null
 +++ b/packages/db-d1-sqlite/src/dropDatabase.spec.ts
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,99 @@
 +import type { PlatformProxy } from 'wrangler'
 +
 +import { sql } from 'drizzle-orm'
@@ -117,6 +119,18 @@ index 000000000..9453348d4
 +    expect(await tableNames()).toEqual(['_cf_METADATA'])
 +  })
 +
++  it('drops an FTS5 table, whose drop also removes its shadow tables', async () => {
++    await createTables()
++    await platform.env.DB.batch([
++      platform.env.DB.prepare('CREATE VIRTUAL TABLE search USING fts5(title)'),
++      platform.env.DB.prepare("INSERT INTO search VALUES ('Home')"),
++    ])
++
++    await dropDatabase({ adapter: adapter() })
++
++    expect(await tableNames()).toEqual(['_cf_METADATA'])
++  })
++
 +  it('drops a database left by a migration that stopped partway', async () => {
 +    await createTables()
 +    await platform.env.DB.prepare('DROP TABLE pages').run()
@@ -128,10 +142,10 @@ index 000000000..9453348d4
 +})
 diff --git a/packages/db-d1-sqlite/src/dropDatabase.ts b/packages/db-d1-sqlite/src/dropDatabase.ts
 new file mode 100644
-index 000000000..198384cb3
+index 000000000..8acdaee11
 --- /dev/null
 +++ b/packages/db-d1-sqlite/src/dropDatabase.ts
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,43 @@
 +import { sql } from 'drizzle-orm'
 +
 +import type { DropDatabase } from './types.js'
@@ -142,6 +156,7 @@ index 000000000..198384cb3
 + * Drops every table in one batch, which D1 runs as a transaction. D1 refuses to drop its own
 + * `_cf_` tables, and SQLite manages the `sqlite_` ones. Deferring foreign keys to the end of the
 + * batch lets tables in a reference cycle drop while their rows still reference each other.
++ * Dropping an FTS5 table also drops its shadow tables, which `IF EXISTS` then skips.
 + */
 +export const dropDatabase: DropDatabase = async function ({ adapter }) {
 +  const db = adapter.drizzle
@@ -169,7 +184,9 @@ index 000000000..198384cb3
 +
 +  await db.batch([
 +    db.run(sql`PRAGMA defer_foreign_keys = on`),
-+    ...dropOrder(references).map((name) => db.run(sql`DROP TABLE ${sql.identifier(name)}`)),
++    ...dropOrder(references).map((name) =>
++      db.run(sql`DROP TABLE IF EXISTS ${sql.identifier(name)}`),
++    ),
 +  ])
 +}
 diff --git a/packages/db-d1-sqlite/src/dropOrder.ts b/packages/db-d1-sqlite/src/dropOrder.ts

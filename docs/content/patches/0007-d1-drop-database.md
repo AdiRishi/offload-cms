@@ -18,7 +18,9 @@ fails with "no such table" when another table that references it also
 references a table that is already dropped, so the batch drops each table
 before the tables it references, read from PRAGMA foreign_key_list. It also
 sets PRAGMA defer_foreign_keys, so tables that reference each other can drop
-with rows in them. The libSQL adapter keeps the SQLite dropDatabase.
+with rows in them. Each statement is DROP TABLE IF EXISTS, as in the SQLite
+adapter, because dropping an FTS5 table also drops its shadow tables. The
+libSQL adapter keeps the SQLite dropDatabase.
 
 - **Patch:** `d1-drop-database`, committed as `fix(db-d1-sqlite): drop the database through the D1 binding`
 - **Upstream:** [https://github.com/payloadcms/payload/issues/15415](https://github.com/payloadcms/payload/issues/15415)
