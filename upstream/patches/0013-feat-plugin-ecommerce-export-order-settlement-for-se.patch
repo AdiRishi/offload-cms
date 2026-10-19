@@ -17,19 +17,27 @@ the cart's purchasedAt, the inventory decrement and the succeeded status. A
 caller that loses the claim gets the winner's order back and writes
 nothing, so duplicate notifications and a concurrent confirm-order are
 harmless. It opens a database transaction when the adapter supports one and
-the request has none. confirm-order calls the same code, and its behaviour is
-unchanged.
+the request has none. confirm-order calls the same code.
+
+A confirm-order that loses the claim waits 500 ms for the winner's order. On
+D1 a webhook's settlement can take longer, and the loser answered 500, so
+the browser offered the customer the payment again. When the wait ends with
+the transaction still unsettled, confirm-order now answers 202 with
+{ status: 'processing' }, and settleTransaction throws the exported
+SettlementInProgressError. Confirming again returns the order once the
+winner finishes.
 
 Offload-Patch: ecommerce-server-settlement
 Drop-When: the pinned release lets a payment adapter settle a transaction outside the confirm-order request
 Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/checkout.spec.ts, tests/settlement.spec.ts)
 ---
  docs/ecommerce/payments.mdx                   |  17 +
- .../src/endpoints/confirmOrder.ts             | 299 +------------
- packages/plugin-ecommerce/src/index.ts        |   1 +
- .../src/utilities/settleTransaction.spec.ts   | 167 ++++++++
- .../src/utilities/settleTransaction.ts        | 401 ++++++++++++++++++
- 5 files changed, 594 insertions(+), 291 deletions(-)
+ .../src/endpoints/confirmOrder.spec.ts        |   7 +-
+ .../src/endpoints/confirmOrder.ts             | 312 +------------
+ packages/plugin-ecommerce/src/index.ts        |   5 +
+ .../src/utilities/settleTransaction.spec.ts   | 167 +++++++
+ .../src/utilities/settleTransaction.ts        | 413 ++++++++++++++++++
+ 6 files changed, 627 insertions(+), 294 deletions(-)
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.ts
 
@@ -61,11 +69,37 @@ index 32091fa3f..36da2545e 100644
  ### Stripe Webhooks
  
  You can also add your own webhooks to handle [events from Stripe](https://docs.stripe.com/api/events). This is optional and the plugin internally does not use webhooks for any core functionality. It receives the following arguments:
+diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
+index fe564f2ab..e0fcf3a80 100644
+--- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
++++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
+@@ -482,7 +482,7 @@ describe('confirmOrderHandler', () => {
+     expect(harness.state.inventoryUpdates).toHaveLength(0)
+   })
+ 
+-  it('should fail closed after bounded polling of a stale processing transaction', async () => {
++  it('should ask the client to confirm again while another request settles the transaction', async () => {
+     vi.useFakeTimers()
+     vi.setSystemTime(new Date('2026-08-27T12:00:00.000Z'))
+     const harness = createHarness({
+@@ -499,9 +499,10 @@ describe('confirmOrderHandler', () => {
+ 
+     const result = runHandler(harness)
+     await vi.advanceTimersByTimeAsync(1000)
+-    const { response } = await result
++    const { body, response } = await result
+ 
+-    expect(response.status).toBe(500)
++    expect(response.status).toBe(202)
++    expect(body).toMatchObject({ status: 'processing' })
+     expect(harness.create).not.toHaveBeenCalled()
+     expect(harness.state.inventoryUpdates).toHaveLength(0)
+   })
 diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
-index 0db80602d..c014025ff 100644
+index 0db80602d..b81fa0ff0 100644
 --- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
 +++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
-@@ -14,13 +14,18 @@ import type {
+@@ -14,13 +14,19 @@ import type {
    UserWithCart,
  } from '../types/index.js'
  
@@ -74,6 +108,7 @@ index 0db80602d..c014025ff 100644
 +  getRelationshipID,
 +  isTransientTransactionConflict,
 +  isValidDocumentID,
++  SettlementInProgressError,
 +  waitForCanonicalOrder,
 +} from '../utilities/settleTransaction.js'
 +
@@ -87,7 +122,26 @@ index 0db80602d..c014025ff 100644
  type Args = {
    /**
     * The slug of the carts collection, defaults to 'carts'.
-@@ -320,291 +325,3 @@ export const confirmOrderHandler: ConfirmOrderHandler =
+@@ -305,6 +311,18 @@ export const confirmOrderHandler: ConfirmOrderHandler =
+         await killTransaction(req)
+       }
+ 
++      if (err instanceof SettlementInProgressError) {
++        return Response.json(
++          {
++            message: 'The order is still being confirmed. Confirm again shortly.',
++            status: 'processing',
++          },
++          {
++            status: 202,
++          },
++        )
++      }
++
+       payload.logger.error({ err, msg: 'Error confirming order.' })
+ 
+       return Response.json(
+@@ -320,291 +338,3 @@ export const confirmOrderHandler: ConfirmOrderHandler =
  
  const normalizeEmail = (email: unknown): string =>
    typeof email === 'string' ? email.trim().toLowerCase() : ''
@@ -380,14 +434,18 @@ index 0db80602d..c014025ff 100644
 -  )
 -}
 diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
-index 2661856e8..9e4a90736 100644
+index 2661856e8..17e3cd167 100644
 --- a/packages/plugin-ecommerce/src/index.ts
 +++ b/packages/plugin-ecommerce/src/index.ts
-@@ -398,3 +398,4 @@ export { currencyField } from './fields/currencyField.js'
+@@ -398,3 +398,8 @@ export { currencyField } from './fields/currencyField.js'
  export { pricesField } from './fields/pricesField.js'
  export { statusField } from './fields/statusField.js'
  export { variantsFields } from './fields/variantsFields.js'
-+export { settleTransaction, type SettleTransactionArgs } from './utilities/settleTransaction.js'
++export {
++  SettlementInProgressError,
++  settleTransaction,
++  type SettleTransactionArgs,
++} from './utilities/settleTransaction.js'
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
 new file mode 100644
 index 000000000..76baa02d3
@@ -563,10 +621,10 @@ index 000000000..76baa02d3
 +})
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
 new file mode 100644
-index 000000000..63dfea5b5
+index 000000000..569962751
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
-@@ -0,0 +1,401 @@
+@@ -0,0 +1,413 @@
 +import {
 +  commitTransaction,
 +  type DefaultDocumentIDType,
@@ -579,6 +637,17 @@ index 000000000..63dfea5b5
 +
 +const SETTLEMENT_POLL_INTERVAL_MS = 25
 +const SETTLEMENT_WAIT_TIMEOUT_MS = 500
++
++/**
++ * Another request holds the transaction's settlement and hadn't finished it when the wait ended.
++ * The payment is not lost: the order appears once that request finishes, so confirm again later.
++ */
++export class SettlementInProgressError extends Error {
++  constructor() {
++    super('Another request is still settling the transaction.')
++    this.name = 'SettlementInProgressError'
++  }
++}
 +
 +export type SettleTransactionArgs = {
 +  /**
@@ -623,7 +692,8 @@ index 000000000..63dfea5b5
 + * caller that loses the claim, such as a duplicate webhook or a concurrent confirm-order, gets the
 + * winner's order back and writes nothing. It runs in a database transaction when the adapter
 + * supports one and the request has none. Throws when the transaction cannot be settled, for example
-+ * because it failed or expired.
++ * because it failed or expired, and throws `SettlementInProgressError` when another request is
++ * still settling it.
 + */
 +export const settleTransaction = async ({
 +  cartsSlug = 'carts',
@@ -892,7 +962,7 @@ index 000000000..63dfea5b5
 +    )
 +  } while (Date.now() <= deadline)
 +
-+  throw new Error('Transaction settlement did not complete in time.')
++  throw new SettlementInProgressError()
 +}
 +
 +const findExactlyLinkedOrder = async ({
