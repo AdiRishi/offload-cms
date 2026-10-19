@@ -14,12 +14,12 @@
   },
   "dependencies": {
     "@repo/upstream": "workspace:*",
-    "verdaccio": "6.10.5"
+    "verdaccio": "catalog:"
   },
   "devDependencies": {
     "@adirishi/offload-cloudflare": "workspace:*",
     "@repo/tsconfig": "workspace:*",
-    "@types/node": "24.12.3",
-    "typescript": "7.0.2"
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   }
 }

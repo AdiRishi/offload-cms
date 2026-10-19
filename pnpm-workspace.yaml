@@ -6,3 +6,26 @@ packages:
 allowBuilds:
   esbuild: true
   workerd: true
+
+catalog:
+  "@cloudflare/vite-plugin": 1.64.0
+  "@cloudflare/workers-types": 5.20261012.1
+  "@payloadcms/tanstack-start": 4.0.0-beta.2
+  "@tanstack/react-router": 1.170.44
+  "@tanstack/react-start": 1.169.3
+  "@types/node": 24.12.3
+  "@types/pg": 8.20.0
+  "@vitejs/plugin-react": 6.0.3
+  "@vitejs/plugin-rsc": 0.5.38
+  "graphql": 16.11.0
+  "oxfmt": 0.73.0
+  "oxlint": 1.88.0
+  "oxlint-tsgolint": 7.0.2004
+  "payload": 4.0.0-beta.2
+  "react": 19.3.1
+  "react-dom": 19.3.1
+  "turbo": 2.11.9
+  "typescript": 7.0.2
+  "verdaccio": 6.10.5
+  "vite": 8.3.4
+  "wrangler": 4.151.1
