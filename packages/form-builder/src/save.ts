@@ -1,4 +1,4 @@
-import type { Payload, RequiredDataFromCollectionSlug } from "payload";
+import type { DataFromCollectionSlug, Payload, RequiredDataFromCollectionSlug } from "payload";
 
 import { z } from "zod";
 
@@ -23,10 +23,11 @@ export type SaveFormSubmissionOptions = {
   /** A Workers Rate Limiting binding. Each visitor IP gets its own allowance. */
   rateLimit: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
   /**
-   * Whether the visitor's page offers this form. Without it, every form the visitor can read
-   * takes submissions.
+   * Whether the site offers the stored form to visitors. Every form is publicly readable, so this
+   * keeps a draft, test, or retired form from taking submissions. Pass `() => true` to accept
+   * every form.
    */
-  isOffered?: (form: SubmissionInput["form"]) => boolean | Promise<boolean>;
+  isOffered: (form: DataFromCollectionSlug<"forms">) => boolean | Promise<boolean>;
   /** More fields to save on the submission, such as a relationship to the page it came from. */
   data?: Partial<RequiredDataFromCollectionSlug<"form-submissions">>;
 };
@@ -71,7 +72,7 @@ export const saveFormSubmission = async ({
       pagination: false,
       overrideAccess: false,
     });
-    if (!form || (isOffered && !(await isOffered(submission.form)))) return { status: "refused" };
+    if (!form || !(await isOffered(form))) return { status: "refused" };
 
     const fields: readonly FormField[] = form.fields ?? [];
     const inputs = fields.filter(isInputField);

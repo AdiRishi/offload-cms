@@ -26,7 +26,10 @@ export const submitForm = createServerFn({ method: "POST" })
         const { totalDocs } = await payload.count({
           collection: "pages",
           where: {
-            or: [{ "layout.form": { equals: form } }, { "layout.signupForm": { equals: form } }],
+            or: [
+              { "layout.form": { equals: form.id } },
+              { "layout.signupForm": { equals: form.id } },
+            ],
           },
           overrideAccess: false,
         });

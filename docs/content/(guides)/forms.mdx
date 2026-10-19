@@ -93,20 +93,28 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
       .middleware([hideServerErrors])
       .validator(submissionInput)
       .handler(async ({ data }) => {
-        const env = await getBindings();
+        const [env, payload] = await Promise.all([getBindings(), getVisitorPayload()]);
         return saveFormSubmission({
           submission: data,
-          payload: await getVisitorPayload(),
+          payload,
           request: getRequest(),
           turnstileSecret: env.TURNSTILE_SECRET_KEY,
           rateLimit: env.SUBMISSIONS,
+          isOffered: async (form) => {
+            const { totalDocs } = await payload.count({
+              collection: "pages",
+              where: { "layout.form": { equals: form.id } },
+              overrideAccess: false,
+            });
+            return totalDocs > 0;
+          },
         });
       });
     ```
 
     `getBindings()` returns the Worker's bindings and secrets. Under `vite dev`, it reuses the Wrangler platform proxy that `payload.config.ts` started.
 
-    Without `isOffered`, every form that a visitor can read takes submissions. [Choose which forms take submissions](#choose-which-forms-take-submissions) adds the rule.
+    `isOffered` accepts a form only when a page that a visitor can read has it in a block. [Choose which forms take submissions](#choose-which-forms-take-submissions) explains the rule.
 
   </Step>
   <Step title="Set up Tailwind and shadcn">
@@ -262,35 +270,19 @@ The production build in the second step is what catches a missing route import.
 
 ## Choose which forms take submissions
 
-The form builder lets anyone read every form, so without `isOffered`, a visitor can submit any form, including one that no page shows. Pass `isOffered` to accept only the forms that the site offers. It receives the form's ID.
+The form builder lets anyone read every form, including drafts, tests, and forms that no page shows any more. `saveFormSubmission()` needs `isOffered`, which receives the stored form document and decides whether the site offers it. A form that `isOffered` rejects returns `refused`, and nothing is saved or emailed.
 
-This rule accepts a form when a page that a visitor can read has it in a block:
+The rule in `submitForm` accepts a form when a page that a visitor can read has it in a block. With the read access from [Preview drafts and Live Preview](/live-preview), `overrideAccess: false` counts only published pages, so a form that appears only on unpublished pages refuses submissions.
 
-```ts src/server/forms.functions.ts
-.handler(async ({ data }) => {
-  const env = await getBindings();
-  const payload = await getVisitorPayload();
-  return saveFormSubmission({
-    submission: data,
-    payload,
-    request: getRequest(),
-    turnstileSecret: env.TURNSTILE_SECRET_KEY,
-    rateLimit: env.SUBMISSIONS,
-    isOffered: async (form) => {
-      const { totalDocs } = await payload.count({
-        collection: "pages",
-        where: {
-          or: [{ "layout.form": { equals: form } }, { "layout.signupForm": { equals: form } }],
-        },
-        overrideAccess: false,
-      });
-      return totalDocs > 0;
-    },
-  });
-});
+When a second block type offers forms, such as a newsletter block, give its relationship its own name, such as `signupForm`, and join the conditions with `or`. When two block types share a field name, a `where` on `layout.<name>` matches only one of the block types.
+
+```ts
+where: {
+  or: [{ "layout.form": { equals: form.id } }, { "layout.signupForm": { equals: form.id } }],
+},
 ```
 
-With the read access from [Preview drafts and Live Preview](/live-preview), `overrideAccess: false` counts only published pages, so a form that appears only on unpublished pages refuses submissions. Give the relationship in each block type its own name, such as `form` and `signupForm`, and join them with `or`. When two block types share a field name, a `where` on `layout.<name>` matches only one of the block types.
+To accept every form that a visitor can read, pass `isOffered: () => true`.
 
 ## Use real Turnstile keys
 

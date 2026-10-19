@@ -49,14 +49,26 @@ export const submitForm = createServerFn({ method: "POST" })
       import("@payload-config"),
       getBindings(),
     ]);
+    const payload = await getPayload({ config });
     return saveFormSubmission({
       submission: data,
-      payload: await getPayload({ config }),
+      payload,
       request: getRequest(),
       turnstileSecret: env.TURNSTILE_SECRET_KEY,
       rateLimit: env.SUBMISSIONS,
+      // Accept only forms that a published page shows.
+      isOffered: async (form) => {
+        const { totalDocs } = await payload.count({
+          collection: "pages",
+          where: { "layout.form": { equals: form.id } },
+          overrideAccess: false,
+        });
+        return totalDocs > 0;
+      },
     });
   });
 ```
+
+`isOffered` is required, because every form is publicly readable, including drafts and forms that no page shows. It receives the stored form. Pass `() => true` to accept every form.
 
 [Take form submissions](https://adirishi.github.io/offload-cms/forms) covers the bindings, the registry, and the rule that decides which forms a page offers. The [package reference](https://adirishi.github.io/offload-cms/form-builder) lists every option.
