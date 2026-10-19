@@ -17,3 +17,5 @@ export const mipsAdapterClient = ({ label = "Card (mIPS)" }: { label?: string } 
     initiatePayment: true,
     confirmOrder: true,
   }) satisfies PaymentAdapterClient;
+
+export { INR, MUR } from "./currencies.ts";

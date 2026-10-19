@@ -24,7 +24,7 @@ export type OffloadPaymentAdapter = PaymentAdapter & {
 /** How long a settlement may hold a transaction in `processing` before reconciliation repairs it. */
 const processingTimeoutMs = 15 * 60 * 1000;
 
-/** How many pending transactions one run asks the gateways about, oldest first. */
+/** How many pending transactions one run asks the gateways about, least recently checked first. */
 const batchSize = 50;
 
 const documentID = z.union([z.number(), z.string()]);
@@ -47,7 +47,7 @@ export type ReconcilePaymentsOptions = {
  * which happens only when a Worker stops mid-settlement on D1. If an order took the transaction,
  * it marks the transaction `succeeded` and logs an error, because the cart and inventory updates
  * may not have run. If no order took it, nothing else ran either, so it returns the transaction to
- * `pending`. Then it asks each adapter about the oldest pending transactions.
+ * `pending`. Then it asks each adapter about the pending transactions it checked least recently.
  */
 export const reconcilePaymentsTask = ({
   adapters,
@@ -67,7 +67,7 @@ export const reconcilePaymentsTask = ({
       pagination: false,
       req,
       select: { paymentMethod: true },
-      sort: "createdAt",
+      sort: "updatedAt",
       where: {
         and: [{ status: { equals: "pending" } }, { paymentMethod: { in: paymentMethods } }],
       },
@@ -84,7 +84,18 @@ export const reconcilePaymentsTask = ({
       const adapter = adapters.find((candidate) => candidate.name === paymentMethod);
       if (!adapter) continue;
       try {
-        results[await adapter.reconcile({ req, transactionID: id })]++;
+        const result = await adapter.reconcile({ req, transactionID: id });
+        results[result]++;
+        // Moves a transaction that stays pending behind the others, so that transactions waiting
+        // out a gateway's payment window can't hold every place in the batch.
+        if (result === "pending") {
+          await req.payload.db.updateOne({
+            collection: "transactions",
+            id,
+            data: { updatedAt: new Date().toISOString() },
+            req,
+          });
+        }
       } catch (error) {
         results.failed++;
         req.payload.logger.error({ err: error, msg: `Reconciling transaction ${id} failed` });

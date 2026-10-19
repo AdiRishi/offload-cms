@@ -141,6 +141,26 @@ export const findTransaction = async <TSchema extends z.ZodType>(
 export class PaymentMismatch extends Error {}
 
 /**
+ * Throws `PaymentMismatch` unless the gateway's amount, in the currency's minor unit, and its
+ * currency equal the transaction's.
+ */
+export const assertPaymentMatches = (
+  paid: { amount: number; currency: string },
+  transaction: Transaction,
+) => {
+  if (paid.amount !== transaction.amount) {
+    throw new PaymentMismatch(
+      `The gateway reports ${paid.amount}, but transaction ${transaction.id} is for ${transaction.amount}.`,
+    );
+  }
+  if (paid.currency.toUpperCase() !== transaction.currency.toUpperCase()) {
+    throw new PaymentMismatch(
+      `The gateway reports ${paid.currency}, but transaction ${transaction.id} is in ${transaction.currency}.`,
+    );
+  }
+};
+
+/**
  * Settles a transaction after the gateway's API confirmed the payment. The gateway's amount, in
  * the currency's minor unit, and its currency must equal the transaction's. `finalize` is core's
  * `finalizeOrder` in confirm-order, or `settleOnServer(req)` elsewhere. Either returns the
@@ -157,16 +177,7 @@ export const settlePaidTransaction = ({
   shippingAddress: unknown;
   transaction: Transaction;
 }) => {
-  if (paid.amount !== transaction.amount) {
-    throw new PaymentMismatch(
-      `The gateway reports ${paid.amount}, but transaction ${transaction.id} is for ${transaction.amount}.`,
-    );
-  }
-  if (paid.currency.toUpperCase() !== transaction.currency.toUpperCase()) {
-    throw new PaymentMismatch(
-      `The gateway reports ${paid.currency}, but transaction ${transaction.id} is in ${transaction.currency}.`,
-    );
-  }
+  assertPaymentMatches(paid, transaction);
   return finalize({
     transactionID: transaction.id,
     orderData: {
