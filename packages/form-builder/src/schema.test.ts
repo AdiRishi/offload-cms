@@ -111,3 +111,14 @@ test("starts from the defaults an editor set", () => {
     consent: false,
   });
 });
+
+test("leaves out blocks the package doesn't support, so the rest of the form still works", () => {
+  const stored: { blockType: string; name?: string }[] = [
+    { blockType: "radio", name: "size" },
+    { blockType: "email", name: "email" },
+  ];
+  const inputs = stored.filter(isInputField);
+
+  assert.deepEqual(inputs, [{ blockType: "email", name: "email" }]);
+  assert.equal(formSchema(inputs).safeParse({ email: "ada@example.com" }).success, true);
+});

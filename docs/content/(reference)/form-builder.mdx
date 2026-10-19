@@ -18,7 +18,7 @@ The form's UI isn't in the package. The [registry](#registry) installs it into t
 
 ## Supported fields
 
-The package handles the blocks that the form builder plugin enables by default: `checkbox`, `country`, `email`, `message`, `number`, `select`, `state`, `text`, and `textarea`. A site that enables `radio`, `date`, `payment`, or `upload` gets a type error where it passes its generated `Form` fields to the package.
+The package handles the blocks that the form builder plugin enables by default: `checkbox`, `country`, `email`, `message`, `number`, `select`, `state`, `text`, and `textarea`. `isInputField()` leaves out every other block, such as `radio`, `date`, `payment`, or `upload`, so a form with one still validates and saves its other fields. The registry components give a type error when the site's generated `Form` type has such a block.
 
 Validation messages are in English and can't be changed.
 
@@ -62,10 +62,10 @@ Turns validated values into the rows of a submission's `submissionData` field. A
 ## isInputField()
 
 ```ts
-isInputField<F extends { blockType: string }>(field: F): field is Exclude<F, { blockType: "message" }>
+isInputField<F extends { blockType: string }>(field: F): field is Extract<F, { blockType: InputField["blockType"] }>
 ```
 
-Returns `true` for every block except `message`. It narrows the site's generated field type, so it works on `form.fields` before the fields reach `formSchema()`.
+Returns `true` for the supported blocks that take an answer, and `false` for `message` and for blocks the package doesn't support. It narrows the site's generated field type, so it works on `form.fields` before the fields reach `formSchema()`.
 
 ## submissionInput
 
@@ -108,15 +108,15 @@ saveFormSubmission(options: SaveFormSubmissionOptions): Promise<SubmissionResult
 
 Saves a submission to a form-builder form from a public page.
 
-| Option            | Type                                                          | Description                                                                                                      |
-| ----------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `submission`      | `SubmissionInput`                                             | Required. The validated input of the server function.                                                            |
-| `payload`         | `Payload`                                                     | Required.                                                                                                        |
-| `request`         | `Request`                                                     | Required. The request that called the server function, from `getRequest()`.                                      |
-| `turnstileSecret` | `string`                                                      | Required. The Turnstile widget's secret key.                                                                     |
-| `rateLimit`       | `RateLimit`                                                   | Required. A Workers Rate Limiting binding.                                                                       |
-| `isOffered`       | `(form: number \| string) => boolean \| Promise<boolean>`     | Whether the site offers this form to visitors. Without it, every form that a visitor can read takes submissions. |
-| `data`            | `Partial<RequiredDataFromCollectionSlug<"form-submissions">>` | More fields to save on the submission, such as a relationship to the page that the form is on.                   |
+| Option            | Type                                                                 | Description                                                                                                      |
+| ----------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `submission`      | `SubmissionInput`                                                    | Required. The validated input of the server function.                                                            |
+| `payload`         | `Payload`                                                            | Required.                                                                                                        |
+| `request`         | `Request`                                                            | Required. The request that called the server function, from `getRequest()`.                                      |
+| `turnstileSecret` | `string`                                                             | Required. The Turnstile widget's secret key.                                                                     |
+| `rateLimit`       | `{ limit(options: { key: string }): Promise<{ success: boolean }> }` | Required. A Workers Rate Limiting binding.                                                                       |
+| `isOffered`       | `(form: number \| string) => boolean \| Promise<boolean>`            | Whether the site offers this form to visitors. Without it, every form that a visitor can read takes submissions. |
+| `data`            | `Partial<RequiredDataFromCollectionSlug<"form-submissions">>`        | More fields to save on the submission, such as a relationship to the page that the form is on.                   |
 
 It runs these checks in order and returns at the first one that fails:
 

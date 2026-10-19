@@ -29,9 +29,25 @@ export type FormField = InputField | { blockType: "message" };
 /** A form's answers by field name. Checkboxes answer with a boolean, every other field with a string. */
 export type FormValues = Record<string, string | boolean>;
 
+const inputBlockTypes: ReadonlySet<string> = new Set<InputField["blockType"]>([
+  "checkbox",
+  "country",
+  "email",
+  "number",
+  "select",
+  "state",
+  "text",
+  "textarea",
+]);
+
+/**
+ * Whether a field takes an answer that this package supports. Message blocks and blocks it
+ * doesn't support, such as `radio`, `date`, `payment`, and `upload`, are not input fields.
+ */
 export const isInputField = <F extends { blockType: string }>(
   field: F,
-): field is Exclude<F, { blockType: "message" }> => field.blockType !== "message";
+): field is Extract<F, { blockType: InputField["blockType"] }> =>
+  inputBlockTypes.has(field.blockType);
 
 const required = "This field is required.";
 

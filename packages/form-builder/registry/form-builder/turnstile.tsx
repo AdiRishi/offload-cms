@@ -90,9 +90,11 @@ export function Turnstile({
     },
     reset: () => {
       const { api, widgetId } = state.current;
+      // Without a widget there is nothing to retry, so a load error stays and fails the next token.
+      if (!api || !widgetId) return;
       state.current.token = undefined;
       state.current.error = undefined;
-      if (api && widgetId) api.reset(widgetId);
+      api.reset(widgetId);
     },
   }));
 
@@ -114,20 +116,26 @@ export function Turnstile({
       (api) => {
         if (cancelled || !container.current) return;
         current.api = api;
-        current.widgetId =
-          api.render(container.current, {
-            sitekey: siteKey,
-            action,
-            appearance: "interaction-only",
-            theme,
-            "refresh-expired": "auto",
-            callback: (token) => settle({ token }),
-            "expired-callback": () => {
-              current.token = undefined;
-            },
-            "error-callback": (code) =>
-              settle({ error: new Error(`Turnstile failed with error ${code}.`) }),
-          }) ?? undefined;
+        const options: RenderOptions = {
+          sitekey: siteKey,
+          action,
+          appearance: "interaction-only",
+          theme,
+          "refresh-expired": "auto",
+          callback: (token) => settle({ token }),
+          "expired-callback": () => {
+            current.token = undefined;
+          },
+          "error-callback": (code) =>
+            settle({ error: new Error(`Turnstile failed with error ${code}.`) }),
+        };
+        try {
+          current.widgetId = api.render(container.current, options) ?? undefined;
+        } catch (error) {
+          settle({
+            error: error instanceof Error ? error : new Error("Turnstile did not render."),
+          });
+        }
       },
       (error: Error) => settle({ error }),
     );

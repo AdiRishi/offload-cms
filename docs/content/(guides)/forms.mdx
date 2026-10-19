@@ -22,9 +22,9 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
 
   </Step>
   <Step title="Add the form builder">
-    Keep the plugin's default fields. The package supports those blocks only, and the site gets a type error if it enables `radio`, `date`, `payment`, or `upload`.
+    Keep the plugin's default fields. The package supports those blocks only. If the site enables `radio`, `date`, `payment`, or `upload`, the registry components give a type error, and the package leaves those blocks out.
 
-    The plugin lets anyone create a submission through the REST API, which skips the rate limit and Turnstile. Allow only logged-in users to create one. `saveFormSubmission()` creates submissions with access control bypassed, after its checks pass.
+    The plugin lets anyone create a submission through the REST API, which skips the rate limit and Turnstile. Allow only admin users to create one. `saveFormSubmission()` creates submissions with access control bypassed, after its checks pass.
 
     ```ts src/payload.config.ts
     import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";
@@ -33,7 +33,7 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
       plugins: [
         formBuilderPlugin({
           formSubmissionOverrides: {
-            access: { create: ({ req }) => Boolean(req.user) },
+            access: { create: ({ req }) => req.user?.collection === "users" },
           },
         }),
       ],
