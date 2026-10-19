@@ -13,14 +13,14 @@ This guide uses `@adirishi/offload-tanstack`. The collection needs drafts, throu
     "@adirishi/offload-tanstack": "{{version}}"
     ```
   </Step>
-  <Step title="Let only logged-in users read drafts">
-    Give visitors published documents and logged-in users every document:
+  <Step title="Let only admin users read drafts">
+    Give admin users every document, and everyone else published documents. `users` is the collection that `admin.user` names:
 
     ```ts src/collections/Pages.ts
     export const Pages: CollectionConfig = {
       slug: "pages",
       access: {
-        read: ({ req }) => Boolean(req.user) || { _status: { equals: "published" } },
+        read: ({ req }) => req.user?.collection === "users" || { _status: { equals: "published" } },
       },
       versions: { drafts: true },
       // fields

@@ -48,13 +48,14 @@ export const createPayloadHelpers = ({ getConfig, documentPath }: PayloadHelpers
 
   /**
    * Payload for the current request, with the user its cookies or headers authenticate. `draft`
-   * is true only for a logged-in user. Pass `draft`, `user`, and `overrideAccess: false` to
-   * queries, so the collection's read access decides what the request sees.
+   * is true only for a user of the admin's auth collection, so a site's other logged-in users,
+   * such as customers, see published content. Pass `draft`, `user`, and `overrideAccess: false`
+   * to queries, so the collection's read access decides what the request sees.
    */
   const getPayloadForRequest = async () => {
     const payload = await getVisitorPayload();
     const { user } = await payload.auth({ headers: getRequestHeaders() });
-    return { payload, user, draft: user !== null };
+    return { payload, user, draft: user?.collection === payload.config.admin.user };
   };
 
   /**
@@ -101,10 +102,17 @@ export const createPayloadHelpers = ({ getConfig, documentPath }: PayloadHelpers
     // A page load requests the path itself. A client-side navigation calls the server function at
     // its own address, whose query string is the function's input, not the visitor's.
     const url = getRequestUrl();
-    const search = withoutTrailingSlash(url.pathname) === bare ? url.search : "";
+    const target = new URL(href, url);
+    const requested = withoutTrailingSlash(new URL(bare, url).pathname);
+    if (withoutTrailingSlash(url.pathname) === requested) {
+      for (const [name, entry] of url.searchParams) target.searchParams.append(name, entry);
+    }
     const type = Number(match?.type);
     throw redirect({
-      href: `${href}${search}`,
+      href:
+        target.origin === url.origin
+          ? `${target.pathname}${target.search}${target.hash}`
+          : target.href,
       statusCode: redirectStatuses.has(type) ? type : 301,
     });
   };

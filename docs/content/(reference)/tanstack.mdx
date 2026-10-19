@@ -55,12 +55,12 @@ Returns Payload with no user. Queries that pass `overrideAccess: false` see what
 
 ### getPayloadForRequest()
 
-Authenticates the current request from its headers with `payload.auth()`, and returns Payload, the user, and `draft`. `draft` is `true` only when a user is logged in.
+Authenticates the current request from its headers with `payload.auth()`, and returns Payload, the user, and `draft`. `draft` is `true` only for a user of the admin's auth collection, `admin.user` in the config. A user of another auth collection, such as a site's customers, gets `draft: false` and published content.
 
-Pass `draft`, `user`, and `overrideAccess: false` to each query. The collection's read access then decides what the request sees. For example, this read access gives visitors published documents and logged-in users every document:
+Pass `draft`, `user`, and `overrideAccess: false` to each query. The collection's read access then decides what the request sees. For example, this read access gives admin users every document and everyone else published documents:
 
 ```ts
-read: ({ req }) => Boolean(req.user) || { _status: { equals: "published" } },
+read: ({ req }) => req.user?.collection === "users" || { _status: { equals: "published" } },
 ```
 
 The result depends on the request's cookies. Don't put it in a shared cache.
