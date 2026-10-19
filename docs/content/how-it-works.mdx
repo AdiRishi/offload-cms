@@ -7,7 +7,7 @@ Offload has three parts:
 
 - **A pinned Payload release.** [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json) names the Payload tag and commit that Offload builds on.
 - **A patch series.** [`upstream/patches`](https://github.com/AdiRishi/offload-cms/tree/main/upstream/patches) holds one `git format-patch` file per change to Payload. The [patch pages](/patches) list them.
-- **Offload's own packages.** [`@adirishi/offload-cloudflare`](/cloudflare) has the Workers setup, and [`@adirishi/offload-email-cloudflare`](/email) sends Payload's email through Cloudflare Email Service.
+- **Offload's own packages.** [`@adirishi/offload-cloudflare`](/cloudflare) has the Workers setup, and [`@adirishi/offload-email-cloudflare`](/email) sends Payload's email through Cloudflare Email Service. [`@adirishi/offload-tanstack`](/tanstack) reads Payload content in the site's routes, with drafts and Live Preview for editors. [`@adirishi/offload-form-builder`](/form-builder) saves form-builder submissions from public pages.
 
 A release builds Payload with the patches applied, packs every package that Payload publishes, and renames each one to `@adirishi/offload-<name>`. All packages share one version, `<Payload version>-offload.<n>`, because Payload checks that its packages share a version. `<n>` counts Offload's releases on that Payload tag, starting at 0.
 

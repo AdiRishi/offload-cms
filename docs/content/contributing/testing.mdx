@@ -45,6 +45,8 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 | `tests/api.spec.ts`      | REST, GraphQL queries with arguments, and access control                                                                                                                                                                       |
 | `tests/workers.spec.ts`  | R2 byte ranges, image variants through the Images binding, a password reset email through Email Service, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins |
 | `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API                                                                                                                                                        |
+| `tests/preview.spec.ts`  | Drafts for a logged-in editor and the published page for a visitor on the same URL, Live Preview refreshing after a saved draft, and a redirect that keeps the query string                                                    |
+| `tests/forms.spec.ts`    | Form-builder forms rendered by the registry components, browser validation, Turnstile with Cloudflare's testing keys, a newsletter sign-up, and a form that no published page offers                                           |
 
 ## How the site is set up
 

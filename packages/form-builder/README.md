@@ -19,12 +19,17 @@ The package is on GitHub Packages, which needs a token with the `read:packages` 
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-```bash
-pnpm add --save-exact @adirishi/offload-form-builder
-pnpm dlx shadcn@latest add https://adirishi.github.io/offload-cms/r/form-builder-form.json
+Install the package at the same version as the site's other Offload packages. The registry items depend on `@offload/turnstile`, so add the `@offload` registry to `components.json`. Set `rsc` to `true` too, or the CLI removes `"use client"` from the components.
+
+```json
+"rsc": true,
+"registries": { "@offload": "https://adirishi.github.io/offload-cms/r/{name}.json" }
 ```
 
-Install the package at the same version as the site's other Offload packages.
+```bash
+pnpm add --save-exact @adirishi/offload-form-builder
+pnpm dlx shadcn@latest add @offload/form-builder-form
+```
 
 ## Use it
 
