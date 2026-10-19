@@ -31,11 +31,20 @@ export const mipsCustomerEmailKey = (reference: string) => `mips:${reference}:cu
  * `origins`. Everything else in the gateway's HTML, including inline scripts, is dropped, so a
  * Content-Security-Policy of `script-src` and `frame-src` on those origins is enough.
  */
+/** The absolute URL in `src`, or `undefined`. `URL.parse` would need Safari 18. */
+const absoluteURL = (src: string) => {
+  try {
+    return new URL(src);
+  } catch {
+    return undefined;
+  }
+};
+
 const trustedZone = (html: string, origins: readonly string[]) => {
   const parsed = new DOMParser().parseFromString(html, "text/html");
   return [...parsed.querySelectorAll("script, iframe")].flatMap(
     (source): (HTMLScriptElement | HTMLIFrameElement)[] => {
-      const url = URL.parse(source.getAttribute("src") ?? "");
+      const url = absoluteURL(source.getAttribute("src") ?? "");
       if (!url || !origins.includes(url.origin)) return [];
       if (source.tagName === "SCRIPT") {
         const script = document.createElement("script");
