@@ -59,7 +59,7 @@ const getPost = createServerFn({ method: "GET" })
 
 - D1: `sqliteD1Adapter({ binding: env.D1, push: false, migrationDir })`
 - Postgres: `postgresAdapter({ pool: hyperdrivePoolConfig(env.HYPERDRIVE), push: false, migrationDir })`
-- R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`
+- R2: `r2Storage({ bucket: env.R2, collections: { media: true } })`. Renaming a stored file and restoring an upload version copy objects, which the binding can't do. They need `copyFile: createS3CopyFile({ accessKeyId, accountId, bucket, secretAccessKey })` from `@payloadcms/storage-r2/copy-file`, which adds the AWS SDK (about 390 KiB compressed) to the Worker.
 - Email Service: `email: cloudflareEmailAdapter({ binding: env.EMAIL, defaultFromAddress, defaultFromName })` from `@adirishi/offload-email-cloudflare`, with `"send_email": [{ "name": "EMAIL" }]`. The `from` domain must be onboarded to Email Sending.
 - Cloudflare Images: `upload: { transformers: [cloudflareTransformer({ transport: { mode: "binding", binding: () => env.IMAGES }, collections })] }` from `@payloadcms/transformer-cloudflare`, with `"images": { "binding": "IMAGES" }`. Pass the binding as a function, because Cloudflare's upload check loads the config without bindings and the transformer throws on an undefined one. `collections` sets upload `variants`, `crop`, and `focalPoint`, and `dynamic` enables `?width=` resizing.
 

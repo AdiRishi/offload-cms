@@ -1,0 +1,280 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 00:06:03 +1100
+Subject: [PATCH] fix(storage-r2): keep the AWS SDK out of Workers that don't
+ copy files
+
+A Worker that stores uploads with r2Storage({ bucket: env.R2 }) bundles about
+890 KiB of @aws-sdk/client-s3 and @smithy code in each of its SSR and RSC
+environments, 390 KiB of the compressed upload. Only file renames and upload
+version restores use it: they copy objects through R2's S3 API with
+copyCredentials, because the binding can't copy. The adapter loads the SDK
+with a dynamic import, but Vite still bundles every dynamic import it can
+reach, so every R2 site pays for the SDK. The size counts toward the Workers
+upload limit, which is 3 MB compressed on the free plan.
+
+The copyCredentials option is now copyFile, a function. createS3CopyFile from
+the new @payloadcms/storage-r2/copy-file entry builds one from the same
+credentials, so only a site that imports it bundles the SDK. Without the
+option, a copy fails with the same kind of error as before.
+
+Offload-Patch: r2-copy-without-aws-sdk
+Drop-When: the pinned release keeps @aws-sdk/client-s3 out of the module graph of @payloadcms/storage-r2's main entry
+Tests: pnpm exec vitest run --project unit packages/storage-r2/src/entryImports.spec.ts; the e2e Worker size budget (pnpm size in e2e)
+---
+ docs/upload/storage-adapters.mdx             | 19 ++++++++++-
+ packages/storage-r2/package.json             | 10 ++++++
+ packages/storage-r2/src/adapter.ts           | 30 ++++-------------
+ packages/storage-r2/src/entryImports.spec.ts | 30 +++++++++++++++++
+ packages/storage-r2/src/exports/copyFile.ts  | 34 ++++++++++++++++++++
+ packages/storage-r2/src/index.ts             | 16 ++++-----
+ 6 files changed, 107 insertions(+), 32 deletions(-)
+ create mode 100644 packages/storage-r2/src/entryImports.spec.ts
+ create mode 100644 packages/storage-r2/src/exports/copyFile.ts
+
+diff --git a/docs/upload/storage-adapters.mdx b/docs/upload/storage-adapters.mdx
+index 2932a1e7b..2870da437 100644
+--- a/docs/upload/storage-adapters.mdx
++++ b/docs/upload/storage-adapters.mdx
+@@ -439,6 +439,23 @@ export default buildConfig({
+ })
+ ```
+ 
++File renames and other copy-dependent file versioning operations need the `copyFile` option, because the R2 binding can't copy objects. `createS3CopyFile` copies through R2's S3-compatible API:
++
++```ts
++import { createS3CopyFile } from '@payloadcms/storage-r2/copy-file'
++
++r2Storage({
++  bucket: cloudflare.env.R2,
++  collections: { media: true },
++  copyFile: createS3CopyFile({
++    accessKeyId: process.env.R2_ACCESS_KEY_ID,
++    accountId: process.env.R2_ACCOUNT_ID,
++    bucket: 'my-bucket',
++    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
++  }),
++})
++```
++
+ ## Custom Storage Adapters
+ 
+ If you need to create a custom storage adapter, you can use the [`@payloadcms/plugin-cloud-storage`](https://www.npmjs.com/package/@payloadcms/plugin-cloud-storage) package. This package is used internally by the storage adapters mentioned above.
+@@ -496,7 +513,7 @@ Custom adapters must implement `deleteFile` for upload rollback and cleanup of u
+ 
+ An explicit file rename copies stored objects to new current keys and keeps the source readable while the database operation is pending. After the document update and its database transaction succeed, Payload removes only source objects with no remaining document or version references. A failed rename preserves the sources and removes staged copies that no persisted document or version references. This applies with or without versions and regardless of whether the adapter supplies `moveFile`. A process crash before cleanup may leave extra objects, but committed source references remain readable.
+ 
+-The first-party S3 adapter uses single or multipart server-side copy. The R2 Workers binding supports ordinary uploads and reads without S3 credentials, but copy-dependent file versioning operations require `copyCredentials` with an R2 account ID, bucket, S3 access key ID, and secret. Azure copies through authenticated source and destination streams, so private sources work but copy traffic passes through the Payload server. GCS uses its provider copy API; Vercel Blob uses its provider copy API with exact destination pathnames. Grant each adapter read and write access to the source and destination, plus object metadata and tag access where used. S3 multipart copy also needs permission to abort incomplete multipart uploads, and copy cleanup needs permission to delete objects (including specific object versions when S3 bucket versioning is enabled); KMS-encrypted S3 objects need the corresponding decrypt and encrypt permissions.
++The first-party S3 adapter uses single or multipart server-side copy. The R2 Workers binding supports ordinary uploads and reads without S3 credentials, but copy-dependent file versioning operations require the `copyFile` option. `createS3CopyFile` from `@payloadcms/storage-r2/copy-file` copies through R2's S3 API with an R2 account ID, bucket, S3 access key ID, and secret. It is a separate import so that a Worker that never copies files doesn't bundle the AWS SDK. Azure copies through authenticated source and destination streams, so private sources work but copy traffic passes through the Payload server. GCS uses its provider copy API; Vercel Blob uses its provider copy API with exact destination pathnames. Grant each adapter read and write access to the source and destination, plus object metadata and tag access where used. S3 multipart copy also needs permission to abort incomplete multipart uploads, and copy cleanup needs permission to delete objects (including specific object versions when S3 bucket versioning is enabled); KMS-encrypted S3 objects need the corresponding decrypt and encrypt permissions.
+ 
+ Payload removes versioned upload objects only after their last document or saved version reference is gone and the database operation has committed. If an object deletion fails, Payload logs the complete storage key and leaves the object in place. Before retrying manually, check the current file, original, and stored variants in every current document and retained version. Each representation's `filename`, `prefix`, and `_objectKey` identify its location through the configured adapter's path resolver. Remove the failed object through the storage provider only when none of these locations resolves to its exact key. Failed deletions are not retried automatically.
+ 
+diff --git a/packages/storage-r2/package.json b/packages/storage-r2/package.json
+index 0faedfbd5..a3a53d385 100644
+--- a/packages/storage-r2/package.json
++++ b/packages/storage-r2/package.json
+@@ -29,6 +29,11 @@
+       "import": "./src/exports/client.ts",
+       "types": "./src/exports/client.ts",
+       "default": "./src/exports/client.ts"
++    },
++    "./copy-file": {
++      "import": "./src/exports/copyFile.ts",
++      "types": "./src/exports/copyFile.ts",
++      "default": "./src/exports/copyFile.ts"
+     }
+   },
+   "main": "./src/index.ts",
+@@ -72,6 +77,11 @@
+         "import": "./dist/exports/client.js",
+         "types": "./dist/exports/client.d.ts",
+         "default": "./dist/exports/client.js"
++      },
++      "./copy-file": {
++        "import": "./dist/exports/copyFile.js",
++        "types": "./dist/exports/copyFile.d.ts",
++        "default": "./dist/exports/copyFile.js"
+       }
+     },
+     "main": "./dist/index.js",
+diff --git a/packages/storage-r2/src/adapter.ts b/packages/storage-r2/src/adapter.ts
+index 2d389edd9..bbadc01d4 100644
+--- a/packages/storage-r2/src/adapter.ts
++++ b/packages/storage-r2/src/adapter.ts
+@@ -1,6 +1,7 @@
+ import type {
+   Adapter,
+   ClientUploadsConfig,
++  CopyFile,
+   DeleteFile,
+   GeneratedAdapter,
+ } from '@payloadcms/plugin-cloud-storage/types'
+@@ -17,7 +18,7 @@ interface CreateR2AdapterArgs {
+   bucket: R2Bucket
+   clientUploads?: ClientUploadsConfig
+   collections: R2StorageOptions['collections']
+-  copyCredentials?: R2StorageOptions['copyCredentials']
++  copyFile?: CopyFile
+   useCompositePrefixes?: boolean
+ }
+ 
+@@ -25,7 +26,7 @@ export function createR2Adapter({
+   bucket,
+   clientUploads,
+   collections,
+-  copyCredentials,
++  copyFile,
+   useCompositePrefixes = false,
+ }: CreateR2AdapterArgs): Adapter {
+   const access = typeof clientUploads === 'object' ? clientUploads.access : undefined
+@@ -64,29 +65,12 @@ export function createR2Adapter({
+     name: 'r2',
+     uploadInstructions,
+ 
+-    copyFile: async ({ from, req, to }) => {
+-      if (!copyCredentials) {
+-        throw new Error('R2 file copy requires S3 API credentials')
++    copyFile: async (args) => {
++      if (!copyFile) {
++        throw new Error('R2 file copy requires the copyFile option')
+       }
+ 
+-      const [{ S3 }, { copyS3File }] = await Promise.all([
+-        import('@aws-sdk/client-s3'),
+-        import('@payloadcms/storage-s3/copy-file'),
+-      ])
+-      const client = new S3({
+-        credentials: {
+-          accessKeyId: copyCredentials.accessKeyId,
+-          secretAccessKey: copyCredentials.secretAccessKey,
+-        },
+-        endpoint: `https://${copyCredentials.accountId}.r2.cloudflarestorage.com`,
+-        region: 'auto',
+-      })
+-
+-      try {
+-        await copyS3File({ bucket: copyCredentials.bucket, client, from, req, to })
+-      } finally {
+-        client.destroy()
+-      }
++      await copyFile(args)
+     },
+ 
+     deleteFile: deleteStoredFile,
+diff --git a/packages/storage-r2/src/entryImports.spec.ts b/packages/storage-r2/src/entryImports.spec.ts
+new file mode 100644
+index 000000000..db4873e7e
+--- /dev/null
++++ b/packages/storage-r2/src/entryImports.spec.ts
+@@ -0,0 +1,30 @@
++import path from 'node:path'
++import { build } from 'vite'
++import { describe, expect, it } from 'vitest'
++
++const entryImports = async (entry: string): Promise<string[]> => {
++  const result = await build({
++    build: {
++      lib: { entry: path.resolve(import.meta.dirname, entry), formats: ['es'] },
++      rollupOptions: { external: (id) => !id.startsWith('.') && !path.isAbsolute(id) },
++      write: false,
++    },
++    configFile: false,
++    logLevel: 'silent',
++  })
++
++  return [result]
++    .flat()
++    .flatMap((bundle) => ('output' in bundle ? bundle.output : []))
++    .flatMap((file) => (file.type === 'chunk' ? [...file.imports, ...file.dynamicImports] : []))
++}
++
++describe('entry imports', () => {
++  // A dynamic import still puts the AWS SDK in a Cloudflare Worker's bundle.
++  it('should not import the AWS SDK from the main entry', async () => {
++    const imports = await entryImports('index.ts')
++
++    expect(imports).toContain('@payloadcms/plugin-cloud-storage')
++    expect(imports.filter((id) => /^@aws-sdk\/|^@payloadcms\/storage-s3/.test(id))).toEqual([])
++  })
++})
+diff --git a/packages/storage-r2/src/exports/copyFile.ts b/packages/storage-r2/src/exports/copyFile.ts
+new file mode 100644
+index 000000000..e5238c495
+--- /dev/null
++++ b/packages/storage-r2/src/exports/copyFile.ts
+@@ -0,0 +1,34 @@
++import type { CopyFile } from '@payloadcms/plugin-cloud-storage/types'
++
++import { S3 } from '@aws-sdk/client-s3'
++import { copyS3File } from '@payloadcms/storage-s3/copy-file'
++
++export type R2S3Credentials = {
++  accessKeyId: string
++  accountId: string
++  bucket: string
++  secretAccessKey: string
++}
++
++/**
++ * Copies objects through R2's S3-compatible API. Kept out of the main entry so a
++ * Worker that never copies files doesn't bundle the AWS SDK.
++ */
++export const createS3CopyFile =
++  (credentials: R2S3Credentials): CopyFile =>
++  async ({ from, req, to }) => {
++    const client = new S3({
++      credentials: {
++        accessKeyId: credentials.accessKeyId,
++        secretAccessKey: credentials.secretAccessKey,
++      },
++      endpoint: `https://${credentials.accountId}.r2.cloudflarestorage.com`,
++      region: 'auto',
++    })
++
++    try {
++      await copyS3File({ bucket: credentials.bucket, client, from, req, to })
++    } finally {
++      client.destroy()
++    }
++  }
+diff --git a/packages/storage-r2/src/index.ts b/packages/storage-r2/src/index.ts
+index ac8c5372d..7f7b708d1 100644
+--- a/packages/storage-r2/src/index.ts
++++ b/packages/storage-r2/src/index.ts
+@@ -2,6 +2,7 @@ import type {
+   ClientUploadsConfig,
+   PluginOptions as CloudStoragePluginOptions,
+   CollectionOptions,
++  CopyFile,
+ } from '@payloadcms/plugin-cloud-storage/types'
+ import type { Config, StorageAdapter, UploadCollectionSlug } from 'payload'
+ 
+@@ -21,13 +22,12 @@ export interface R2StorageOptions {
+    * Collection options to apply the R2 adapter to.
+    */
+   collections: Partial<Record<UploadCollectionSlug, Omit<CollectionOptions, 'adapter'> | true>>
+-  /** S3 API credentials required only for copy-dependent file versioning operations. */
+-  copyCredentials?: {
+-    accessKeyId: string
+-    accountId: string
+-    bucket: string
+-    secretAccessKey: string
+-  }
++  /**
++   * Copies objects for copy-dependent file versioning operations, such as file renames.
++   * The R2 binding has no copy operation, so use `createS3CopyFile` from
++   * `@payloadcms/storage-r2/copy-file`, which copies through R2's S3 API.
++   */
++  copyFile?: CopyFile
+   enabled?: boolean
+   /**
+    * When true, the collection-level prefix and document-level prefix are combined
+@@ -58,7 +58,7 @@ export const r2Storage: R2StorageFactory = (
+       bucket: r2StorageOptions.bucket,
+       clientUploads: r2StorageOptions.clientUploads,
+       collections: r2StorageOptions.collections,
+-      copyCredentials: r2StorageOptions.copyCredentials,
++      copyFile: r2StorageOptions.copyFile,
+       useCompositePrefixes: r2StorageOptions.useCompositePrefixes,
+     })
+ 
