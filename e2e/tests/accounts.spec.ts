@@ -100,7 +100,11 @@ const linkTo = (html: string, path: string) => {
 const createCustomer = (api: PayloadApi, email: string, data: Record<string, unknown> = {}) =>
   api.create("customers", { email, password, _verified: true, ...data });
 
+/** The registry forms mark themselves hydrated. Input typed before that is lost. */
+const formReady = (page: Page) => expect(page.locator("form[data-hydrated]")).toBeVisible();
+
 const logInThroughForm = async (page: Page, email: string, secret = password) => {
+  await formReady(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(secret);
   await page.getByRole("button", { name: "Log in" }).click();
@@ -134,6 +138,7 @@ test("a visitor signs up with Turnstile, confirms the email, and logs in", async
   const visitor = await newVisitor(browser, baseURL);
 
   await visitor.goto("/sign-up");
+  await formReady(visitor);
   await visitor.getByLabel("Email").fill(email);
   await visitor.getByLabel("Password", { exact: true }).fill(password);
   await visitor.getByLabel("Confirm password").fill(password);
@@ -151,7 +156,7 @@ test("a visitor signs up with Turnstile, confirms the email, and logs in", async
 
   // Opening the link verifies nothing, because mail scanners open links too.
   await visitor.goto(`${verification.pathname}${verification.search}`);
-  await expect(visitor.locator("form[data-hydrated]")).toBeVisible();
+  await formReady(visitor);
   expect((await restLogin(visitor.request, email)).status()).toBe(403);
   await visitor.getByRole("button", { name: "Confirm email address" }).click();
   await expect(visitor.getByText("Your email is verified")).toBeVisible();
@@ -268,6 +273,7 @@ test("a customer changes their password after confirming the current one", async
   await expect(page).toHaveURL(/\/account\/password$/);
 
   const change = async (current: string) => {
+    await formReady(page);
     await page.getByLabel("Current password").fill(current);
     await page.getByLabel("New password").fill(newPassword);
     await page.getByLabel("Confirm password").fill(newPassword);
@@ -404,6 +410,7 @@ test("a forgotten password resets through the emailed link and ends the other se
 
   const page = await newVisitor(browser, baseURL);
   await page.goto("/forgot-password");
+  await formReady(page);
   await page.getByLabel("Email").fill(email);
   await page.getByRole("button", { name: "Send reset link" }).click();
   await expect(page.getByText("Check your email")).toBeVisible();
@@ -414,6 +421,7 @@ test("a forgotten password resets through the emailed link and ends the other se
   );
   const newPassword = "offload-new-customer-password";
   await page.goto(`${reset.pathname}${reset.search}`);
+  await formReady(page);
   await page.getByLabel("New password").fill(newPassword);
   await page.getByLabel("Confirm password").fill(newPassword);
   await page.getByRole("button", { name: "Set password" }).click();
