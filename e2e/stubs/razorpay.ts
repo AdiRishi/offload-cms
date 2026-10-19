@@ -103,6 +103,7 @@ type PaymentRecord = { payment: Payment; entry: Entry; deliver: boolean };
 
 const orders = new Map<string, Entry>();
 const payments = new Map<string, PaymentRecord>();
+const deliveriesByID = new Map<string, Delivery>();
 
 const failure: PaymentError = {
   error_code: "BAD_REQUEST_ERROR",
@@ -159,6 +160,7 @@ function event(entry: Entry, name: string, payment: Payment, withOrder = false):
     response: null,
   };
   entry.deliveries.push(delivery);
+  deliveriesByID.set(id, delivery);
   return delivery;
 }
 
@@ -197,7 +199,7 @@ async function post(delivery: Delivery) {
       method: "POST",
       headers: delivery.headers,
       body: delivery.body,
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(5_000),
     });
     delivery.response = { status: response.status, body: await response.text() };
   } catch (error) {
@@ -209,6 +211,11 @@ async function postInOrder(deliveries: Delivery[]) {
   // Each event goes out after the site has answered the previous one.
   // oxlint-disable-next-line no-await-in-loop
   for (const delivery of deliveries) await post(delivery);
+}
+
+async function dispatch(deliveries: Delivery[], wait: boolean) {
+  if (wait) await postInOrder(deliveries);
+  else void postInOrder(deliveries);
 }
 
 const apiError = (description: string, field?: string) =>
@@ -242,6 +249,9 @@ function createOrder(_: string, body: unknown): Response {
   if (amount < 100) return apiError(`The amount must be at least ${currency} 1.00`, "amount");
   if (receipt !== undefined && (typeof receipt !== "string" || receipt.length > 40)) {
     return apiError("receipt: the length must be no more than 40.", "receipt");
+  }
+  if ([...orders.values()].some((entry) => entry.order.receipt === receipt)) {
+    return apiError("Receipt already exists", "receipt");
   }
   if (notes !== undefined && !isNotes(notes)) {
     return apiError("notes: at most 15 keys with values of at most 256 characters", "notes");
@@ -327,6 +337,7 @@ async function pay(orderID: string, body: unknown): Promise<Response> {
     amount = entry.order.amount,
     currency = entry.order.currency,
     deliver = true,
+    wait = false,
     key,
   } = body;
   if (key !== undefined && key !== keyID) return stubError(401, "key is not RAZORPAY_KEY_ID");
@@ -336,6 +347,7 @@ async function pay(orderID: string, body: unknown): Promise<Response> {
   if (!isAmount(amount)) return stubError(400, "amount must be a positive integer");
   if (!isCurrency(currency)) return stubError(400, "currency must be 3 capital letters");
   if (typeof deliver !== "boolean") return stubError(400, "deliver must be a boolean");
+  if (typeof wait !== "boolean") return stubError(400, "wait must be a boolean");
   if (entry.order.status === "paid") return stubError(400, `${orderID} is already paid`);
 
   const payment: Payment = {
@@ -371,7 +383,7 @@ async function pay(orderID: string, body: unknown): Promise<Response> {
   entry.order.attempts += 1;
   entry.order.status = "attempted";
   const deliveries = transition(record, outcome);
-  if (deliver) await postInOrder(deliveries);
+  if (deliver) await dispatch(deliveries, wait);
   const checkout =
     outcome === "failed"
       ? null
@@ -387,11 +399,12 @@ async function setPaymentStatus(paymentID: string, body: unknown): Promise<Respo
   const record = payments.get(paymentID);
   if (!record) return stubError(404, `No payment ${paymentID}`);
   if (!isRecord(body)) return stubError(400, "Expected a JSON object");
-  const { status, deliver = true } = body;
+  const { status, deliver = true, wait = false } = body;
   if (status !== "authorized" && status !== "captured" && status !== "failed") {
     return stubError(400, "status must be authorized, captured or failed");
   }
   if (typeof deliver !== "boolean") return stubError(400, "deliver must be a boolean");
+  if (typeof wait !== "boolean") return stubError(400, "wait must be a boolean");
   const { payment, entry } = record;
   if (payment.status === "captured" || payment.status === status) {
     return stubError(400, `Cannot move a ${payment.status} payment to ${status}`);
@@ -401,8 +414,15 @@ async function setPaymentStatus(paymentID: string, body: unknown): Promise<Respo
   }
   record.deliver = deliver;
   const deliveries = transition(record, status);
-  if (deliver) await postInOrder(deliveries);
+  if (deliver) await dispatch(deliveries, wait);
   return Response.json({ payment, order: entry.order, deliveries });
+}
+
+async function redeliver(deliveryID: string): Promise<Response> {
+  const delivery = deliveriesByID.get(deliveryID);
+  if (!delivery) return stubError(404, `No delivery ${deliveryID}`);
+  await post(delivery);
+  return Response.json({ delivery });
 }
 
 function inspectOrder(orderID: string): Response {
@@ -526,6 +546,7 @@ const routes: Route[] = [
   ["POST", /^\/__stub\/orders\/([^/]+)\/pay$/, pay],
   ["POST", /^\/__stub\/payments\/([^/]+)\/status$/, setPaymentStatus],
   ["GET", /^\/__stub\/orders\/([^/]+)$/, inspectOrder],
+  ["POST", /^\/__stub\/deliveries\/([^/]+)\/send$/, redeliver],
 ];
 
 const parse = (raw: string): unknown => {

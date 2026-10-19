@@ -48,6 +48,10 @@ type OrderDetails = {
   order_link: string;
 };
 
+// The Order details enum has no cancelled value, so orders_management reports a cancelled order as expired.
+type Order = Omit<OrderDetails, "order_status"> & { order_status: OrderStatus | "cancelled" };
+type AmountUnits = "major" | "cents";
+
 type Delivery = {
   id: string;
   event: "imn";
@@ -57,10 +61,22 @@ type Delivery = {
   response: { status: number; body: string } | null;
 };
 
-type Entry = { order: OrderDetails; redirect: string | null; deliveries: Delivery[] };
+type Entry = {
+  order: Order;
+  amountUnits: AmountUnits;
+  redirect: string | null;
+  deliveries: Delivery[];
+};
 
 const orders = new Map<string, Entry>();
 const tokens = new Map<string, Entry>();
+const deliveriesByID = new Map<string, Delivery>();
+
+const details = ({ order, amountUnits }: Entry): OrderDetails => ({
+  ...order,
+  amount: amountUnits === "cents" ? Math.round(order.amount * 100) : order.amount,
+  order_status: order.order_status === "cancelled" ? "expired" : order.order_status,
+});
 
 const key = createHash("sha256").update(`${salt}:${cipherKey}`).digest();
 
@@ -121,6 +137,7 @@ function imn(entry: Entry): Delivery {
     response: null,
   };
   entry.deliveries.push(delivery);
+  deliveriesByID.set(delivery.id, delivery);
   return delivery;
 }
 
@@ -130,7 +147,7 @@ async function post(delivery: Delivery) {
       method: "POST",
       headers: delivery.headers,
       body: delivery.body,
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(5_000),
     });
     delivery.response = { status: response.status, body: await response.text() };
   } catch (error) {
@@ -188,6 +205,7 @@ function loadPaymentZone(_: string, body: unknown, raw: string): Response {
       last_transaction_date: null,
       order_link: link,
     },
+    amountUnits: "major",
     redirect: typeof redirect === "string" ? redirect : null,
     deliveries: [],
   };
@@ -217,13 +235,25 @@ function decryptIMN(_: string, body: unknown): Response {
 
 function ordersManagement(_: string, body: unknown): Response {
   if (!isRecord(body) || !isAuthentic(body)) return fail("Authentication failed");
-  if (body.instruction !== "get_order_all_data") {
-    return fail(`The stub does not support instruction ${String(body.instruction)}`);
+  const { instruction, description } = body;
+  if (instruction !== "get_order_all_data" && instruction !== "cancel_order") {
+    return fail(`The stub does not support instruction ${String(instruction)}`);
   }
   const id = isRecord(body.order) ? body.order.id_order : undefined;
   const entry = typeof id === "string" ? orders.get(id) : undefined;
   if (!entry) return fail("Order not found");
-  return Response.json({ orders: [entry.order], operation_status: "success" });
+  if (instruction === "get_order_all_data") {
+    return Response.json({ orders: [details(entry)], operation_status: "success" });
+  }
+  if (description !== undefined && typeof description !== "string") {
+    return fail("description must be a string");
+  }
+  const { order } = entry;
+  if (order.order_status === "success") return fail("A paid order cannot be cancelled");
+  if (order.order_status === "waiting" || order.order_status === "fail") {
+    order.order_status = "cancelled";
+  }
+  return Response.json({ operation_status: "success", orders: [details(entry)] });
 }
 
 async function pay(id: string, body: unknown): Promise<Response> {
@@ -234,7 +264,9 @@ async function pay(id: string, body: unknown): Promise<Response> {
     outcome,
     amount = entry.order.amount,
     currency = entry.order.currency,
+    amountUnits = "major",
     deliver = true,
+    wait = false,
   } = body;
   if (outcome !== "success" && outcome !== "fail")
     return stubError(400, "outcome must be success or fail");
@@ -242,15 +274,27 @@ async function pay(id: string, body: unknown): Promise<Response> {
     return stubError(400, "amount must be a number of at least 1 with at most 2 decimals");
   if (!isCurrency(currency))
     return stubError(400, `currency must be one of ${currencies.join(", ")}`);
+  if (amountUnits !== "major" && amountUnits !== "cents") {
+    return stubError(400, "amountUnits must be major or cents");
+  }
   if (typeof deliver !== "boolean") return stubError(400, "deliver must be a boolean");
-  if (entry.order.order_status === "success") return stubError(400, `Order ${id} is already paid`);
+  if (typeof wait !== "boolean") return stubError(400, "wait must be a boolean");
+  const status = entry.order.order_status;
+  if (status === "success") return stubError(400, `Order ${id} is already paid`);
+  if (status === "cancelled" || status === "expired") {
+    return stubError(400, `Order ${id} is ${status}`);
+  }
+  entry.amountUnits = amountUnits;
   entry.order.amount = amount;
   entry.order.currency = currency;
   entry.order.order_status = outcome;
   entry.order.last_transaction_date = new Date().toISOString().replace("T", " ").slice(0, 19);
   if (outcome === "fail") return Response.json({ order: entry.order, delivery: null });
   const delivery = imn(entry);
-  if (deliver) await post(delivery);
+  if (deliver) {
+    if (wait) await post(delivery);
+    else void post(delivery);
+  }
   return Response.json({ order: entry.order, delivery });
 }
 
@@ -262,6 +306,13 @@ function setOrderStatus(id: string, body: unknown): Response {
     return stubError(400, "order_status must be waiting, expired, fail or success");
   entry.order.order_status = status;
   return Response.json({ order: entry.order });
+}
+
+async function redeliver(deliveryID: string): Promise<Response> {
+  const delivery = deliveriesByID.get(deliveryID);
+  if (!delivery) return stubError(404, `No delivery ${deliveryID}`);
+  await post(delivery);
+  return Response.json({ delivery });
 }
 
 function inspectOrder(id: string): Response {
@@ -344,6 +395,7 @@ const routes: Route[] = [
   ["POST", /^\/__stub\/orders\/([^/]+)\/pay$/, pay],
   ["POST", /^\/__stub\/orders\/([^/]+)\/status$/, setOrderStatus],
   ["GET", /^\/__stub\/orders\/([^/]+)$/, inspectOrder],
+  ["POST", /^\/__stub\/deliveries\/([^/]+)\/send$/, redeliver],
 ];
 
 const parse = (raw: string): unknown => {
