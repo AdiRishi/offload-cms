@@ -11,7 +11,7 @@ at runtime.
 
 Offload-Patch: plugin-search-no-next
 Drop-When: the pinned release's plugin-search no longer depends on @payloadcms/next
-Tests: pnpm --filter @payloadcms/plugin-search build; e2e suite (search test) passes and apps/e2e has no next package installed
+Tests: pnpm --filter @payloadcms/plugin-search build; e2e suite (search test) passes and e2e/ has no next package installed
 ---
  packages/plugin-search/package.json | 1 -
  pnpm-lock.yaml                      | 3 ---

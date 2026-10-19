@@ -33,10 +33,10 @@
     "**/.wrangler/**",
     "upstream/payload/**",
     "upstream/patches/**",
-    "apps/*/src/migrations/**",
-    "apps/*/src/payload-types.ts",
-    "apps/*/src/routeTree.gen.ts",
-    "apps/*/src/app/_payload/importMap.js",
-    "apps/*/worker-configuration.d.ts"
+    "e2e/src/migrations/**",
+    "e2e/src/payload-types.ts",
+    "e2e/src/routeTree.gen.ts",
+    "e2e/src/app/_payload/importMap.js",
+    "e2e/worker-configuration.d.ts"
   ]
 }

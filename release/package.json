@@ -10,17 +10,16 @@
   "scripts": {
     "check-types": "tsc --noEmit",
     "publish": "node src/cli.ts publish",
-    "registry": "verdaccio --config registry.yaml --listen 4873",
     "test": "node --test"
   },
   "dependencies": {
-    "@repo/upstream": "workspace:*"
+    "@repo/upstream": "workspace:*",
+    "verdaccio": "6.10.5"
   },
   "devDependencies": {
     "@adirishi/offload-cloudflare": "workspace:*",
     "@repo/tsconfig": "workspace:*",
     "@types/node": "24.12.3",
-    "typescript": "7.0.2",
-    "verdaccio": "6.10.5"
+    "typescript": "7.0.2"
   }
 }

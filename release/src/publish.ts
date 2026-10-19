@@ -7,7 +7,12 @@ import { promisify } from "node:util";
 
 import rootManifest from "../../package.json" with { type: "json" };
 import { releaseManifest } from "./manifest.ts";
-import { offloadPackageDirs, readManifest, upstreamPackageDirs } from "./packages.ts";
+import {
+  offloadPackageDirs,
+  readManifest,
+  upstreamPackageDirs,
+  writeManifest,
+} from "./packages.ts";
 
 const execFileAsync = promisify(execFile);
 const concurrency = 8;
@@ -92,10 +97,7 @@ export const publish = async ({ registry, token }: { registry: string; token: st
         const directory = await pack(packageDir, workDir);
         const manifest = readManifest(directory);
         const release = releaseManifest(manifest, { upstreamNames, version: offloadVersion });
-        writeFileSync(
-          path.join(directory, "package.json"),
-          `${JSON.stringify(release, null, 2)}\n`,
-        );
+        writeManifest(directory, release);
 
         if (upstreamNames.has(manifest.name)) {
           writeFileSync(

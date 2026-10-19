@@ -29,4 +29,4 @@ it. Installing the plugin in a TanStack Start site therefore installs all of
 Next.js 16 and a next peer requirement. Removing the dependency changes nothing
 at runtime.
 
-Tests: pnpm --filter @payloadcms/plugin-search build; e2e suite (search test) passes and apps/e2e has no next package installed
+Tests: pnpm --filter @payloadcms/plugin-search build; e2e suite (search test) passes and e2e/ has no next package installed

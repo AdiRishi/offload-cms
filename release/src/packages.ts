@@ -1,5 +1,5 @@
 import { checkoutDir } from "@repo/upstream";
-import { readFileSync, realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -9,6 +9,9 @@ import releasePackage from "../package.json" with { type: "json" };
 
 export const readManifest = (directory: string): PackageManifest =>
   JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8"));
+
+export const writeManifest = (directory: string, manifest: PackageManifest) =>
+  writeFileSync(path.join(directory, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
 /** The Payload packages upstream publishes, from Payload's own release tooling. */
 export const upstreamPackageDirs = async () => {
