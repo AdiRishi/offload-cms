@@ -77,7 +77,8 @@ const getPost = createServerFn({ method: "GET" })
 
 **Workers runtime limits:**
 
-- Create users through the Worker, with the admin or the API. A user created in Node, through the Payload CLI or a seed script, gets a password hash that a deployed Worker can't verify.
+- Create users through the Worker, with the admin, the API, or the site's sign-up. A user created in Node, through the Payload CLI or a seed script, gets a password hash that a deployed Worker can't verify.
+- Each password hash costs about 10 ms of CPU, the Workers Free plan's whole per-request limit. A site with logins needs the Workers Paid plan.
 - Process images with the Cloudflare Images transformer above. `sharp` can't run, so `@payloadcms/transformer-sharp` fails on Workers.
 - Send email with the Email Service adapter above, or another adapter that uses `fetch`, such as `@payloadcms/email-resend`. Nodemailer can't open sockets.
 
@@ -90,7 +91,7 @@ const getPost = createServerFn({ method: "GET" })
 
 Third-party plugins that list `payload` as a peer dependency install normally. Change every `@adirishi/offload-*` version together when you update.
 
-## Site pages and forms
+## Site pages, forms, and accounts
 
 **Read page content through `@adirishi/offload-tanstack`**, instead of the `getPayload()` call above. Create the helpers once, in `src/lib/payload.server.ts`, with `createPayloadHelpers({ getConfig: async () => (await import("@payload-config")).default, documentPath })` from `@adirishi/offload-tanstack/server`:
 
@@ -110,6 +111,18 @@ Third-party plugins that list `payload` as a peer dependency install normally. C
 - Render `FormBuilderForm` with `renderServerComponent()` in the page's server function.
 - Add `import "@/server/forms.functions";` once, to the `_frontend` layout route. TanStack Start's build registers a server function only when a route reaches its module, and the form components render only inside server components. An import in a server component doesn't register it. Without the layout import, each submission fails on a production build with "Server function info not found", while `vite dev` works. Check forms with `vite build && vite preview`.
 
-The [forms guide](https://adirishi.github.io/offload-cms/forms) and the [Live Preview guide](https://adirishi.github.io/offload-cms/live-preview) have the full setup.
+**Site accounts use `@adirishi/offload-accounts`**, with a separate auth collection for visitors, such as `customers`, next to the admin's `users`:
+
+- Make the collection with `accountCollection({ slug: "customers", fields }, { siteURL: env.SITE_URL, rateLimit: () => env.ACCOUNTS })` from `@adirishi/offload-accounts/config`. `ACCOUNTS` is a `ratelimits` binding, and it limits logins and password reset requests, REST included. The collection has 14-day sessions that `getAccount()` extends, email verification, emails that link to the site's own pages, and no lockout. Set `admin.user` to the admin's collection, or Payload makes the first auth collection the admin's.
+- Once a second auth collection exists, `req.user` can be a customer. Check editors with `isAdminUser` or `req.user?.collection === "users"`, never `Boolean(req.user)`. Give an account its own documents with `adminOrOwner("customers", "<relationship field>")`.
+- Write `src/server/account.functions.ts`: `getAccount`, `logIn`, `logOut`, `signUp`, `requestPasswordReset`, `resetPassword`, and `verifyEmail`. Each is a `createServerFn` with `hideServerErrors` and an input schema from `@adirishi/offload-accounts`, and calls the helper of the same name from `createAccountHelpers({ getPayload: getVisitorPayload, collection: "customers" })` in `@adirishi/offload-accounts/server`. `getAccount` returns only the fields the pages show, because the account document holds its sessions.
+- Install the forms with `pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/verify-email-result @offload/account-menu`. They import those server functions.
+- Load the account in the `_frontend` layout's `beforeLoad`. Put account pages under a pathless `_account` route that redirects to `/login` with `returnTo`, and call `requireAccount()` again in each server function that reads private data, passing the account as `user` with `overrideAccess: false`.
+- A browser holds one Payload session, because every auth collection uses the same cookie name. A customer login on the site ends an editor's admin session in that browser.
+- Payload v4 has no social login or magic links.
+
+`verifyTurnstile()` is in `@adirishi/offload-cloudflare`. Forms use the Turnstile action `form`, and the account forms use `sign-up` and `forgot-password`.
+
+The [forms guide](https://adirishi.github.io/offload-cms/forms), the [accounts guide](https://adirishi.github.io/offload-cms/customer-accounts), and the [Live Preview guide](https://adirishi.github.io/offload-cms/live-preview) have the full setup.
 
 The Offload docs at https://adirishi.github.io/offload-cms list each patch to Payload and the known limits on Workers.

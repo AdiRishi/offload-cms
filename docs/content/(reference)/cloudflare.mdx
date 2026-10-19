@@ -1,14 +1,14 @@
 ---
 title: "@adirishi/offload-cloudflare"
-description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Worker entry, and the API routes.
+description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Turnstile check, the Worker entry, and the API routes.
 ---
 
-| Entry point                           | Exports                                            |
-| ------------------------------------- | -------------------------------------------------- |
-| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`              |
-| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()`          |
-| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                            |
-| `@adirishi/offload-cloudflare/routes` | `payloadApiHandlers()`, `payloadGraphQLHandlers()` |
+| Entry point                           | Exports                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------- |
+| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`                                            |
+| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()`, `verifyTurnstile()`, `TurnstileCheck` |
+| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                                                          |
+| `@adirishi/offload-cloudflare/routes` | `payloadApiHandlers()`, `payloadGraphQLHandlers()`                               |
 
 The package also ships the agent skill `skills/offload/SKILL.md`. [Getting started](/getting-started#set-up-your-coding-agent) shows how a site points its agent at it.
 
@@ -86,6 +86,26 @@ hyperdrivePoolConfig(hyperdrive: Hyperdrive, options?: PoolConfig): PoolConfig
 ```
 
 Returns the `pool` option for `postgresAdapter()`. The returned config reads `hyperdrive.connectionString` when the pool connects, because a Worker can read it only inside a request. It sets `maxUses: 1`, so each query gets a new connection and Hyperdrive does the pooling. It also sets `max: Infinity`, so a request never waits for a connection that another request releases: pg-pool would open that connection inside the other request, and workerd cancels a request that uses another request's I/O. Values in `options` override these.
+
+## verifyTurnstile()
+
+```ts
+verifyTurnstile(check: TurnstileCheck, fetcher?: typeof fetch): Promise<boolean>
+```
+
+Checks a Cloudflare Turnstile token with the Siteverify API. `fetcher` defaults to `fetch`. `saveFormSubmission()` from `@adirishi/offload-form-builder` and the sign-up and password reset helpers from `@adirishi/offload-accounts` call it. Call it yourself in a server function that takes a token from your own widget.
+
+| Key        | Type     | Description                                        |
+| ---------- | -------- | -------------------------------------------------- |
+| `token`    | `string` | Required. The token the widget gave the visitor.   |
+| `secret`   | `string` | Required. The widget's secret key.                 |
+| `hostname` | `string` | Required. The host that served the visitor's page. |
+| `action`   | `string` | Required. The `action` the widget rendered with.   |
+| `remoteip` | `string` | The visitor's IP address.                          |
+
+`TurnstileCheck` is the type of `check`.
+
+It returns `false` when Siteverify answers with an error status, rejects the token, or reports a hostname other than `hostname` or an action other than `action`, and logs a warning that says which. The action check stops a token from one widget on the site, such as the sign-up form's, from passing the check for another, such as a form submission. A result from Cloudflare's testing keys always reports `example.com` and no action, so it passes on any host. A production secret rejects tokens from the testing site key. A token passes only once.
 
 ## createPayloadWorker()
 
