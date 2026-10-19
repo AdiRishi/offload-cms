@@ -3,16 +3,21 @@
 //
 // usage: pnpm use-version <site-dir> [version]   (default: the pinned release)
 
-import { fail, offloadVersion, readPin } from "@tools/upstream/lib";
+import { offloadVersion } from "@repo/upstream";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+
+const fail = (message: string): never => {
+  console.error(message);
+  process.exit(1);
+};
 
 const offloadAlias = /^npm:(@adirishi\/offload-[a-z0-9-]+)@/;
 
 const [siteDir, requested] = process.argv.slice(2);
 if (siteDir === undefined) fail("usage: pnpm use-version <site-dir> [version]");
 else {
-  const version = requested ?? offloadVersion(readPin());
+  const version = requested ?? offloadVersion;
   const manifestPath = path.resolve(siteDir, "package.json");
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (typeof manifest !== "object" || manifest === null)

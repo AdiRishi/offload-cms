@@ -14,7 +14,7 @@
   "ignorePatterns": [
     "**/dist/**",
     "**/.wrangler/**",
-    "vendor/**",
+    "upstream/payload/**",
     "pnpm-lock.yaml",
     "upstream/patches/**",
     "upstream/PATCHES.md",

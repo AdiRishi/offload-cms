@@ -10,18 +10,11 @@
 //   OFFLOAD_REGISTRY_TOKEN  auth token (not needed for the local registry)
 
 import {
-  fail,
+  checkoutDir as vendorDir,
   offloadPackageName,
-  offloadVersion,
-  output,
-  readPin,
-  repoRoot,
-  run,
-  vendorDir,
-  vendorChanges,
-  vendorGitOutput,
-} from "@tools/upstream/lib";
-import { execFile } from "node:child_process";
+  offloadVersion as version,
+} from "@repo/upstream";
+import { execFile, execFileSync } from "node:child_process";
 import {
   copyFileSync,
   existsSync,
@@ -42,8 +35,14 @@ const registry =
   "http://localhost:4873";
 const skipBuild = process.argv.includes("--skip-build");
 
-const pin = readPin();
-const version = offloadVersion(pin);
+const repoRoot = path.resolve(import.meta.dirname, "../../..");
+
+const fail = (message: string): never => {
+  console.error(`\n${message}`);
+  process.exit(1);
+};
+const output = (command: string, args: string[]) =>
+  execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }).trim();
 
 const npmrc = path.join(mkdtempSync(path.join(tmpdir(), "offload-npmrc-")), ".npmrc");
 const registryHost = registry.replace(/^https?:/, "");
@@ -108,25 +107,9 @@ const offloadReadme = ({ published, upstream }: { published: string; upstream: s
     "",
   ].join("\n");
 
-const patchFiles = readdirSync(path.join(repoRoot, "upstream", "patches")).filter((file) =>
-  file.endsWith(".patch"),
-);
-const appliedPatches = vendorGitOutput(["rev-list", "--count", `${pin.commit}..offload`]);
-if (
-  vendorGitOutput(["rev-parse", "offload-base"]) !== pin.commit ||
-  Number(appliedPatches) !== patchFiles.length ||
-  vendorChanges() !== ""
-) {
-  fail("vendor/payload does not match upstream/. Run `pnpm upstream:checkout --force` first.");
-}
-
-if (!skipBuild) {
-  // Building needs no install scripts. Skipping them avoids compiling better-sqlite3 and
-  // downloading MongoDB for Payload's test suite.
-  run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], { cwd: vendorDir });
-  run("pnpm", ["build:all"], { cwd: vendorDir });
-  run("pnpm", ["--filter", "./packages/*", "build"], { cwd: repoRoot });
-}
+// Builds and verifies the checkout through Turborepo, then builds packages/.
+if (!skipBuild)
+  execFileSync("pnpm", ["turbo", "run", "build"], { cwd: repoRoot, stdio: "inherit" });
 
 // Payload's own release order: dependencies before dependents.
 const publishList = [

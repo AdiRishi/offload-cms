@@ -1,0 +1,22 @@
+{
+  "name": "@repo/upstream",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The pinned Payload release, the Offload patch series, and the scripts that manage them",
+  "bin": {
+    "upstream": "./src/cli.ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/pin.ts"
+  },
+  "scripts": {
+    "build": "node src/cli.ts build",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/tsconfig": "workspace:*",
+    "@types/node": "24.12.3",
+    "typescript": "7.0.2"
+  }
+}

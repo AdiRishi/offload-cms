@@ -31,7 +31,7 @@
   "ignorePatterns": [
     "**/dist/**",
     "**/.wrangler/**",
-    "vendor/**",
+    "upstream/payload/**",
     "upstream/patches/**",
     "apps/*/src/migrations/**",
     "apps/*/src/payload-types.ts",

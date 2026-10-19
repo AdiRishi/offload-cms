@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@repo/upstream':
+        specifier: workspace:*
+        version: link:upstream
       oxfmt:
         specifier: 0.73.0
         version: 0.73.0
@@ -35,15 +38,15 @@ importers:
       '@payloadcms/tanstack-start':
         specifier: 4.0.0-beta.2
         version: 4.0.0-beta.2(@tanstack/react-router@1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@tanstack/react-start@1.169.3(@vitejs/plugin-rsc@0.5.38(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.14)(supports-color@10.2.2)(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))(@types/react@19.2.18)(@vitejs/plugin-react@6.0.3(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))(@vitejs/plugin-rsc@0.5.38(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))(graphql@16.11.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.2(graphql@16.11.0)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+      '@repo/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@tanstack/react-router':
         specifier: 1.170.44
         version: 1.170.44(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/react-start':
         specifier: 1.169.3
         version: 1.169.3(@vitejs/plugin-rsc@0.5.38(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.14)(supports-color@10.2.2)(vite@8.3.4(@types/node@24.12.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
-      '@tools/tsconfig':
-        specifier: workspace:*
-        version: link:../../tools/tsconfig
       '@types/node':
         specifier: 24.12.3
         version: 24.12.3
@@ -78,15 +81,17 @@ importers:
         specifier: 4.151.1
         version: 4.151.1(@cloudflare/workers-types@5.20261012.1)(@types/node@24.12.3)
 
+  packages/tsconfig: {}
+
   tools/release:
     dependencies:
-      '@tools/upstream':
+      '@repo/upstream':
         specifier: workspace:*
-        version: link:../upstream
+        version: link:../../upstream
     devDependencies:
-      '@tools/tsconfig':
+      '@repo/tsconfig':
         specifier: workspace:*
-        version: link:../tsconfig
+        version: link:../../packages/tsconfig
       '@types/node':
         specifier: 24.12.3
         version: 24.12.3
@@ -97,13 +102,11 @@ importers:
         specifier: 6.10.5
         version: 6.10.5(supports-color@10.2.2)(typanion@3.14.0)
 
-  tools/tsconfig: {}
-
-  tools/upstream:
+  upstream:
     devDependencies:
-      '@tools/tsconfig':
+      '@repo/tsconfig':
         specifier: workspace:*
-        version: link:../tsconfig
+        version: link:../packages/tsconfig
       '@types/node':
         specifier: 24.12.3
         version: 24.12.3

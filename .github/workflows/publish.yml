@@ -27,7 +27,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: ./.github/actions/setup
         with:
-          vendor: "true"
+          payload: "true"
       - run: pnpm release
         env:
           OFFLOAD_REGISTRY: https://npm.pkg.github.com

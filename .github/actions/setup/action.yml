@@ -1,8 +1,8 @@
 name: Set up Offload
 description: Node, pnpm and workspace dependencies, and optionally the patched Payload checkout.
 inputs:
-  vendor:
-    description: Also check out vendor/payload and restore its Turborepo cache.
+  payload:
+    description: Also create upstream/payload and restore its Turborepo cache.
     default: "false"
 runs:
   using: composite
@@ -14,22 +14,22 @@ runs:
         cache: pnpm
     - run: pnpm install --frozen-lockfile
       shell: bash
-    - if: inputs.vendor == 'true'
+    - if: inputs.payload == 'true'
       run: pnpm upstream:checkout
       shell: bash
-    - if: inputs.vendor == 'true'
+    - if: inputs.payload == 'true'
       id: pnpm-store
       run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
       shell: bash
     # setup-node's cache is keyed on the root lockfile, so Payload's packages get their own.
-    - if: inputs.vendor == 'true'
+    - if: inputs.payload == 'true'
       uses: actions/cache@v6
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
-        key: pnpm-store-payload-${{ runner.os }}-${{ hashFiles('vendor/payload/pnpm-lock.yaml') }}
-    - if: inputs.vendor == 'true'
+        key: pnpm-store-payload-${{ runner.os }}-${{ hashFiles('upstream/payload/pnpm-lock.yaml') }}
+    - if: inputs.payload == 'true'
       uses: actions/cache@v6
       with:
-        path: vendor/payload/.turbo/cache
+        path: upstream/payload/.turbo/cache
         key: payload-turbo-${{ hashFiles('upstream/payload.json', 'upstream/patches/**') }}
         restore-keys: payload-turbo-

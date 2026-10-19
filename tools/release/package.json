@@ -9,10 +9,10 @@
     "registry": "verdaccio --config registry.yaml --listen 4873"
   },
   "dependencies": {
-    "@tools/upstream": "workspace:*"
+    "@repo/upstream": "workspace:*"
   },
   "devDependencies": {
-    "@tools/tsconfig": "workspace:*",
+    "@repo/tsconfig": "workspace:*",
     "@types/node": "24.12.3",
     "typescript": "7.0.2",
     "verdaccio": "6.10.5"

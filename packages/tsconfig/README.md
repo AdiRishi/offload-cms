@@ -1,4 +1,4 @@
-# @tools/tsconfig
+# @repo/tsconfig
 
 Shared TypeScript configuration. Every workspace package extends one of these.
 

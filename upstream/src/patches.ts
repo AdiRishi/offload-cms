@@ -1,4 +1,15 @@
-import { fail, vendorGitOutput } from "./lib.ts";
+import { readdirSync } from "node:fs";
+import path from "node:path";
+
+import { gitOutput } from "./exec.ts";
+import { patchesDir } from "./pin.ts";
+
+/** The patch files in `patches/`, in the order they apply. */
+export const patchFiles = () =>
+  readdirSync(patchesDir)
+    .filter((file) => file.endsWith(".patch"))
+    .toSorted()
+    .map((file) => path.join(patchesDir, file));
 
 /**
  * An Offload patch is one commit on the `offload` branch. Its message carries
@@ -31,7 +42,7 @@ export const readPatchCommits = ({ base, head }: { base: string; head: string })
     "%b",
   ].join("%x1f");
 
-  return vendorGitOutput(["log", "--reverse", `--format=${format}%x1e`, `${base}..${head}`])
+  return gitOutput(["log", "--reverse", `--format=${format}%x1e`, `${base}..${head}`])
     .split(recordSeparator)
     .map((record) => record.trim())
     .filter((record) => record !== "")
@@ -51,7 +62,9 @@ export const readPatchCommits = ({ base, head }: { base: string; head: string })
         intent === "" && "an intent paragraph",
       ].filter((name) => name !== false);
       if (missing.length > 0) {
-        return fail(`Patch "${subject}" (${sha.slice(0, 9)}) is missing ${missing.join(", ")}.`);
+        throw new Error(
+          `Patch "${subject}" (${sha.slice(0, 9)}) is missing ${missing.join(", ")}.`,
+        );
       }
 
       return {

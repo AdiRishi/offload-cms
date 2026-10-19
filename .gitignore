@@ -6,8 +6,8 @@ dist
 .turbo
 .tanstack
 
-# Generated Payload checkout (pnpm upstream:checkout)
-vendor/
+# Payload checkout (pnpm upstream:checkout)
+/upstream/payload/
 
 # Local registry data (pnpm registry)
 tools/release/.registry-storage/

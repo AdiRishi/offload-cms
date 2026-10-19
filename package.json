@@ -23,13 +23,14 @@
     "release": "node tools/release/src/release.ts",
     "test:e2e": "pnpm --dir apps/e2e e2e",
     "test:e2e:postgres": "pnpm --dir apps/e2e e2e:postgres",
-    "upstream:checkout": "node tools/upstream/src/checkout.ts",
-    "upstream:export": "node tools/upstream/src/export.ts",
-    "upstream:status": "node tools/upstream/src/status.ts",
-    "upstream:upgrade": "node tools/upstream/src/upgrade.ts",
+    "upstream:checkout": "upstream checkout",
+    "upstream:export": "upstream export",
+    "upstream:status": "upstream status",
+    "upstream:upgrade": "upstream upgrade",
     "use-version": "node tools/release/src/use-version.ts"
   },
   "devDependencies": {
+    "@repo/upstream": "workspace:*",
     "oxfmt": "0.73.0",
     "oxlint": "1.88.0",
     "oxlint-tsgolint": "7.0.2004",
