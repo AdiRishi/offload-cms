@@ -43,7 +43,7 @@ Done when the build and every `Tests` command pass.
 
 1. Apply the site-facing breaking changes from step 1 to `packages/` and `e2e`.
 2. Run `pnpm release e2e`. It installs the new release into `e2e`. A schema change can fail this run, and step 3 fixes that.
-3. In `e2e`, run `pnpm payload migrate:create --skip-empty`, then again with `CLOUDFLARE_ENV=postgres`. If either creates a migration, the schema changed: delete the new files and rewrite the `initial` migrations with the steps in `e2e/AGENTS.md`.
+3. If the run failed in `pnpm migrations:check`, the schema changed. In `e2e`, run `pnpm migrations:regenerate` to rewrite the `initial` migrations, and commit them with the other `e2e` changes.
 4. Run `pnpm release e2e` and `pnpm release e2e --postgres` from the root.
 
 Done when both suites pass.

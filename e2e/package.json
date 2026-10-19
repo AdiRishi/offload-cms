@@ -11,6 +11,8 @@
     "test": "node scripts/prepare.ts && playwright test && pnpm test:dev",
     "test:dev": "playwright test --config playwright.dev.config.ts",
     "size": "node scripts/worker-size.ts",
+    "migrations:check": "payload run scripts/migrations.ts check && CLOUDFLARE_ENV=postgres payload run scripts/migrations.ts check",
+    "migrations:regenerate": "payload run scripts/migrations.ts regenerate && CLOUDFLARE_ENV=postgres payload run scripts/migrations.ts regenerate",
     "deploy:staging": "CLOUDFLARE_ENV=staging pnpm payload migrate:fresh --force-accept-warning && CLOUDFLARE_ENV=staging pnpm build && wrangler deploy"
   },
   "dependencies": {
