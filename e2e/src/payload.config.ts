@@ -17,7 +17,9 @@ import { fileURLToPath } from "url";
 import { isStaff } from "./access";
 import { PullQuote } from "./blocks";
 import { AuditLogs } from "./collections/AuditLogs";
+import { Bookings } from "./collections/Bookings";
 import { Categories } from "./collections/Categories";
+import { Customers } from "./collections/Customers";
 import { FieldTypes } from "./collections/FieldTypes";
 import { Folders } from "./collections/Folders";
 import { Media } from "./collections/Media";
@@ -54,7 +56,19 @@ export default buildConfig({
     importMap: { baseDir: path.resolve(dirname) },
   },
   blocks: [PullQuote],
-  collections: [Users, Pages, Posts, Categories, Media, FieldTypes, Folders, Tags, AuditLogs],
+  collections: [
+    Users,
+    Customers,
+    Pages,
+    Posts,
+    Categories,
+    Media,
+    FieldTypes,
+    Folders,
+    Tags,
+    AuditLogs,
+    Bookings,
+  ],
   db: databaseAdapter(),
   editor: lexicalEditor(),
   email: cloudflareEmailAdapter({

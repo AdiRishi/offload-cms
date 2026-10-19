@@ -18,7 +18,7 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     "zod": "^4.0.0"
     ```
 
-    Install `@adirishi/offload-form-builder` before you add the registry components. The registry doesn't list the package, so the shadcn CLI never installs it or changes its version.
+    The package also needs `@adirishi/offload-cloudflare`, which the site already has. Install `@adirishi/offload-form-builder` before you add the registry components. The registry doesn't list the package, so the shadcn CLI never installs it or changes its version.
 
   </Step>
   <Step title="Add the form builder">
@@ -161,19 +161,21 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     }
     ```
 
-    The form renders inside server components. Without `rsc`, the CLI removes the `"use client"` directive from the client components. The items depend on `@offload/turnstile`, which the CLI resolves through the `@offload` registry.
+    The form renders inside server components. Without `rsc`, the CLI removes the `"use client"` directive from the client components. The items depend on `@offload/form-fields` and `@offload/turnstile`, which the CLI resolves through the `@offload` registry.
 
   </Step>
   <Step title="Install the form components">
+    The components import `button`, `checkbox`, `field`, `input`, `spinner`, and `textarea` from the site's own `src/components/ui`, and the newsletter sign-up also imports `input-group`. The registry doesn't install them, so the CLI never replaces the site's copies. Add the ones the site doesn't have first, such as `pnpm dlx shadcn@latest add spinner`. Then add the items:
+
     ```bash
     pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup
     ```
 
-    The CLI copies the components into `src/components/form-builder/`, adds the shadcn components they use, and installs `@tanstack/react-form`. It also adds Cloudflare's testing site key to `.env.local`, as `VITE_TURNSTILE_SITE_KEY`. The testing key always passes and shows that it's a test.
+    The CLI copies the components into `src/components/form-builder/` and `src/components/form-fields.tsx`, and installs `@tanstack/react-form`. It also adds Cloudflare's testing site key to `.env.local`, as `VITE_TURNSTILE_SITE_KEY`. The testing key always passes and shows that it's a test.
 
     The components work with shadcn on Radix and on Base UI. Install only the items you use. [The registry reference](/form-builder#registry) lists what each one installs.
 
-    The registry serves the items built for the latest Offload release, `{{version}}`, and each item names that release in its `meta`. Run `pnpm dlx shadcn@latest view @offload/form-builder-form` to see it. Keep `@adirishi/offload-form-builder` at the same version. When you update the package, add the items again with `--overwrite`, and merge your own changes back in.
+    The registry serves the items built for the latest Offload release, `{{version}}`, and each item names that release in its `meta`. Run `pnpm dlx shadcn@latest view @offload/form-builder-form` to see it. Keep `@adirishi/offload-form-builder` at the same version.
 
   </Step>
   <Step title="Render a form on a page">
@@ -289,6 +291,23 @@ where: {
 ```
 
 To accept every form that a visitor can read, pass `isOffered: () => true`.
+
+## Update the form components
+
+When you update `@adirishi/offload-form-builder`, add the items again at the new release:
+
+1. Commit your work, so that you can see what the update changes.
+2. Add the items again with `--overwrite`:
+
+   ```bash
+   pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup --overwrite
+   ```
+
+   The CLI replaces only Offload's files, in `src/components/form-builder/` and `src/components/form-fields.tsx`. It never replaces the site's `src/components/ui`. To preview the changes first, add `--dry-run`, or `--diff <file>` for one file.
+
+3. Review the changes with `git diff`, and merge your own edits back in.
+
+The CLI never deletes a file. If you update from `4.0.0-beta.2-offload.8` or earlier, delete `src/components/form-builder/fields.tsx`, which is now `src/components/form-fields.tsx`. Delete `src/components/ui/native-select.tsx` too, if nothing else imports it.
 
 ## Use real Turnstile keys
 

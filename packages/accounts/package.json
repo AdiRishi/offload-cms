@@ -1,0 +1,57 @@
+{
+  "name": "@adirishi/offload-accounts",
+  "version": "0.0.0",
+  "description": "Logged-in site visitors for Payload sites on Offload: an auth collection preset, rate limits, and TanStack Start server helpers for sign-up, login, and password resets",
+  "homepage": "https://github.com/AdiRishi/offload-cms/tree/main/packages/accounts#readme",
+  "bugs": {
+    "url": "https://github.com/AdiRishi/offload-cms/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdiRishi/offload-cms.git",
+    "directory": "packages/accounts"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
+    "@repo/tsconfig": "workspace:*",
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "payload": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "@adirishi/offload-cloudflare": "workspace:*",
+    "@tanstack/react-router": "^1.170.0",
+    "@tanstack/react-start": "^1.169.1",
+    "payload": "4.0.0-beta.2",
+    "react": "^19.2.0",
+    "zod": "^4.0.0"
+  }
+}

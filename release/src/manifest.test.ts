@@ -54,6 +54,26 @@ describe("releaseManifest", () => {
       vite: "^8.0.0",
     });
   });
+
+  test("pins a dependency on another Offload package to the release", () => {
+    const release = releaseManifest(
+      {
+        name: "@adirishi/offload-accounts",
+        version: "0.0.0",
+        dependencies: { "@adirishi/offload-tanstack": "0.0.0" },
+        peerDependencies: { "@adirishi/offload-cloudflare": "0.0.0", zod: "^4.0.0" },
+      },
+      { upstreamNames, version },
+    );
+
+    assert.deepEqual(release.dependencies, {
+      "@adirishi/offload-tanstack": "4.0.0-beta.2-offload.3",
+    });
+    assert.deepEqual(release.peerDependencies, {
+      "@adirishi/offload-cloudflare": "4.0.0-beta.2-offload.3",
+      zod: "^4.0.0",
+    });
+  });
 });
 
 test("withOffloadVersion moves every Offload dependency of a site and nothing else", () => {

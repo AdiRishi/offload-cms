@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 
 /** Raise it only for growth you meant to ship, and keep about 5% of headroom. */
-const budgetKiB = 3060;
+const budgetKiB = 3160;
 
 const env = { ...process.env };
 delete env.CLOUDFLARE_ENV;

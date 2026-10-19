@@ -2,13 +2,14 @@
 
 Runs a Payload v4 site built with TanStack Start as one Cloudflare Worker. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
 
-It exports six functions:
+It exports seven functions:
 
 | Function                                                              | Use it for                                                                                       |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `offloadVite()` from `@adirishi/offload-cloudflare/vite`              | The site's Vite config. `vite build` and `vite preview` target workerd. `vite dev` runs in Node. |
 | `getBindings()` from `@adirishi/offload-cloudflare`                   | The Worker's bindings in `payload.config.ts`, in workerd and in Node.                            |
 | `hyperdrivePoolConfig()` from `@adirishi/offload-cloudflare`          | Pool options for `postgresAdapter` behind Hyperdrive.                                            |
+| `verifyTurnstile()` from `@adirishi/offload-cloudflare`               | Checking a Cloudflare Turnstile token in a server function, for its host and action.             |
 | `createPayloadWorker()` from `@adirishi/offload-cloudflare/worker`    | The Worker entry. TanStack Start serves requests, and each Cron Trigger runs Payload's jobs.     |
 | `payloadApiHandlers()` from `@adirishi/offload-cloudflare/routes`     | The REST route, in place of the template's, so the Worker bundles one copy of Payload.           |
 | `payloadGraphQLHandlers()` from `@adirishi/offload-cloudflare/routes` | A route for Payload's GraphQL API, which the TanStack Start template doesn't include.            |

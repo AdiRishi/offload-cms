@@ -1,11 +1,13 @@
 # @adirishi/offload-form-builder
 
-Takes submissions to Payload form-builder forms from a public TanStack Start site. It derives one Zod schema from a form's fields for the browser and the server, verifies Cloudflare Turnstile tokens, applies a Workers rate limit, and saves the submission only after those checks pass. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
+Takes submissions to Payload form-builder forms from a public TanStack Start site. It derives one Zod schema from a form's fields for the browser and the server, checks a Cloudflare Turnstile token, applies a Workers rate limit, and saves the submission only after those checks pass. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
 
 | Entry point                             | Exports                                                                                                                  |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `@adirishi/offload-form-builder`        | `formSchema()`, `defaultValues()`, `submissionData()`, `isInputField()`, `submissionInput`, `countries`, and their types |
-| `@adirishi/offload-form-builder/server` | `saveFormSubmission()`, `verifyTurnstile()`                                                                              |
+| `@adirishi/offload-form-builder/server` | `saveFormSubmission()`                                                                                                   |
+
+The Turnstile check uses `verifyTurnstile()` from `@adirishi/offload-cloudflare`, a peer dependency that every Offload site already has.
 
 The form's UI is not in this package. Offload's shadcn registry installs editable components into the site: the form renderer, its fields, the Turnstile widget, and a newsletter sign-up.
 

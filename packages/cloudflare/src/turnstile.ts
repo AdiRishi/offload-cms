@@ -1,13 +1,3 @@
-import { z } from "zod";
-
-const siteverifyResponse = z.object({
-  success: z.boolean(),
-  hostname: z.string().optional(),
-  action: z.string().optional(),
-  "error-codes": z.array(z.string()).default([]),
-  metadata: z.object({ result_with_testing_key: z.boolean().optional() }).optional(),
-});
-
 export type TurnstileCheck = {
   /** The token the widget gave the visitor. */
   token: string;
@@ -20,6 +10,9 @@ export type TurnstileCheck = {
   /** The visitor's IP address. */
   remoteip?: string;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
 /**
  * Checks a Turnstile token with Cloudflare's Siteverify API. A token passes only once. A token
@@ -39,12 +32,15 @@ export const verifyTurnstile = async (
     console.warn("Turnstile Siteverify answered", response.status);
     return false;
   }
-  const outcome = siteverifyResponse.parse(await response.json());
-  if (!outcome.success) {
-    console.warn("Turnstile rejected a token", outcome["error-codes"]);
+  const outcome: unknown = await response.json();
+  if (!isRecord(outcome) || outcome.success !== true) {
+    console.warn(
+      "Turnstile rejected a token",
+      isRecord(outcome) ? outcome["error-codes"] : outcome,
+    );
     return false;
   }
-  if (outcome.metadata?.result_with_testing_key) return true;
+  if (isRecord(outcome.metadata) && outcome.metadata.result_with_testing_key === true) return true;
   if (outcome.hostname !== hostname) {
     console.warn("Turnstile token was issued for another host", outcome.hostname);
     return false;

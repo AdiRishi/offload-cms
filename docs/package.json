@@ -9,7 +9,7 @@
     "typecheck": "blume check --strict --isolated",
     "dev": "pnpm registry && blume dev",
     "registry": "node registry.ts",
-    "test": "blume validate --strict"
+    "test": "blume validate --strict && node --test registry.test.ts"
   },
   "devDependencies": {
     "@repo/upstream": "workspace:*",
