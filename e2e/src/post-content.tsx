@@ -1,23 +1,33 @@
+import type { DefaultNodeTypes } from "@payloadcms/richtext-lexical";
 import type { JSXConvertersFunction } from "@payloadcms/richtext-lexical/react";
 
 import { RichText } from "@payloadcms/richtext-lexical/react";
 
 import type { Post } from "./payload-types";
 
-const converters: JSXConvertersFunction = ({ defaultConverters }) => ({
+type PostContent = NonNullable<Post["content"]>;
+type PostBlockNode = Extract<PostContent["root"]["children"][number], { type: "block" }>;
+
+const converters: JSXConvertersFunction<DefaultNodeTypes | PostBlockNode> = ({
+  defaultConverters,
+}) => ({
   ...defaultConverters,
   blocks: {
-    callout: ({ node }) => {
-      const { fields } = node;
-      const message =
-        "message" in fields && typeof fields.message === "string" ? fields.message : "";
-      const tone = "tone" in fields && fields.tone === "warning" ? "warning" : "info";
-      return <aside data-tone={tone}>{message}</aside>;
-    },
+    callout: ({ node }) => (
+      <aside data-tone={node.fields.tone === "warning" ? "warning" : "info"}>
+        {node.fields.message}
+      </aside>
+    ),
+    pullQuote: ({ node }) => (
+      <figure>
+        <p>{node.fields.quote}</p>
+        {node.fields.attribution ? <figcaption>{node.fields.attribution}</figcaption> : null}
+      </figure>
+    ),
   },
 });
 
 /** A post's rich text, rendered on the server by Payload's Lexical converters. */
-export function PostContent({ content }: { content: NonNullable<Post["content"]> }) {
+export function PostContent({ content }: { content: PostContent }) {
   return <RichText converters={converters} data={content} />;
 }
