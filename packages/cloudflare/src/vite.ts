@@ -38,8 +38,11 @@ export type OffloadViteOptions = {
   /** Path to `payload.config.ts`. */
   payloadConfigPath: string;
   /**
-   * Plugins that must run before Offload's and Payload's, such as `devtools()`
-   * from `@tanstack/devtools-vite`. Plugins in `vite` run after them.
+   * Plugins that run before Offload's and Payload's among plugins with the same
+   * `enforce`, such as `devtools()` from `@tanstack/devtools-vite`. Vite orders
+   * plugins by `enforce` first, and Offload's transforms use `enforce: "pre"`,
+   * so a plugin that must see the source first needs `enforce: "pre"` too.
+   * Plugins in `vite` run after them.
    */
   pluginsBefore?: PluginOption[];
   /** The app's own Vite config, merged over Offload's. */

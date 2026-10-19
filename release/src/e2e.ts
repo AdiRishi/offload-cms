@@ -47,9 +47,9 @@ const startRegistry = async () => {
 
 /**
  * Tests the working tree the way a site uses Offload: publishes a release to a
- * throwaway registry, installs e2e/ from it, then type-checks e2e/ and runs the
- * Playwright suite on D1, or on Postgres through Hyperdrive. The D1 run also
- * checks the Worker's compressed size against its budget.
+ * throwaway registry, installs e2e/ from it, then type-checks and lints e2e/ and
+ * runs the Playwright suite on D1, or on Postgres through Hyperdrive. The D1 run
+ * also checks the Worker's compressed size against its budget.
  */
 export const e2e = async ({ postgres }: { postgres: boolean }) => {
   const registry = await startRegistry();
@@ -72,6 +72,7 @@ export const e2e = async ({ postgres }: { postgres: boolean }) => {
     cwd: e2eDir,
   });
   await run("pnpm", ["typecheck"], { cwd: e2eDir });
+  await run("pnpm", ["lint"], { cwd: e2eDir });
   await run("pnpm", ["test"], { cwd: e2eDir, env: postgres ? { CLOUDFLARE_ENV: "postgres" } : {} });
   if (!postgres) await run("pnpm", ["size"], { cwd: e2eDir });
 };

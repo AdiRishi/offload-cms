@@ -7,6 +7,15 @@ import { copyFileSync, rmSync } from "node:fs";
 
 const run = (command: string, args: string[]) => execFileSync(command, args, { stdio: "inherit" });
 
+// The steps below drop every table, and an environment such as staging binds a remote database.
+const environment = process.env.CLOUDFLARE_ENV;
+if (environment !== undefined && environment !== "postgres") {
+  console.error(
+    `prepare drops every table in the selected database, so it runs only with CLOUDFLARE_ENV unset for local D1 or set to postgres. CLOUDFLARE_ENV is ${JSON.stringify(environment)}.`,
+  );
+  process.exit(1);
+}
+
 // Local secrets for the Worker, and the public values for the build. The example values are fine
 // for tests, and copying them each run picks up values added since the last run.
 copyFileSync(".dev.vars.example", ".dev.vars");

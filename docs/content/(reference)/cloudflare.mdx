@@ -20,15 +20,17 @@ offloadVite(options: OffloadViteOptions): UserConfigFnPromise
 
 Returns the site's Vite config: Payload's `withPayload()` with TanStack Start, React Server Components, and React. `vite build` and `vite preview` target workerd through `@cloudflare/vite-plugin`. `vite dev` runs in Node, because the RSC module runner can't load Payload's CommonJS dependencies in workerd.
 
-| Option                      | Type                              | Description                                                                                     |
-| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `payloadConfigPath`         | `string`                          | Required. The path to `payload.config.ts`.                                                      |
-| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's. Its plugins run after Offload's.             |
-| `pluginsBefore`             | `PluginOption[]`                  | Plugins that run before Payload's, TanStack Start's, and Offload's own.                         |
-| `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                |
-| `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds. |
+| Option                      | Type                              | Description                                                                                                    |
+| --------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `payloadConfigPath`         | `string`                          | Required. The path to `payload.config.ts`.                                                                     |
+| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's. Its plugins run after Offload's.                            |
+| `pluginsBefore`             | `PluginOption[]`                  | Plugins that run before Payload's, TanStack Start's, and Offload's own, among plugins with the same `enforce`. |
+| `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                               |
+| `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds.                |
 
 Put a plugin in `pluginsBefore` when it must see the source before any other transform. TanStack's `devtools()` from `@tanstack/devtools-vite` is one. It writes each element's source line into a `data-tsd-source` attribute. After another plugin has changed the file, the server and the client write different lines, and React reports a hydration mismatch.
+
+Vite orders plugins by `enforce` before their order in the array, and Offload's own transforms use `enforce: "pre"`. A plugin in `pluginsBefore` without `enforce: "pre"` still runs after them. `devtools()` sets `enforce: "pre"`.
 
 ```ts vite.config.ts
 offloadVite({

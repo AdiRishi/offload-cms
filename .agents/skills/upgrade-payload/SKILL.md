@@ -50,7 +50,7 @@ Done when both suites pass.
 
 ## 5. Verify on Cloudflare
 
-Some behaviour exists only on a deployed Worker. The Workers limit on password hashing is the known case, and the suite runs only locally. From `e2e`, run `pnpm deploy:staging`. Then log in to the staging admin with the credentials in `e2e/.staging-admin.json` and publish a page.
+Some behaviour exists only on a deployed Worker. The Workers limit on password hashing is the known case, and the suite runs only locally. From `e2e`, run `pnpm deploy:staging`. It empties the staging D1 database, so create the first user in the staging admin with the credentials in `e2e/.staging-admin.json`, log in, and publish a page.
 
 Done when the login and the publish work on staging, or when the report says why staging could not run.
 
