@@ -1,0 +1,970 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 05:28:27 +1100
+Subject: [PATCH] feat(plugin-ecommerce): export order settlement for
+ server-side confirmation
+
+Only the browser's confirm-order request can turn a payment into an order.
+finalizeOrder exists only inside that request, so a customer who pays and
+closes the tab before it runs is charged and gets no order. Providers that
+report payments to the server, such as Razorpay's webhooks or the mIPS
+payment notification, have no way to settle the transaction.
+
+The plugin now exports settleTransaction({ req, transactionID, orderData }).
+It takes the cart from the transaction and runs the settlement that
+confirm-order runs: the atomic pending to processing claim, then the order,
+the cart's purchasedAt, the inventory decrement and the succeeded status. A
+caller that loses the claim gets the winner's order back and writes
+nothing, so duplicate notifications and a concurrent confirm-order are
+harmless. It opens a database transaction when the adapter supports one and
+the request has none. confirm-order calls the same code, and its behaviour is
+unchanged.
+
+Offload-Patch: ecommerce-server-settlement
+Drop-When: the pinned release lets a payment adapter settle a transaction outside the confirm-order request
+Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/payments.spec.ts)
+---
+ docs/ecommerce/payments.mdx                   |  17 +
+ .../src/endpoints/confirmOrder.ts             | 299 +------------
+ packages/plugin-ecommerce/src/index.ts        |   1 +
+ .../src/utilities/settleTransaction.spec.ts   | 167 ++++++++
+ .../src/utilities/settleTransaction.ts        | 401 ++++++++++++++++++
+ 5 files changed, 594 insertions(+), 291 deletions(-)
+ create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
+ create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.ts
+
+diff --git a/docs/ecommerce/payments.mdx b/docs/ecommerce/payments.mdx
+index 32091fa3f..36da2545e 100644
+--- a/docs/ecommerce/payments.mdx
++++ b/docs/ecommerce/payments.mdx
+@@ -79,6 +79,23 @@ If a transaction is already `succeeded` and has exactly one matching bidirection
+ 
+ Database adapters with transaction support roll back the complete settlement on failure. Without database transactions, the atomic status claim still prevents concurrent winners, but a process crash can leave a transaction in `processing`. Payload does not reset that state automatically because it cannot safely infer whether order, cart, or inventory side effects completed. Monitor and manually reconcile stale `processing` transactions. A future inventory-reservation model can provide stronger recovery semantics.
+ 
++### Settling from the server
++
++A customer who pays and closes the tab before the confirm-order request runs is charged, and no order exists. An adapter whose provider reports payments to the server, through a webhook or a reconciliation job, settles the transaction with `settleTransaction`. It runs the same atomic claim and side effects as confirm-order, so a duplicate notification or a concurrent confirm-order returns the existing order and writes nothing.
++
++```ts
++import { settleTransaction } from '@payloadcms/plugin-ecommerce'
++
++// After the provider confirms the amount, currency and status of the payment:
++const order = await settleTransaction({
++  orderData: { amount, currency, customerEmail, items, status: 'processing' },
++  req,
++  transactionID,
++})
++```
++
++`settleTransaction` takes the cart from the transaction's `cart` field, and the collection slugs as `cartsSlug`, `ordersSlug`, `productsSlug`, `transactionsSlug` and `variantsSlug` when they differ from the defaults. It throws when the transaction cannot be settled, for example because its status is `failed` or `expired`.
++
+ ### Stripe Webhooks
+ 
+ You can also add your own webhooks to handle [events from Stripe](https://docs.stripe.com/api/events). This is optional and the plugin internally does not use webhooks for any core functionality. It receives the following arguments:
+diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
+index 0db80602d..c014025ff 100644
+--- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
++++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
+@@ -14,13 +14,18 @@ import type {
+   UserWithCart,
+ } from '../types/index.js'
+ 
++import {
++  finalizeTransactionOrder,
++  getRelationshipID,
++  isTransientTransactionConflict,
++  isValidDocumentID,
++  waitForCanonicalOrder,
++} from '../utilities/settleTransaction.js'
++
+ type ConfirmOrderArgs = Parameters<PaymentAdapter['confirmOrder']>[0]
+ type FinalizeOrder = ConfirmOrderArgs['finalizeOrder']
+ type RecordValue = Record<string, unknown>
+ 
+-const SETTLEMENT_POLL_INTERVAL_MS = 25
+-const SETTLEMENT_WAIT_TIMEOUT_MS = 500
+-
+ type Args = {
+   /**
+    * The slug of the carts collection, defaults to 'carts'.
+@@ -320,291 +325,3 @@ export const confirmOrderHandler: ConfirmOrderHandler =
+ 
+ const normalizeEmail = (email: unknown): string =>
+   typeof email === 'string' ? email.trim().toLowerCase() : ''
+-
+-const isValidDocumentID = (id: unknown): id is DefaultDocumentIDType =>
+-  (typeof id === 'number' && Number.isFinite(id)) ||
+-  (typeof id === 'string' && id.trim().length > 0)
+-
+-const finalizeTransactionOrder = async ({
+-  cartID,
+-  cartsSlug,
+-  orderData,
+-  ordersSlug,
+-  productsSlug,
+-  req,
+-  transactionID,
+-  transactionsSlug,
+-  variantsSlug,
+-}: {
+-  cartID: DefaultDocumentIDType
+-  cartsSlug: string
+-  orderData: Record<string, unknown>
+-  ordersSlug: string
+-  productsSlug: string
+-  req: ConfirmOrderArgs['req']
+-  transactionID: DefaultDocumentIDType
+-  transactionsSlug: string
+-  variantsSlug: string
+-}): Promise<RecordValue> => {
+-  if (!isValidDocumentID(transactionID)) {
+-    throw new Error('Transaction ID is missing or invalid.')
+-  }
+-
+-  if (!isRecord(orderData)) {
+-    throw new Error('Order data is missing or invalid.')
+-  }
+-
+-  const claimedTransaction = await req.payload.db.updateOne({
+-    collection: transactionsSlug,
+-    data: { status: 'processing' },
+-    options: { atomic: true },
+-    req,
+-    where: {
+-      and: [
+-        { id: { equals: transactionID } },
+-        { status: { equals: 'pending' } },
+-        { order: { exists: false } },
+-      ],
+-    },
+-  })
+-
+-  if (!claimedTransaction) {
+-    return waitForCanonicalOrder({ ordersSlug, req, transactionID, transactionsSlug })
+-  }
+-
+-  if (getRelationshipID(claimedTransaction.id) !== getRelationshipID(transactionID)) {
+-    throw new Error('Claimed transaction does not match the requested transaction.')
+-  }
+-
+-  const transaction = await req.payload.findByID({
+-    id: transactionID,
+-    collection: transactionsSlug,
+-    depth: 0,
+-    overrideAccess: true,
+-    req,
+-  })
+-
+-  if (
+-    !transaction ||
+-    getRelationshipID(transaction.id) !== getRelationshipID(transactionID) ||
+-    transaction.status !== 'processing'
+-  ) {
+-    throw new Error('Claimed transaction could not be loaded for settlement.')
+-  }
+-
+-  const referencedOrders = await req.payload.find({
+-    collection: ordersSlug,
+-    depth: 0,
+-    limit: 1,
+-    overrideAccess: true,
+-    pagination: false,
+-    req,
+-    where: { transactions: { equals: transactionID } },
+-  })
+-
+-  if (referencedOrders.totalDocs !== 0 || referencedOrders.docs.length !== 0) {
+-    throw new Error('An order already references the claimed transaction.')
+-  }
+-
+-  const order = (await req.payload.create({
+-    collection: ordersSlug,
+-    data: {
+-      ...orderData,
+-      transactions: [transactionID],
+-    },
+-    overrideAccess: true,
+-    req,
+-  })) as RecordValue
+-  const orderID = requireDocumentID({ fieldName: 'order ID', value: order.id })
+-
+-  await req.payload.update({
+-    id: cartID,
+-    collection: cartsSlug,
+-    data: { purchasedAt: new Date().toISOString() },
+-    overrideAccess: true,
+-    req,
+-  })
+-
+-  await decrementInventory({
+-    items: transaction.items,
+-    productsSlug,
+-    req,
+-    variantsSlug,
+-  })
+-
+-  await req.payload.update({
+-    id: transactionID,
+-    collection: transactionsSlug,
+-    data: { order: orderID, status: 'succeeded' },
+-    overrideAccess: true,
+-    req,
+-  })
+-
+-  return order
+-}
+-
+-const decrementInventory = async ({
+-  items,
+-  productsSlug,
+-  req,
+-  variantsSlug,
+-}: {
+-  items: unknown
+-  productsSlug: string
+-  req: ConfirmOrderArgs['req']
+-  variantsSlug: string
+-}): Promise<void> => {
+-  if (!Array.isArray(items) || items.length === 0) {
+-    throw new Error('Inventory transaction items are missing or invalid.')
+-  }
+-
+-  for (const item of items) {
+-    if (
+-      !isRecord(item) ||
+-      typeof item.quantity !== 'number' ||
+-      !Number.isFinite(item.quantity) ||
+-      item.quantity <= 0
+-    ) {
+-      throw new Error('Inventory item quantity is missing or invalid.')
+-    }
+-
+-    const hasVariant = item.variant !== null && item.variant !== undefined
+-    const id = hasVariant ? item.variant : item.product
+-
+-    if (!isValidDocumentID(id)) {
+-      throw new Error('Inventory item target is missing or invalid.')
+-    }
+-
+-    const updatedInventory = await req.payload.db.updateOne({
+-      id,
+-      collection: hasVariant ? variantsSlug : productsSlug,
+-      data: { inventory: { $inc: item.quantity * -1 } },
+-      req,
+-    })
+-
+-    if (!updatedInventory) {
+-      throw new Error('Inventory item could not be updated.')
+-    }
+-  }
+-}
+-
+-const waitForCanonicalOrder = async ({
+-  ordersSlug,
+-  req,
+-  transactionID,
+-  transactionsSlug,
+-}: {
+-  ordersSlug: string
+-  req: ConfirmOrderArgs['req']
+-  transactionID: DefaultDocumentIDType
+-  transactionsSlug: string
+-}): Promise<RecordValue> => {
+-  const deadline = Date.now() + SETTLEMENT_WAIT_TIMEOUT_MS
+-
+-  do {
+-    const transaction = await req.payload.findByID({
+-      id: transactionID,
+-      collection: transactionsSlug,
+-      depth: 0,
+-      overrideAccess: true,
+-      req,
+-    })
+-
+-    if (!transaction) {
+-      throw new Error('Canonical transaction was not found.')
+-    }
+-
+-    if (transaction.status === 'succeeded') {
+-      return findExactlyLinkedOrder({
+-        orderID: transaction.order,
+-        ordersSlug,
+-        req,
+-        transactionID,
+-      })
+-    }
+-
+-    if (transaction.status !== 'pending' && transaction.status !== 'processing') {
+-      throw new Error('Transaction is not available for settlement.')
+-    }
+-
+-    if (Date.now() >= deadline) {
+-      break
+-    }
+-
+-    await new Promise<void>((resolve) =>
+-      setTimeout(resolve, Math.min(SETTLEMENT_POLL_INTERVAL_MS, deadline - Date.now())),
+-    )
+-  } while (Date.now() <= deadline)
+-
+-  throw new Error('Transaction settlement did not complete in time.')
+-}
+-
+-const findExactlyLinkedOrder = async ({
+-  orderID,
+-  ordersSlug,
+-  req,
+-  transactionID,
+-}: {
+-  orderID: unknown
+-  ordersSlug: string
+-  req: ConfirmOrderArgs['req']
+-  transactionID: DefaultDocumentIDType
+-}): Promise<RecordValue> => {
+-  const canonicalOrderID = requireDocumentID({ fieldName: 'order ID', value: orderID })
+-  const result = await req.payload.find({
+-    collection: ordersSlug,
+-    depth: 0,
+-    limit: 2,
+-    overrideAccess: true,
+-    pagination: false,
+-    req,
+-    where: { transactions: { equals: transactionID } },
+-  })
+-
+-  if (
+-    result.totalDocs !== 1 ||
+-    result.docs.length !== 1 ||
+-    getRelationshipID(result.docs[0]?.id) !== getRelationshipID(canonicalOrderID)
+-  ) {
+-    throw new Error('Transaction does not have exactly one canonical linked order.')
+-  }
+-
+-  return result.docs[0] as RecordValue
+-}
+-
+-const getRelationshipID = (value: unknown): string | undefined => {
+-  const id = isRecord(value) ? value.id : value
+-
+-  return isValidDocumentID(id) ? String(id) : undefined
+-}
+-
+-const requireDocumentID = ({
+-  fieldName,
+-  value,
+-}: {
+-  fieldName: string
+-  value: unknown
+-}): DefaultDocumentIDType => {
+-  const id = isRecord(value) ? value.id : value
+-
+-  if (!isValidDocumentID(id)) {
+-    throw new Error(`${fieldName} is missing or invalid.`)
+-  }
+-
+-  return id
+-}
+-
+-const isRecord = (value: unknown): value is RecordValue =>
+-  typeof value === 'object' && value !== null && !Array.isArray(value)
+-
+-const isTransientTransactionConflict = (error: unknown): boolean => {
+-  if (!isRecord(error)) {
+-    return false
+-  }
+-
+-  return (
+-    error.code === 112 ||
+-    error.codeName === 'WriteConflict' ||
+-    (Array.isArray(error.errorLabels) && error.errorLabels.includes('TransientTransactionError'))
+-  )
+-}
+diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
+index 2661856e8..9e4a90736 100644
+--- a/packages/plugin-ecommerce/src/index.ts
++++ b/packages/plugin-ecommerce/src/index.ts
+@@ -398,3 +398,4 @@ export { currencyField } from './fields/currencyField.js'
+ export { pricesField } from './fields/pricesField.js'
+ export { statusField } from './fields/statusField.js'
+ export { variantsFields } from './fields/variantsFields.js'
++export { settleTransaction, type SettleTransactionArgs } from './utilities/settleTransaction.js'
+diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
+new file mode 100644
+index 000000000..76baa02d3
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
+@@ -0,0 +1,167 @@
++import { beforeEach, describe, expect, it, vi } from 'vitest'
++
++const payloadUtilities = vi.hoisted(() => ({
++  commitTransaction: vi.fn(),
++  initTransaction: vi.fn(),
++  killTransaction: vi.fn(),
++}))
++
++vi.mock('payload', () => payloadUtilities)
++
++import { settleTransaction } from './settleTransaction.js'
++
++type Request = Parameters<typeof settleTransaction>[0]['req']
++
++const orderData = {
++  amount: 2500,
++  currency: 'MUR',
++  customerEmail: 'buyer@example.com',
++  items: [{ product: 7, quantity: 1, variant: 11 }],
++  status: 'processing',
++}
++
++const createStore = (transaction: Record<string, unknown>) => {
++  const state = {
++    cart: { id: 3, purchasedAt: undefined as string | undefined },
++    inventory: new Map<string, number>([
++      ['products:7', 5],
++      ['variants:11', 5],
++    ]),
++    orders: [] as Record<string, unknown>[],
++    transaction: { ...transaction },
++  }
++
++  const matches = (where: Record<string, any>) =>
++    where.and.every((condition: Record<string, any>) => {
++      if (condition.id) {
++        return condition.id.equals === state.transaction.id
++      }
++      if (condition.status) {
++        return condition.status.equals === state.transaction.status
++      }
++      return condition.order.exists === Boolean(state.transaction.order)
++    })
++
++  const payload = {
++    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
++      const order = { ...data, id: state.orders.length + 100 }
++      state.orders.push(order)
++      return order
++    }),
++    db: {
++      updateOne: vi.fn(
++        async ({
++          collection,
++          data,
++          id,
++          where,
++        }: {
++          collection: string
++          data: Record<string, any>
++          id?: number
++          where?: Record<string, any>
++        }) => {
++          if (collection === 'transactions') {
++            if (!where || !matches(where)) {
++              return null
++            }
++            state.transaction = { ...state.transaction, ...data }
++            return { ...state.transaction }
++          }
++          const key = `${collection}:${id}`
++          state.inventory.set(key, (state.inventory.get(key) ?? 0) + data.inventory.$inc)
++          return { id }
++        },
++      ),
++    },
++    find: vi.fn(async ({ where }: { where: Record<string, any> }) => {
++      const docs = state.orders.filter((order) =>
++        (order.transactions as unknown[]).includes(where.transactions.equals),
++      )
++      return { docs, totalDocs: docs.length }
++    }),
++    findByID: vi.fn(async ({ collection }: { collection: string }) =>
++      collection === 'transactions' ? { ...state.transaction } : null,
++    ),
++    update: vi.fn(
++      async ({ collection, data }: { collection: string; data: Record<string, unknown> }) => {
++        if (collection === 'carts') {
++          state.cart = { ...state.cart, ...data }
++          return state.cart
++        }
++        state.transaction = { ...state.transaction, ...data }
++        return state.transaction
++      },
++    ),
++  }
++
++  const req = { payload } as unknown as Request
++
++  return { payload, req, state }
++}
++
++const pendingTransaction = {
++  cart: 3,
++  id: 42,
++  items: [{ product: 7, quantity: 1, variant: 11 }],
++  order: null,
++  status: 'pending',
++}
++
++describe('settleTransaction', () => {
++  beforeEach(() => {
++    vi.clearAllMocks()
++    payloadUtilities.initTransaction.mockResolvedValue(false)
++  })
++
++  it('creates the order and applies the cart and inventory side effects once', async () => {
++    const { req, state } = createStore(pendingTransaction)
++
++    const first = await settleTransaction({ orderData, req, transactionID: 42 })
++    const second = await settleTransaction({ orderData, req, transactionID: 42 })
++
++    expect(second.id).toBe(first.id)
++    expect(state.orders).toHaveLength(1)
++    expect(state.orders[0]).toMatchObject({ ...orderData, transactions: [42] })
++    expect(state.transaction).toMatchObject({ order: first.id, status: 'succeeded' })
++    expect(state.cart.purchasedAt).toEqual(expect.any(String))
++    expect(state.inventory.get('variants:11')).toBe(4)
++    expect(state.inventory.get('products:7')).toBe(5)
++  })
++
++  it('refuses a transaction that is no longer pending and writes nothing', async () => {
++    const { req, state } = createStore({ ...pendingTransaction, status: 'expired' })
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toThrow(
++      'Transaction is not available for settlement.',
++    )
++    expect(state.orders).toHaveLength(0)
++    expect(state.inventory.get('variants:11')).toBe(5)
++  })
++
++  it('refuses a transaction without a cart before claiming it', async () => {
++    const { req, state } = createStore({ ...pendingTransaction, cart: null })
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toThrow(
++      'Transaction has no cart to settle.',
++    )
++    expect(state.transaction.status).toBe('pending')
++  })
++
++  it('commits the database transaction it opened, and rolls it back on failure', async () => {
++    payloadUtilities.initTransaction.mockResolvedValue(true)
++    const settled = createStore(pendingTransaction)
++
++    await settleTransaction({ orderData, req: settled.req, transactionID: 42 })
++
++    expect(payloadUtilities.commitTransaction).toHaveBeenCalledWith(settled.req)
++
++    const failing = createStore(pendingTransaction)
++    failing.payload.create.mockRejectedValueOnce(new Error('order insert failed'))
++
++    await expect(
++      settleTransaction({ orderData, req: failing.req, transactionID: 42 }),
++    ).rejects.toThrow('order insert failed')
++    expect(payloadUtilities.killTransaction).toHaveBeenCalledWith(failing.req)
++  })
++})
+diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
+new file mode 100644
+index 000000000..63dfea5b5
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
+@@ -0,0 +1,401 @@
++import {
++  commitTransaction,
++  type DefaultDocumentIDType,
++  initTransaction,
++  killTransaction,
++  type PayloadRequest,
++} from 'payload'
++
++type RecordValue = Record<string, unknown>
++
++const SETTLEMENT_POLL_INTERVAL_MS = 25
++const SETTLEMENT_WAIT_TIMEOUT_MS = 500
++
++export type SettleTransactionArgs = {
++  /**
++   * The slug of the carts collection, defaults to 'carts'.
++   */
++  cartsSlug?: string
++  /**
++   * The provider-validated data used to create the order. Settlement adds the canonical
++   * transaction relationship and owns all settlement side effects.
++   */
++  orderData: RecordValue
++  /**
++   * The slug of the orders collection, defaults to 'orders'.
++   */
++  ordersSlug?: string
++  /**
++   * The slug of the products collection, defaults to 'products'.
++   */
++  productsSlug?: string
++  req: PayloadRequest
++  /**
++   * The ecommerce transaction that represents the payment.
++   */
++  transactionID: DefaultDocumentIDType
++  /**
++   * The slug of the transactions collection, defaults to 'transactions'.
++   */
++  transactionsSlug?: string
++  /**
++   * The slug of the variants collection, defaults to 'variants'.
++   */
++  variantsSlug?: string
++}
++
++/**
++ * Turns a paid transaction into its order outside the confirm-order request, for example from a
++ * payment provider's webhook or a reconciliation job. Call it only after the provider has
++ * confirmed the payment.
++ *
++ * It settles the transaction the way confirm-order does: one atomic `pending` to `processing`
++ * claim, then the order, the cart's `purchasedAt`, the inventory and the `succeeded` status. A
++ * caller that loses the claim, such as a duplicate webhook or a concurrent confirm-order, gets the
++ * winner's order back and writes nothing. It runs in a database transaction when the adapter
++ * supports one and the request has none. Throws when the transaction cannot be settled, for example
++ * because it failed or expired.
++ */
++export const settleTransaction = async ({
++  cartsSlug = 'carts',
++  orderData,
++  ordersSlug = 'orders',
++  productsSlug = 'products',
++  req,
++  transactionID,
++  transactionsSlug = 'transactions',
++  variantsSlug = 'variants',
++}: SettleTransactionArgs): Promise<RecordValue> => {
++  const transaction = await req.payload.findByID({
++    id: transactionID,
++    collection: transactionsSlug,
++    depth: 0,
++    overrideAccess: true,
++    req,
++  })
++  const cartID = isRecord(transaction?.cart) ? transaction.cart.id : transaction?.cart
++
++  if (!isValidDocumentID(cartID)) {
++    throw new Error('Transaction has no cart to settle.')
++  }
++
++  const shouldCommit = await initTransaction(req)
++
++  try {
++    const order = await finalizeTransactionOrder({
++      cartID,
++      cartsSlug,
++      orderData,
++      ordersSlug,
++      productsSlug,
++      req,
++      transactionID,
++      transactionsSlug,
++      variantsSlug,
++    })
++
++    if (shouldCommit) {
++      await commitTransaction(req)
++    }
++
++    return order
++  } catch (error) {
++    if (shouldCommit) {
++      await killTransaction(req)
++    }
++
++    if (shouldCommit && isTransientTransactionConflict(error)) {
++      return waitForCanonicalOrder({ ordersSlug, req, transactionID, transactionsSlug })
++    }
++
++    throw error
++  }
++}
++
++export const finalizeTransactionOrder = async ({
++  cartID,
++  cartsSlug,
++  orderData,
++  ordersSlug,
++  productsSlug,
++  req,
++  transactionID,
++  transactionsSlug,
++  variantsSlug,
++}: {
++  cartID: DefaultDocumentIDType
++  cartsSlug: string
++  orderData: Record<string, unknown>
++  ordersSlug: string
++  productsSlug: string
++  req: PayloadRequest
++  transactionID: DefaultDocumentIDType
++  transactionsSlug: string
++  variantsSlug: string
++}): Promise<RecordValue> => {
++  if (!isValidDocumentID(transactionID)) {
++    throw new Error('Transaction ID is missing or invalid.')
++  }
++
++  if (!isRecord(orderData)) {
++    throw new Error('Order data is missing or invalid.')
++  }
++
++  const claimedTransaction = await req.payload.db.updateOne({
++    collection: transactionsSlug,
++    data: { status: 'processing' },
++    options: { atomic: true },
++    req,
++    where: {
++      and: [
++        { id: { equals: transactionID } },
++        { status: { equals: 'pending' } },
++        { order: { exists: false } },
++      ],
++    },
++  })
++
++  if (!claimedTransaction) {
++    return waitForCanonicalOrder({ ordersSlug, req, transactionID, transactionsSlug })
++  }
++
++  if (getRelationshipID(claimedTransaction.id) !== getRelationshipID(transactionID)) {
++    throw new Error('Claimed transaction does not match the requested transaction.')
++  }
++
++  const transaction = await req.payload.findByID({
++    id: transactionID,
++    collection: transactionsSlug,
++    depth: 0,
++    overrideAccess: true,
++    req,
++  })
++
++  if (
++    !transaction ||
++    getRelationshipID(transaction.id) !== getRelationshipID(transactionID) ||
++    transaction.status !== 'processing'
++  ) {
++    throw new Error('Claimed transaction could not be loaded for settlement.')
++  }
++
++  const referencedOrders = await req.payload.find({
++    collection: ordersSlug,
++    depth: 0,
++    limit: 1,
++    overrideAccess: true,
++    pagination: false,
++    req,
++    where: { transactions: { equals: transactionID } },
++  })
++
++  if (referencedOrders.totalDocs !== 0 || referencedOrders.docs.length !== 0) {
++    throw new Error('An order already references the claimed transaction.')
++  }
++
++  const order = (await req.payload.create({
++    collection: ordersSlug,
++    data: {
++      ...orderData,
++      transactions: [transactionID],
++    },
++    overrideAccess: true,
++    req,
++  })) as RecordValue
++  const orderID = requireDocumentID({ fieldName: 'order ID', value: order.id })
++
++  await req.payload.update({
++    id: cartID,
++    collection: cartsSlug,
++    data: { purchasedAt: new Date().toISOString() },
++    overrideAccess: true,
++    req,
++  })
++
++  await decrementInventory({
++    items: transaction.items,
++    productsSlug,
++    req,
++    variantsSlug,
++  })
++
++  await req.payload.update({
++    id: transactionID,
++    collection: transactionsSlug,
++    data: { order: orderID, status: 'succeeded' },
++    overrideAccess: true,
++    req,
++  })
++
++  return order
++}
++
++const decrementInventory = async ({
++  items,
++  productsSlug,
++  req,
++  variantsSlug,
++}: {
++  items: unknown
++  productsSlug: string
++  req: PayloadRequest
++  variantsSlug: string
++}): Promise<void> => {
++  if (!Array.isArray(items) || items.length === 0) {
++    throw new Error('Inventory transaction items are missing or invalid.')
++  }
++
++  for (const item of items) {
++    if (
++      !isRecord(item) ||
++      typeof item.quantity !== 'number' ||
++      !Number.isFinite(item.quantity) ||
++      item.quantity <= 0
++    ) {
++      throw new Error('Inventory item quantity is missing or invalid.')
++    }
++
++    const hasVariant = item.variant !== null && item.variant !== undefined
++    const id = hasVariant ? item.variant : item.product
++
++    if (!isValidDocumentID(id)) {
++      throw new Error('Inventory item target is missing or invalid.')
++    }
++
++    const updatedInventory = await req.payload.db.updateOne({
++      id,
++      collection: hasVariant ? variantsSlug : productsSlug,
++      data: { inventory: { $inc: item.quantity * -1 } },
++      req,
++    })
++
++    if (!updatedInventory) {
++      throw new Error('Inventory item could not be updated.')
++    }
++  }
++}
++
++export const waitForCanonicalOrder = async ({
++  ordersSlug,
++  req,
++  transactionID,
++  transactionsSlug,
++}: {
++  ordersSlug: string
++  req: PayloadRequest
++  transactionID: DefaultDocumentIDType
++  transactionsSlug: string
++}): Promise<RecordValue> => {
++  const deadline = Date.now() + SETTLEMENT_WAIT_TIMEOUT_MS
++
++  do {
++    const transaction = await req.payload.findByID({
++      id: transactionID,
++      collection: transactionsSlug,
++      depth: 0,
++      overrideAccess: true,
++      req,
++    })
++
++    if (!transaction) {
++      throw new Error('Canonical transaction was not found.')
++    }
++
++    if (transaction.status === 'succeeded') {
++      return findExactlyLinkedOrder({
++        orderID: transaction.order,
++        ordersSlug,
++        req,
++        transactionID,
++      })
++    }
++
++    if (transaction.status !== 'pending' && transaction.status !== 'processing') {
++      throw new Error('Transaction is not available for settlement.')
++    }
++
++    if (Date.now() >= deadline) {
++      break
++    }
++
++    await new Promise<void>((resolve) =>
++      setTimeout(resolve, Math.min(SETTLEMENT_POLL_INTERVAL_MS, deadline - Date.now())),
++    )
++  } while (Date.now() <= deadline)
++
++  throw new Error('Transaction settlement did not complete in time.')
++}
++
++const findExactlyLinkedOrder = async ({
++  orderID,
++  ordersSlug,
++  req,
++  transactionID,
++}: {
++  orderID: unknown
++  ordersSlug: string
++  req: PayloadRequest
++  transactionID: DefaultDocumentIDType
++}): Promise<RecordValue> => {
++  const canonicalOrderID = requireDocumentID({ fieldName: 'order ID', value: orderID })
++  const result = await req.payload.find({
++    collection: ordersSlug,
++    depth: 0,
++    limit: 2,
++    overrideAccess: true,
++    pagination: false,
++    req,
++    where: { transactions: { equals: transactionID } },
++  })
++
++  if (
++    result.totalDocs !== 1 ||
++    result.docs.length !== 1 ||
++    getRelationshipID(result.docs[0]?.id) !== getRelationshipID(canonicalOrderID)
++  ) {
++    throw new Error('Transaction does not have exactly one canonical linked order.')
++  }
++
++  return result.docs[0] as RecordValue
++}
++
++export const isValidDocumentID = (id: unknown): id is DefaultDocumentIDType =>
++  (typeof id === 'number' && Number.isFinite(id)) ||
++  (typeof id === 'string' && id.trim().length > 0)
++
++export const getRelationshipID = (value: unknown): string | undefined => {
++  const id = isRecord(value) ? value.id : value
++
++  return isValidDocumentID(id) ? String(id) : undefined
++}
++
++const requireDocumentID = ({
++  fieldName,
++  value,
++}: {
++  fieldName: string
++  value: unknown
++}): DefaultDocumentIDType => {
++  const id = isRecord(value) ? value.id : value
++
++  if (!isValidDocumentID(id)) {
++    throw new Error(`${fieldName} is missing or invalid.`)
++  }
++
++  return id
++}
++
++const isRecord = (value: unknown): value is RecordValue =>
++  typeof value === 'object' && value !== null && !Array.isArray(value)
++
++export const isTransientTransactionConflict = (error: unknown): boolean => {
++  if (!isRecord(error)) {
++    return false
++  }
++
++  return (
++    error.code === 112 ||
++    error.codeName === 'WriteConflict' ||
++    (Array.isArray(error.errorLabels) && error.errorLabels.includes('TransientTransactionError'))
++  )
++}
