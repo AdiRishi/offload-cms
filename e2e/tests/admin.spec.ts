@@ -47,6 +47,9 @@ test("an editor uploads an image to R2", async ({ api, page }) => {
   const alt = unique("Admin upload");
   const image = png({ height: 30, width: 40 });
   await page.goto("/admin/collections/media/create");
+  // Unlike fill and click, setInputFiles doesn't wait for the admin to hydrate. A file set on the
+  // server-rendered input never reaches the form, which then saves without it.
+  await expect(page.locator('form[data-form-ready="true"]')).toBeVisible();
   await page
     .locator('input[type="file"]')
     .setInputFiles({ buffer: image, mimeType: "image/png", name: `${alt}.png` });
