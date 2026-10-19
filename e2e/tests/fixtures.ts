@@ -149,10 +149,7 @@ export const login = async (
 export const unique = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
-/**
- * The setup project's session token. Every worker reuses it: Payload stores sessions on
- * the user document, and concurrent logins for one user overwrite each other's session.
- */
+/** The setup project's session token, which every worker reuses instead of logging in. */
 const adminToken = () => {
   const state: unknown = JSON.parse(readFileSync(adminStorageState, "utf8"));
   const cookies =
