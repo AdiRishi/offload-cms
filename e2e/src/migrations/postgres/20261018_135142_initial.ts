@@ -55,7 +55,76 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
+  );
+  
+  CREATE TABLE "customers_sessions" (
+  	"_order" integer NOT NULL,
+  	"_parent_id" integer NOT NULL,
+  	"id" varchar PRIMARY KEY NOT NULL,
+  	"created_at" timestamp(3) with time zone,
+  	"expires_at" timestamp(3) with time zone NOT NULL
+  );
+  
+  CREATE TABLE "customers" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"name" varchar,
+  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"email" varchar NOT NULL,
+  	"reset_password_token" varchar,
+  	"reset_password_expiration" timestamp(3) with time zone,
+  	"salt" varchar,
+  	"hash" varchar,
+  	"reset_password_requested_at" timestamp(3) with time zone,
+  	"_verified" boolean,
+  	"_verificationtoken" varchar
+  );
+  
+  CREATE TABLE "customers_rels" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"order" integer,
+  	"parent_id" integer NOT NULL,
+  	"path" varchar NOT NULL,
+  	"users_id" integer,
+  	"customers_id" integer
+  );
+  
+  CREATE TABLE "_customers_v_version_sessions" (
+  	"_order" integer NOT NULL,
+  	"_parent_id" integer NOT NULL,
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"_uuid" varchar NOT NULL,
+  	"created_at" timestamp(3) with time zone,
+  	"expires_at" timestamp(3) with time zone NOT NULL
+  );
+  
+  CREATE TABLE "_customers_v" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"parent_id" integer,
+  	"version_name" varchar,
+  	"version_updated_at" timestamp(3) with time zone,
+  	"version_created_at" timestamp(3) with time zone,
+  	"version_email" varchar NOT NULL,
+  	"version_reset_password_token" varchar,
+  	"version_reset_password_expiration" timestamp(3) with time zone,
+  	"version_salt" varchar,
+  	"version_hash" varchar,
+  	"version_reset_password_requested_at" timestamp(3) with time zone,
+  	"version__verified" boolean,
+  	"version__verificationtoken" varchar,
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+  );
+  
+  CREATE TABLE "_customers_v_rels" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"order" integer,
+  	"parent_id" integer NOT NULL,
+  	"path" varchar NOT NULL,
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "pages_blocks_quote" (
@@ -156,7 +225,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_pages_v_blocks_quote" (
@@ -269,7 +339,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "posts" (
@@ -304,7 +375,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"path" varchar NOT NULL,
   	"categories_id" integer,
   	"tags_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_posts_v" (
@@ -345,7 +417,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"path" varchar NOT NULL,
   	"categories_id" integer,
   	"tags_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "categories" (
@@ -361,7 +434,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "media" (
@@ -460,7 +534,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
   	"tags_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_media_v" (
@@ -562,7 +637,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
   	"tags_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "field_types_select_many" (
@@ -672,7 +748,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"categories_id" integer,
   	"pages_id" integer,
   	"posts_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "folders" (
@@ -688,7 +765,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_folders_v" (
@@ -707,7 +785,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "tags" (
@@ -723,7 +802,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_tags_v" (
@@ -742,7 +822,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "audit_logs" (
@@ -760,7 +841,45 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
+  );
+  
+  CREATE TABLE "bookings" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"title" varchar NOT NULL,
+  	"customer_id" integer NOT NULL,
+  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+  );
+  
+  CREATE TABLE "bookings_rels" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"order" integer,
+  	"parent_id" integer NOT NULL,
+  	"path" varchar NOT NULL,
+  	"users_id" integer,
+  	"customers_id" integer
+  );
+  
+  CREATE TABLE "_bookings_v" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"parent_id" integer,
+  	"version_title" varchar NOT NULL,
+  	"version_customer_id" integer NOT NULL,
+  	"version_updated_at" timestamp(3) with time zone,
+  	"version_created_at" timestamp(3) with time zone,
+  	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
+  	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL
+  );
+  
+  CREATE TABLE "_bookings_v_rels" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"order" integer,
+  	"parent_id" integer NOT NULL,
+  	"path" varchar NOT NULL,
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "redirects" (
@@ -779,7 +898,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"path" varchar NOT NULL,
   	"pages_id" integer,
   	"posts_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_redirects_v" (
@@ -801,7 +921,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"path" varchar NOT NULL,
   	"pages_id" integer,
   	"posts_id" integer,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "search" (
@@ -1046,7 +1167,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_forms_v_blocks_checkbox" (
@@ -1283,7 +1405,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "form_submissions_submission_data" (
@@ -1306,7 +1429,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_form_submissions_v_version_submission_data" (
@@ -1333,7 +1457,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "payload_kv" (
@@ -1390,6 +1515,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
   	"users_id" integer,
+  	"customers_id" integer,
   	"pages_id" integer,
   	"posts_id" integer,
   	"categories_id" integer,
@@ -1398,6 +1524,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"folders_id" integer,
   	"tags_id" integer,
   	"audit_logs_id" integer,
+  	"bookings_id" integer,
   	"redirects_id" integer,
   	"search_id" integer,
   	"forms_id" integer,
@@ -1417,7 +1544,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "payload_migrations" (
@@ -1442,7 +1570,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" varchar NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "site_settings_footer_links" (
@@ -1472,7 +1601,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_site_settings_v_version_footer_links" (
@@ -1505,7 +1635,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "header_navigation" (
@@ -1528,7 +1659,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "_header_v_version_navigation" (
@@ -1556,7 +1688,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
-  	"users_id" integer
+  	"users_id" integer,
+  	"customers_id" integer
   );
   
   CREATE TABLE "payload_jobs_stats" (
@@ -1569,6 +1702,16 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "users_sessions" ADD CONSTRAINT "users_sessions_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "users_rels" ADD CONSTRAINT "users_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "users_rels" ADD CONSTRAINT "users_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "users_rels" ADD CONSTRAINT "users_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "customers_sessions" ADD CONSTRAINT "customers_sessions_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "customers_rels" ADD CONSTRAINT "customers_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "customers_rels" ADD CONSTRAINT "customers_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "customers_rels" ADD CONSTRAINT "customers_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_customers_v_version_sessions" ADD CONSTRAINT "_customers_v_version_sessions_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_customers_v"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_customers_v" ADD CONSTRAINT "_customers_v_parent_id_customers_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."customers"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_customers_v_rels" ADD CONSTRAINT "_customers_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_customers_v"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_customers_v_rels" ADD CONSTRAINT "_customers_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_customers_v_rels" ADD CONSTRAINT "_customers_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_blocks_quote" ADD CONSTRAINT "pages_blocks_quote_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_blocks_quote_locales" ADD CONSTRAINT "pages_blocks_quote_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages_blocks_quote"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_blocks_cta" ADD CONSTRAINT "pages_blocks_cta_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
@@ -1586,6 +1729,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "pages_locales" ADD CONSTRAINT "pages_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_blocks_quote" ADD CONSTRAINT "_pages_v_blocks_quote_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_blocks_quote_locales" ADD CONSTRAINT "_pages_v_blocks_quote_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v_blocks_quote"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_blocks_cta" ADD CONSTRAINT "_pages_v_blocks_cta_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
@@ -1604,6 +1748,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_pages_v_locales" ADD CONSTRAINT "_pages_v_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "posts" ADD CONSTRAINT "posts_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "posts" ADD CONSTRAINT "posts_hero_image_id_media_id_fk" FOREIGN KEY ("hero_image_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "posts" ADD CONSTRAINT "posts__h_folders_id_folders_id_fk" FOREIGN KEY ("_h_folders_id") REFERENCES "public"."folders"("id") ON DELETE set null ON UPDATE no action;
@@ -1613,6 +1758,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "posts_rels" ADD CONSTRAINT "posts_rels_categories_fk" FOREIGN KEY ("categories_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "posts_rels" ADD CONSTRAINT "posts_rels_tags_fk" FOREIGN KEY ("tags_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "posts_rels" ADD CONSTRAINT "posts_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "posts_rels" ADD CONSTRAINT "posts_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_posts_v" ADD CONSTRAINT "_posts_v_parent_id_posts_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."posts"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_posts_v" ADD CONSTRAINT "_posts_v_version_author_id_users_id_fk" FOREIGN KEY ("version_author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_posts_v" ADD CONSTRAINT "_posts_v_version_hero_image_id_media_id_fk" FOREIGN KEY ("version_hero_image_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
@@ -1623,19 +1769,23 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_posts_v_rels" ADD CONSTRAINT "_posts_v_rels_categories_fk" FOREIGN KEY ("categories_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_posts_v_rels" ADD CONSTRAINT "_posts_v_rels_tags_fk" FOREIGN KEY ("tags_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_posts_v_rels" ADD CONSTRAINT "_posts_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_posts_v_rels" ADD CONSTRAINT "_posts_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "categories_rels" ADD CONSTRAINT "categories_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "categories_rels" ADD CONSTRAINT "categories_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "categories_rels" ADD CONSTRAINT "categories_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "media" ADD CONSTRAINT "media__h_folders_id_folders_id_fk" FOREIGN KEY ("_h_folders_id") REFERENCES "public"."folders"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "media_locales" ADD CONSTRAINT "media_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "media_rels" ADD CONSTRAINT "media_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."media"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "media_rels" ADD CONSTRAINT "media_rels_tags_fk" FOREIGN KEY ("tags_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "media_rels" ADD CONSTRAINT "media_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "media_rels" ADD CONSTRAINT "media_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_media_v" ADD CONSTRAINT "_media_v_parent_id_media_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_media_v" ADD CONSTRAINT "_media_v_version__h_folders_id_folders_id_fk" FOREIGN KEY ("version__h_folders_id") REFERENCES "public"."folders"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_media_v_locales" ADD CONSTRAINT "_media_v_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_media_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_media_v_rels" ADD CONSTRAINT "_media_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_media_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_media_v_rels" ADD CONSTRAINT "_media_v_rels_tags_fk" FOREIGN KEY ("tags_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_media_v_rels" ADD CONSTRAINT "_media_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_media_v_rels" ADD CONSTRAINT "_media_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "field_types_select_many" ADD CONSTRAINT "field_types_select_many_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."field_types"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "field_types_array_children" ADD CONSTRAINT "field_types_array_children_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."field_types_array"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "field_types_array" ADD CONSTRAINT "field_types_array_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."field_types"("id") ON DELETE cascade ON UPDATE no action;
@@ -1653,31 +1803,48 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "field_types_rels" ADD CONSTRAINT "field_types_rels_pages_fk" FOREIGN KEY ("pages_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "field_types_rels" ADD CONSTRAINT "field_types_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "field_types_rels" ADD CONSTRAINT "field_types_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "field_types_rels" ADD CONSTRAINT "field_types_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "folders" ADD CONSTRAINT "folders__h_folders_id_folders_id_fk" FOREIGN KEY ("_h_folders_id") REFERENCES "public"."folders"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "folders_rels" ADD CONSTRAINT "folders_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."folders"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "folders_rels" ADD CONSTRAINT "folders_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "folders_rels" ADD CONSTRAINT "folders_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_folders_v" ADD CONSTRAINT "_folders_v_parent_id_folders_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."folders"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_folders_v" ADD CONSTRAINT "_folders_v_version__h_folders_id_folders_id_fk" FOREIGN KEY ("version__h_folders_id") REFERENCES "public"."folders"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_folders_v_rels" ADD CONSTRAINT "_folders_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_folders_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_folders_v_rels" ADD CONSTRAINT "_folders_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_folders_v_rels" ADD CONSTRAINT "_folders_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "tags" ADD CONSTRAINT "tags__h_tags_id_tags_id_fk" FOREIGN KEY ("_h_tags_id") REFERENCES "public"."tags"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "tags_rels" ADD CONSTRAINT "tags_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "tags_rels" ADD CONSTRAINT "tags_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "tags_rels" ADD CONSTRAINT "tags_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_tags_v" ADD CONSTRAINT "_tags_v_parent_id_tags_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."tags"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_tags_v" ADD CONSTRAINT "_tags_v_version__h_tags_id_tags_id_fk" FOREIGN KEY ("version__h_tags_id") REFERENCES "public"."tags"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_tags_v_rels" ADD CONSTRAINT "_tags_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_tags_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_tags_v_rels" ADD CONSTRAINT "_tags_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_tags_v_rels" ADD CONSTRAINT "_tags_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "audit_logs_rels" ADD CONSTRAINT "audit_logs_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."audit_logs"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "audit_logs_rels" ADD CONSTRAINT "audit_logs_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "audit_logs_rels" ADD CONSTRAINT "audit_logs_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "bookings" ADD CONSTRAINT "bookings_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "bookings_rels" ADD CONSTRAINT "bookings_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "bookings_rels" ADD CONSTRAINT "bookings_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "bookings_rels" ADD CONSTRAINT "bookings_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_bookings_v" ADD CONSTRAINT "_bookings_v_parent_id_bookings_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."bookings"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_bookings_v" ADD CONSTRAINT "_bookings_v_version_customer_id_customers_id_fk" FOREIGN KEY ("version_customer_id") REFERENCES "public"."customers"("id") ON DELETE set null ON UPDATE no action;
+  ALTER TABLE "_bookings_v_rels" ADD CONSTRAINT "_bookings_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_bookings_v"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_bookings_v_rels" ADD CONSTRAINT "_bookings_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_bookings_v_rels" ADD CONSTRAINT "_bookings_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "redirects_rels" ADD CONSTRAINT "redirects_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."redirects"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "redirects_rels" ADD CONSTRAINT "redirects_rels_pages_fk" FOREIGN KEY ("pages_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "redirects_rels" ADD CONSTRAINT "redirects_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "redirects_rels" ADD CONSTRAINT "redirects_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "redirects_rels" ADD CONSTRAINT "redirects_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_redirects_v" ADD CONSTRAINT "_redirects_v_parent_id_redirects_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."redirects"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_redirects_v_rels" ADD CONSTRAINT "_redirects_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_redirects_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_redirects_v_rels" ADD CONSTRAINT "_redirects_v_rels_pages_fk" FOREIGN KEY ("pages_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_redirects_v_rels" ADD CONSTRAINT "_redirects_v_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_redirects_v_rels" ADD CONSTRAINT "_redirects_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_redirects_v_rels" ADD CONSTRAINT "_redirects_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "search_locales" ADD CONSTRAINT "search_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."search"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "search_rels" ADD CONSTRAINT "search_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."search"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "search_rels" ADD CONSTRAINT "search_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
@@ -1706,6 +1873,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "forms_locales" ADD CONSTRAINT "forms_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."forms"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "forms_rels" ADD CONSTRAINT "forms_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."forms"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "forms_rels" ADD CONSTRAINT "forms_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "forms_rels" ADD CONSTRAINT "forms_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_forms_v_blocks_checkbox" ADD CONSTRAINT "_forms_v_blocks_checkbox_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_forms_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_forms_v_blocks_checkbox_locales" ADD CONSTRAINT "_forms_v_blocks_checkbox_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_forms_v_blocks_checkbox"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_forms_v_blocks_country" ADD CONSTRAINT "_forms_v_blocks_country_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_forms_v"("id") ON DELETE cascade ON UPDATE no action;
@@ -1732,18 +1900,22 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_forms_v_locales" ADD CONSTRAINT "_forms_v_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_forms_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_forms_v_rels" ADD CONSTRAINT "_forms_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_forms_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_forms_v_rels" ADD CONSTRAINT "_forms_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_forms_v_rels" ADD CONSTRAINT "_forms_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "form_submissions_submission_data" ADD CONSTRAINT "form_submissions_submission_data_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."form_submissions"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "form_submissions" ADD CONSTRAINT "form_submissions_form_id_forms_id_fk" FOREIGN KEY ("form_id") REFERENCES "public"."forms"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "form_submissions_rels" ADD CONSTRAINT "form_submissions_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."form_submissions"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "form_submissions_rels" ADD CONSTRAINT "form_submissions_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "form_submissions_rels" ADD CONSTRAINT "form_submissions_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_form_submissions_v_version_submission_data" ADD CONSTRAINT "_form_submissions_v_version_submission_data_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_form_submissions_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_form_submissions_v" ADD CONSTRAINT "_form_submissions_v_parent_id_form_submissions_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."form_submissions"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_form_submissions_v" ADD CONSTRAINT "_form_submissions_v_version_form_id_forms_id_fk" FOREIGN KEY ("version_form_id") REFERENCES "public"."forms"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_form_submissions_v_rels" ADD CONSTRAINT "_form_submissions_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_form_submissions_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_form_submissions_v_rels" ADD CONSTRAINT "_form_submissions_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_form_submissions_v_rels" ADD CONSTRAINT "_form_submissions_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_jobs_log" ADD CONSTRAINT "payload_jobs_log_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."payload_jobs"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_locked_documents"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_pages_fk" FOREIGN KEY ("pages_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_categories_fk" FOREIGN KEY ("categories_id") REFERENCES "public"."categories"("id") ON DELETE cascade ON UPDATE no action;
@@ -1752,30 +1924,37 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_folders_fk" FOREIGN KEY ("folders_id") REFERENCES "public"."folders"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_tags_fk" FOREIGN KEY ("tags_id") REFERENCES "public"."tags"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_audit_logs_fk" FOREIGN KEY ("audit_logs_id") REFERENCES "public"."audit_logs"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_bookings_fk" FOREIGN KEY ("bookings_id") REFERENCES "public"."bookings"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_redirects_fk" FOREIGN KEY ("redirects_id") REFERENCES "public"."redirects"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_search_fk" FOREIGN KEY ("search_id") REFERENCES "public"."search"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_forms_fk" FOREIGN KEY ("forms_id") REFERENCES "public"."forms"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_locked_documents_rels" ADD CONSTRAINT "payload_locked_documents_rels_form_submissions_fk" FOREIGN KEY ("form_submissions_id") REFERENCES "public"."form_submissions"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_preferences"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "payload_preferences_rels" ADD CONSTRAINT "payload_preferences_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_llm_instructions_rels" ADD CONSTRAINT "payload_llm_instructions_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."payload_llm_instructions"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "payload_llm_instructions_rels" ADD CONSTRAINT "payload_llm_instructions_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "payload_llm_instructions_rels" ADD CONSTRAINT "payload_llm_instructions_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "site_settings_footer_links" ADD CONSTRAINT "site_settings_footer_links_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."site_settings"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "site_settings_locales" ADD CONSTRAINT "site_settings_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."site_settings"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "site_settings_rels" ADD CONSTRAINT "site_settings_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."site_settings"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "site_settings_rels" ADD CONSTRAINT "site_settings_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "site_settings_rels" ADD CONSTRAINT "site_settings_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_site_settings_v_version_footer_links" ADD CONSTRAINT "_site_settings_v_version_footer_links_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_site_settings_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_site_settings_v_locales" ADD CONSTRAINT "_site_settings_v_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_site_settings_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_site_settings_v_rels" ADD CONSTRAINT "_site_settings_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_site_settings_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_site_settings_v_rels" ADD CONSTRAINT "_site_settings_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_site_settings_v_rels" ADD CONSTRAINT "_site_settings_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "header_navigation" ADD CONSTRAINT "header_navigation_page_id_pages_id_fk" FOREIGN KEY ("page_id") REFERENCES "public"."pages"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "header_navigation" ADD CONSTRAINT "header_navigation_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."header"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "header_rels" ADD CONSTRAINT "header_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."header"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "header_rels" ADD CONSTRAINT "header_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "header_rels" ADD CONSTRAINT "header_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_header_v_version_navigation" ADD CONSTRAINT "_header_v_version_navigation_page_id_pages_id_fk" FOREIGN KEY ("page_id") REFERENCES "public"."pages"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_header_v_version_navigation" ADD CONSTRAINT "_header_v_version_navigation_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_header_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_header_v_rels" ADD CONSTRAINT "_header_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_header_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_header_v_rels" ADD CONSTRAINT "_header_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_header_v_rels" ADD CONSTRAINT "_header_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   CREATE INDEX "users_sessions_order_idx" ON "users_sessions" USING btree ("_order");
   CREATE INDEX "users_sessions_parent_id_idx" ON "users_sessions" USING btree ("_parent_id");
   CREATE INDEX "users_updated_at_idx" ON "users" USING btree ("updated_at");
@@ -1785,6 +1964,30 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "users_rels_parent_idx" ON "users_rels" USING btree ("parent_id");
   CREATE INDEX "users_rels_path_idx" ON "users_rels" USING btree ("path");
   CREATE INDEX "users_rels_users_id_idx" ON "users_rels" USING btree ("users_id");
+  CREATE INDEX "users_rels_customers_id_idx" ON "users_rels" USING btree ("customers_id");
+  CREATE INDEX "customers_sessions_order_idx" ON "customers_sessions" USING btree ("_order");
+  CREATE INDEX "customers_sessions_parent_id_idx" ON "customers_sessions" USING btree ("_parent_id");
+  CREATE INDEX "customers_updated_at_idx" ON "customers" USING btree ("updated_at");
+  CREATE INDEX "customers_created_at_idx" ON "customers" USING btree ("created_at");
+  CREATE UNIQUE INDEX "customers_email_idx" ON "customers" USING btree ("email");
+  CREATE INDEX "customers_rels_order_idx" ON "customers_rels" USING btree ("order");
+  CREATE INDEX "customers_rels_parent_idx" ON "customers_rels" USING btree ("parent_id");
+  CREATE INDEX "customers_rels_path_idx" ON "customers_rels" USING btree ("path");
+  CREATE INDEX "customers_rels_users_id_idx" ON "customers_rels" USING btree ("users_id");
+  CREATE INDEX "customers_rels_customers_id_idx" ON "customers_rels" USING btree ("customers_id");
+  CREATE INDEX "_customers_v_version_sessions_order_idx" ON "_customers_v_version_sessions" USING btree ("_order");
+  CREATE INDEX "_customers_v_version_sessions_parent_id_idx" ON "_customers_v_version_sessions" USING btree ("_parent_id");
+  CREATE INDEX "_customers_v_parent_idx" ON "_customers_v" USING btree ("parent_id");
+  CREATE INDEX "_customers_v_version_version_updated_at_idx" ON "_customers_v" USING btree ("version_updated_at");
+  CREATE INDEX "_customers_v_version_version_created_at_idx" ON "_customers_v" USING btree ("version_created_at");
+  CREATE INDEX "_customers_v_version_version_email_idx" ON "_customers_v" USING btree ("version_email");
+  CREATE INDEX "_customers_v_created_at_idx" ON "_customers_v" USING btree ("created_at");
+  CREATE INDEX "_customers_v_updated_at_idx" ON "_customers_v" USING btree ("updated_at");
+  CREATE INDEX "_customers_v_rels_order_idx" ON "_customers_v_rels" USING btree ("order");
+  CREATE INDEX "_customers_v_rels_parent_idx" ON "_customers_v_rels" USING btree ("parent_id");
+  CREATE INDEX "_customers_v_rels_path_idx" ON "_customers_v_rels" USING btree ("path");
+  CREATE INDEX "_customers_v_rels_users_id_idx" ON "_customers_v_rels" USING btree ("users_id");
+  CREATE INDEX "_customers_v_rels_customers_id_idx" ON "_customers_v_rels" USING btree ("customers_id");
   CREATE INDEX "pages_blocks_quote_order_idx" ON "pages_blocks_quote" USING btree ("_order");
   CREATE INDEX "pages_blocks_quote_parent_id_idx" ON "pages_blocks_quote" USING btree ("_parent_id");
   CREATE INDEX "pages_blocks_quote_path_idx" ON "pages_blocks_quote" USING btree ("_path");
@@ -1822,6 +2025,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "pages_rels_parent_idx" ON "pages_rels" USING btree ("parent_id");
   CREATE INDEX "pages_rels_path_idx" ON "pages_rels" USING btree ("path");
   CREATE INDEX "pages_rels_users_id_idx" ON "pages_rels" USING btree ("users_id");
+  CREATE INDEX "pages_rels_customers_id_idx" ON "pages_rels" USING btree ("customers_id");
   CREATE INDEX "_pages_v_blocks_quote_order_idx" ON "_pages_v_blocks_quote" USING btree ("_order");
   CREATE INDEX "_pages_v_blocks_quote_parent_id_idx" ON "_pages_v_blocks_quote" USING btree ("_parent_id");
   CREATE INDEX "_pages_v_blocks_quote_path_idx" ON "_pages_v_blocks_quote" USING btree ("_path");
@@ -1864,6 +2068,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_pages_v_rels_parent_idx" ON "_pages_v_rels" USING btree ("parent_id");
   CREATE INDEX "_pages_v_rels_path_idx" ON "_pages_v_rels" USING btree ("path");
   CREATE INDEX "_pages_v_rels_users_id_idx" ON "_pages_v_rels" USING btree ("users_id");
+  CREATE INDEX "_pages_v_rels_customers_id_idx" ON "_pages_v_rels" USING btree ("customers_id");
   CREATE UNIQUE INDEX "posts_slug_idx" ON "posts" USING btree ("slug");
   CREATE INDEX "posts_author_idx" ON "posts" USING btree ("author_id");
   CREATE INDEX "posts_hero_image_idx" ON "posts" USING btree ("hero_image_id");
@@ -1880,6 +2085,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "posts_rels_categories_id_idx" ON "posts_rels" USING btree ("categories_id");
   CREATE INDEX "posts_rels_tags_id_idx" ON "posts_rels" USING btree ("tags_id");
   CREATE INDEX "posts_rels_users_id_idx" ON "posts_rels" USING btree ("users_id");
+  CREATE INDEX "posts_rels_customers_id_idx" ON "posts_rels" USING btree ("customers_id");
   CREATE INDEX "_posts_v_parent_idx" ON "_posts_v" USING btree ("parent_id");
   CREATE INDEX "_posts_v_version_version_slug_idx" ON "_posts_v" USING btree ("version_slug");
   CREATE INDEX "_posts_v_version_version_author_idx" ON "_posts_v" USING btree ("version_author_id");
@@ -1902,6 +2108,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_posts_v_rels_categories_id_idx" ON "_posts_v_rels" USING btree ("categories_id");
   CREATE INDEX "_posts_v_rels_tags_id_idx" ON "_posts_v_rels" USING btree ("tags_id");
   CREATE INDEX "_posts_v_rels_users_id_idx" ON "_posts_v_rels" USING btree ("users_id");
+  CREATE INDEX "_posts_v_rels_customers_id_idx" ON "_posts_v_rels" USING btree ("customers_id");
   CREATE UNIQUE INDEX "categories_slug_idx" ON "categories" USING btree ("slug");
   CREATE INDEX "categories_updated_at_idx" ON "categories" USING btree ("updated_at");
   CREATE INDEX "categories_created_at_idx" ON "categories" USING btree ("created_at");
@@ -1909,6 +2116,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "categories_rels_parent_idx" ON "categories_rels" USING btree ("parent_id");
   CREATE INDEX "categories_rels_path_idx" ON "categories_rels" USING btree ("path");
   CREATE INDEX "categories_rels_users_id_idx" ON "categories_rels" USING btree ("users_id");
+  CREATE INDEX "categories_rels_customers_id_idx" ON "categories_rels" USING btree ("customers_id");
   CREATE INDEX "media__h_folders_idx" ON "media" USING btree ("_h_folders_id");
   CREATE INDEX "media_updated_at_idx" ON "media" USING btree ("updated_at");
   CREATE INDEX "media_created_at_idx" ON "media" USING btree ("created_at");
@@ -1927,6 +2135,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "media_rels_path_idx" ON "media_rels" USING btree ("path");
   CREATE INDEX "media_rels_tags_id_idx" ON "media_rels" USING btree ("tags_id");
   CREATE INDEX "media_rels_users_id_idx" ON "media_rels" USING btree ("users_id");
+  CREATE INDEX "media_rels_customers_id_idx" ON "media_rels" USING btree ("customers_id");
   CREATE INDEX "_media_v_parent_idx" ON "_media_v" USING btree ("parent_id");
   CREATE INDEX "_media_v_version_version__h_folders_idx" ON "_media_v" USING btree ("version__h_folders_id");
   CREATE INDEX "_media_v_version_version_updated_at_idx" ON "_media_v" USING btree ("version_updated_at");
@@ -1948,6 +2157,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_media_v_rels_path_idx" ON "_media_v_rels" USING btree ("path");
   CREATE INDEX "_media_v_rels_tags_id_idx" ON "_media_v_rels" USING btree ("tags_id");
   CREATE INDEX "_media_v_rels_users_id_idx" ON "_media_v_rels" USING btree ("users_id");
+  CREATE INDEX "_media_v_rels_customers_id_idx" ON "_media_v_rels" USING btree ("customers_id");
   CREATE INDEX "field_types_select_many_order_idx" ON "field_types_select_many" USING btree ("order");
   CREATE INDEX "field_types_select_many_parent_idx" ON "field_types_select_many" USING btree ("parent_id");
   CREATE INDEX "field_types_array_children_order_idx" ON "field_types_array_children" USING btree ("_order");
@@ -1979,6 +2189,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "field_types_rels_pages_id_idx" ON "field_types_rels" USING btree ("pages_id");
   CREATE INDEX "field_types_rels_posts_id_idx" ON "field_types_rels" USING btree ("posts_id");
   CREATE INDEX "field_types_rels_users_id_idx" ON "field_types_rels" USING btree ("users_id");
+  CREATE INDEX "field_types_rels_customers_id_idx" ON "field_types_rels" USING btree ("customers_id");
   CREATE INDEX "folders__h_folders_idx" ON "folders" USING btree ("_h_folders_id");
   CREATE INDEX "folders_updated_at_idx" ON "folders" USING btree ("updated_at");
   CREATE INDEX "folders_created_at_idx" ON "folders" USING btree ("created_at");
@@ -1986,6 +2197,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "folders_rels_parent_idx" ON "folders_rels" USING btree ("parent_id");
   CREATE INDEX "folders_rels_path_idx" ON "folders_rels" USING btree ("path");
   CREATE INDEX "folders_rels_users_id_idx" ON "folders_rels" USING btree ("users_id");
+  CREATE INDEX "folders_rels_customers_id_idx" ON "folders_rels" USING btree ("customers_id");
   CREATE INDEX "_folders_v_parent_idx" ON "_folders_v" USING btree ("parent_id");
   CREATE INDEX "_folders_v_version_version__h_folders_idx" ON "_folders_v" USING btree ("version__h_folders_id");
   CREATE INDEX "_folders_v_version_version_updated_at_idx" ON "_folders_v" USING btree ("version_updated_at");
@@ -1996,6 +2208,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_folders_v_rels_parent_idx" ON "_folders_v_rels" USING btree ("parent_id");
   CREATE INDEX "_folders_v_rels_path_idx" ON "_folders_v_rels" USING btree ("path");
   CREATE INDEX "_folders_v_rels_users_id_idx" ON "_folders_v_rels" USING btree ("users_id");
+  CREATE INDEX "_folders_v_rels_customers_id_idx" ON "_folders_v_rels" USING btree ("customers_id");
   CREATE INDEX "tags__h_tags_idx" ON "tags" USING btree ("_h_tags_id");
   CREATE INDEX "tags_updated_at_idx" ON "tags" USING btree ("updated_at");
   CREATE INDEX "tags_created_at_idx" ON "tags" USING btree ("created_at");
@@ -2003,6 +2216,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "tags_rels_parent_idx" ON "tags_rels" USING btree ("parent_id");
   CREATE INDEX "tags_rels_path_idx" ON "tags_rels" USING btree ("path");
   CREATE INDEX "tags_rels_users_id_idx" ON "tags_rels" USING btree ("users_id");
+  CREATE INDEX "tags_rels_customers_id_idx" ON "tags_rels" USING btree ("customers_id");
   CREATE INDEX "_tags_v_parent_idx" ON "_tags_v" USING btree ("parent_id");
   CREATE INDEX "_tags_v_version_version__h_tags_idx" ON "_tags_v" USING btree ("version__h_tags_id");
   CREATE INDEX "_tags_v_version_version_updated_at_idx" ON "_tags_v" USING btree ("version_updated_at");
@@ -2013,12 +2227,33 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_tags_v_rels_parent_idx" ON "_tags_v_rels" USING btree ("parent_id");
   CREATE INDEX "_tags_v_rels_path_idx" ON "_tags_v_rels" USING btree ("path");
   CREATE INDEX "_tags_v_rels_users_id_idx" ON "_tags_v_rels" USING btree ("users_id");
+  CREATE INDEX "_tags_v_rels_customers_id_idx" ON "_tags_v_rels" USING btree ("customers_id");
   CREATE INDEX "audit_logs_updated_at_idx" ON "audit_logs" USING btree ("updated_at");
   CREATE INDEX "audit_logs_created_at_idx" ON "audit_logs" USING btree ("created_at");
   CREATE INDEX "audit_logs_rels_order_idx" ON "audit_logs_rels" USING btree ("order");
   CREATE INDEX "audit_logs_rels_parent_idx" ON "audit_logs_rels" USING btree ("parent_id");
   CREATE INDEX "audit_logs_rels_path_idx" ON "audit_logs_rels" USING btree ("path");
   CREATE INDEX "audit_logs_rels_users_id_idx" ON "audit_logs_rels" USING btree ("users_id");
+  CREATE INDEX "audit_logs_rels_customers_id_idx" ON "audit_logs_rels" USING btree ("customers_id");
+  CREATE INDEX "bookings_customer_idx" ON "bookings" USING btree ("customer_id");
+  CREATE INDEX "bookings_updated_at_idx" ON "bookings" USING btree ("updated_at");
+  CREATE INDEX "bookings_created_at_idx" ON "bookings" USING btree ("created_at");
+  CREATE INDEX "bookings_rels_order_idx" ON "bookings_rels" USING btree ("order");
+  CREATE INDEX "bookings_rels_parent_idx" ON "bookings_rels" USING btree ("parent_id");
+  CREATE INDEX "bookings_rels_path_idx" ON "bookings_rels" USING btree ("path");
+  CREATE INDEX "bookings_rels_users_id_idx" ON "bookings_rels" USING btree ("users_id");
+  CREATE INDEX "bookings_rels_customers_id_idx" ON "bookings_rels" USING btree ("customers_id");
+  CREATE INDEX "_bookings_v_parent_idx" ON "_bookings_v" USING btree ("parent_id");
+  CREATE INDEX "_bookings_v_version_version_customer_idx" ON "_bookings_v" USING btree ("version_customer_id");
+  CREATE INDEX "_bookings_v_version_version_updated_at_idx" ON "_bookings_v" USING btree ("version_updated_at");
+  CREATE INDEX "_bookings_v_version_version_created_at_idx" ON "_bookings_v" USING btree ("version_created_at");
+  CREATE INDEX "_bookings_v_created_at_idx" ON "_bookings_v" USING btree ("created_at");
+  CREATE INDEX "_bookings_v_updated_at_idx" ON "_bookings_v" USING btree ("updated_at");
+  CREATE INDEX "_bookings_v_rels_order_idx" ON "_bookings_v_rels" USING btree ("order");
+  CREATE INDEX "_bookings_v_rels_parent_idx" ON "_bookings_v_rels" USING btree ("parent_id");
+  CREATE INDEX "_bookings_v_rels_path_idx" ON "_bookings_v_rels" USING btree ("path");
+  CREATE INDEX "_bookings_v_rels_users_id_idx" ON "_bookings_v_rels" USING btree ("users_id");
+  CREATE INDEX "_bookings_v_rels_customers_id_idx" ON "_bookings_v_rels" USING btree ("customers_id");
   CREATE UNIQUE INDEX "redirects_from_idx" ON "redirects" USING btree ("from");
   CREATE INDEX "redirects_updated_at_idx" ON "redirects" USING btree ("updated_at");
   CREATE INDEX "redirects_created_at_idx" ON "redirects" USING btree ("created_at");
@@ -2028,6 +2263,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "redirects_rels_pages_id_idx" ON "redirects_rels" USING btree ("pages_id");
   CREATE INDEX "redirects_rels_posts_id_idx" ON "redirects_rels" USING btree ("posts_id");
   CREATE INDEX "redirects_rels_users_id_idx" ON "redirects_rels" USING btree ("users_id");
+  CREATE INDEX "redirects_rels_customers_id_idx" ON "redirects_rels" USING btree ("customers_id");
   CREATE INDEX "_redirects_v_parent_idx" ON "_redirects_v" USING btree ("parent_id");
   CREATE INDEX "_redirects_v_version_version_from_idx" ON "_redirects_v" USING btree ("version_from");
   CREATE INDEX "_redirects_v_version_version_updated_at_idx" ON "_redirects_v" USING btree ("version_updated_at");
@@ -2040,6 +2276,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_redirects_v_rels_pages_id_idx" ON "_redirects_v_rels" USING btree ("pages_id");
   CREATE INDEX "_redirects_v_rels_posts_id_idx" ON "_redirects_v_rels" USING btree ("posts_id");
   CREATE INDEX "_redirects_v_rels_users_id_idx" ON "_redirects_v_rels" USING btree ("users_id");
+  CREATE INDEX "_redirects_v_rels_customers_id_idx" ON "_redirects_v_rels" USING btree ("customers_id");
   CREATE INDEX "search_updated_at_idx" ON "search" USING btree ("updated_at");
   CREATE INDEX "search_created_at_idx" ON "search" USING btree ("created_at");
   CREATE UNIQUE INDEX "search_locales_locale_parent_id_unique" ON "search_locales" USING btree ("_locale","_parent_id");
@@ -2096,6 +2333,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "forms_rels_parent_idx" ON "forms_rels" USING btree ("parent_id");
   CREATE INDEX "forms_rels_path_idx" ON "forms_rels" USING btree ("path");
   CREATE INDEX "forms_rels_users_id_idx" ON "forms_rels" USING btree ("users_id");
+  CREATE INDEX "forms_rels_customers_id_idx" ON "forms_rels" USING btree ("customers_id");
   CREATE INDEX "_forms_v_blocks_checkbox_order_idx" ON "_forms_v_blocks_checkbox" USING btree ("_order");
   CREATE INDEX "_forms_v_blocks_checkbox_parent_id_idx" ON "_forms_v_blocks_checkbox" USING btree ("_parent_id");
   CREATE INDEX "_forms_v_blocks_checkbox_path_idx" ON "_forms_v_blocks_checkbox" USING btree ("_path");
@@ -2148,6 +2386,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_forms_v_rels_parent_idx" ON "_forms_v_rels" USING btree ("parent_id");
   CREATE INDEX "_forms_v_rels_path_idx" ON "_forms_v_rels" USING btree ("path");
   CREATE INDEX "_forms_v_rels_users_id_idx" ON "_forms_v_rels" USING btree ("users_id");
+  CREATE INDEX "_forms_v_rels_customers_id_idx" ON "_forms_v_rels" USING btree ("customers_id");
   CREATE INDEX "form_submissions_submission_data_order_idx" ON "form_submissions_submission_data" USING btree ("_order");
   CREATE INDEX "form_submissions_submission_data_parent_id_idx" ON "form_submissions_submission_data" USING btree ("_parent_id");
   CREATE INDEX "form_submissions_form_idx" ON "form_submissions" USING btree ("form_id");
@@ -2157,6 +2396,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "form_submissions_rels_parent_idx" ON "form_submissions_rels" USING btree ("parent_id");
   CREATE INDEX "form_submissions_rels_path_idx" ON "form_submissions_rels" USING btree ("path");
   CREATE INDEX "form_submissions_rels_users_id_idx" ON "form_submissions_rels" USING btree ("users_id");
+  CREATE INDEX "form_submissions_rels_customers_id_idx" ON "form_submissions_rels" USING btree ("customers_id");
   CREATE INDEX "_form_submissions_v_version_submission_data_order_idx" ON "_form_submissions_v_version_submission_data" USING btree ("_order");
   CREATE INDEX "_form_submissions_v_version_submission_data_parent_id_idx" ON "_form_submissions_v_version_submission_data" USING btree ("_parent_id");
   CREATE INDEX "_form_submissions_v_parent_idx" ON "_form_submissions_v" USING btree ("parent_id");
@@ -2169,6 +2409,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_form_submissions_v_rels_parent_idx" ON "_form_submissions_v_rels" USING btree ("parent_id");
   CREATE INDEX "_form_submissions_v_rels_path_idx" ON "_form_submissions_v_rels" USING btree ("path");
   CREATE INDEX "_form_submissions_v_rels_users_id_idx" ON "_form_submissions_v_rels" USING btree ("users_id");
+  CREATE INDEX "_form_submissions_v_rels_customers_id_idx" ON "_form_submissions_v_rels" USING btree ("customers_id");
   CREATE UNIQUE INDEX "payload_kv_key_idx" ON "payload_kv" USING btree ("key");
   CREATE INDEX "payload_jobs_log_order_idx" ON "payload_jobs_log" USING btree ("_order");
   CREATE INDEX "payload_jobs_log_parent_id_idx" ON "payload_jobs_log" USING btree ("_parent_id");
@@ -2190,6 +2431,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_parent_idx" ON "payload_locked_documents_rels" USING btree ("parent_id");
   CREATE INDEX "payload_locked_documents_rels_path_idx" ON "payload_locked_documents_rels" USING btree ("path");
   CREATE INDEX "payload_locked_documents_rels_users_id_idx" ON "payload_locked_documents_rels" USING btree ("users_id");
+  CREATE INDEX "payload_locked_documents_rels_customers_id_idx" ON "payload_locked_documents_rels" USING btree ("customers_id");
   CREATE INDEX "payload_locked_documents_rels_pages_id_idx" ON "payload_locked_documents_rels" USING btree ("pages_id");
   CREATE INDEX "payload_locked_documents_rels_posts_id_idx" ON "payload_locked_documents_rels" USING btree ("posts_id");
   CREATE INDEX "payload_locked_documents_rels_categories_id_idx" ON "payload_locked_documents_rels" USING btree ("categories_id");
@@ -2198,6 +2440,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_locked_documents_rels_folders_id_idx" ON "payload_locked_documents_rels" USING btree ("folders_id");
   CREATE INDEX "payload_locked_documents_rels_tags_id_idx" ON "payload_locked_documents_rels" USING btree ("tags_id");
   CREATE INDEX "payload_locked_documents_rels_audit_logs_id_idx" ON "payload_locked_documents_rels" USING btree ("audit_logs_id");
+  CREATE INDEX "payload_locked_documents_rels_bookings_id_idx" ON "payload_locked_documents_rels" USING btree ("bookings_id");
   CREATE INDEX "payload_locked_documents_rels_redirects_id_idx" ON "payload_locked_documents_rels" USING btree ("redirects_id");
   CREATE INDEX "payload_locked_documents_rels_search_id_idx" ON "payload_locked_documents_rels" USING btree ("search_id");
   CREATE INDEX "payload_locked_documents_rels_forms_id_idx" ON "payload_locked_documents_rels" USING btree ("forms_id");
@@ -2209,6 +2452,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_preferences_rels_parent_idx" ON "payload_preferences_rels" USING btree ("parent_id");
   CREATE INDEX "payload_preferences_rels_path_idx" ON "payload_preferences_rels" USING btree ("path");
   CREATE INDEX "payload_preferences_rels_users_id_idx" ON "payload_preferences_rels" USING btree ("users_id");
+  CREATE INDEX "payload_preferences_rels_customers_id_idx" ON "payload_preferences_rels" USING btree ("customers_id");
   CREATE INDEX "payload_migrations_updated_at_idx" ON "payload_migrations" USING btree ("updated_at");
   CREATE INDEX "payload_migrations_created_at_idx" ON "payload_migrations" USING btree ("created_at");
   CREATE INDEX "payload_llm_instructions_entity_slug_idx" ON "payload_llm_instructions" USING btree ("entity_slug");
@@ -2218,6 +2462,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "payload_llm_instructions_rels_parent_idx" ON "payload_llm_instructions_rels" USING btree ("parent_id");
   CREATE INDEX "payload_llm_instructions_rels_path_idx" ON "payload_llm_instructions_rels" USING btree ("path");
   CREATE INDEX "payload_llm_instructions_rels_users_id_idx" ON "payload_llm_instructions_rels" USING btree ("users_id");
+  CREATE INDEX "payload_llm_instructions_rels_customers_id_idx" ON "payload_llm_instructions_rels" USING btree ("customers_id");
   CREATE INDEX "site_settings_footer_links_order_idx" ON "site_settings_footer_links" USING btree ("_order");
   CREATE INDEX "site_settings_footer_links_parent_id_idx" ON "site_settings_footer_links" USING btree ("_parent_id");
   CREATE UNIQUE INDEX "site_settings_locales_locale_parent_id_unique" ON "site_settings_locales" USING btree ("_locale","_parent_id");
@@ -2225,6 +2470,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "site_settings_rels_parent_idx" ON "site_settings_rels" USING btree ("parent_id");
   CREATE INDEX "site_settings_rels_path_idx" ON "site_settings_rels" USING btree ("path");
   CREATE INDEX "site_settings_rels_users_id_idx" ON "site_settings_rels" USING btree ("users_id");
+  CREATE INDEX "site_settings_rels_customers_id_idx" ON "site_settings_rels" USING btree ("customers_id");
   CREATE INDEX "_site_settings_v_version_footer_links_order_idx" ON "_site_settings_v_version_footer_links" USING btree ("_order");
   CREATE INDEX "_site_settings_v_version_footer_links_parent_id_idx" ON "_site_settings_v_version_footer_links" USING btree ("_parent_id");
   CREATE INDEX "_site_settings_v_created_at_idx" ON "_site_settings_v" USING btree ("created_at");
@@ -2234,6 +2480,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_site_settings_v_rels_parent_idx" ON "_site_settings_v_rels" USING btree ("parent_id");
   CREATE INDEX "_site_settings_v_rels_path_idx" ON "_site_settings_v_rels" USING btree ("path");
   CREATE INDEX "_site_settings_v_rels_users_id_idx" ON "_site_settings_v_rels" USING btree ("users_id");
+  CREATE INDEX "_site_settings_v_rels_customers_id_idx" ON "_site_settings_v_rels" USING btree ("customers_id");
   CREATE INDEX "header_navigation_order_idx" ON "header_navigation" USING btree ("_order");
   CREATE INDEX "header_navigation_parent_id_idx" ON "header_navigation" USING btree ("_parent_id");
   CREATE INDEX "header_navigation_page_idx" ON "header_navigation" USING btree ("page_id");
@@ -2242,6 +2489,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "header_rels_parent_idx" ON "header_rels" USING btree ("parent_id");
   CREATE INDEX "header_rels_path_idx" ON "header_rels" USING btree ("path");
   CREATE INDEX "header_rels_users_id_idx" ON "header_rels" USING btree ("users_id");
+  CREATE INDEX "header_rels_customers_id_idx" ON "header_rels" USING btree ("customers_id");
   CREATE INDEX "_header_v_version_navigation_order_idx" ON "_header_v_version_navigation" USING btree ("_order");
   CREATE INDEX "_header_v_version_navigation_parent_id_idx" ON "_header_v_version_navigation" USING btree ("_parent_id");
   CREATE INDEX "_header_v_version_navigation_page_idx" ON "_header_v_version_navigation" USING btree ("page_id");
@@ -2253,7 +2501,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_header_v_rels_order_idx" ON "_header_v_rels" USING btree ("order");
   CREATE INDEX "_header_v_rels_parent_idx" ON "_header_v_rels" USING btree ("parent_id");
   CREATE INDEX "_header_v_rels_path_idx" ON "_header_v_rels" USING btree ("path");
-  CREATE INDEX "_header_v_rels_users_id_idx" ON "_header_v_rels" USING btree ("users_id");`)
+  CREATE INDEX "_header_v_rels_users_id_idx" ON "_header_v_rels" USING btree ("users_id");
+  CREATE INDEX "_header_v_rels_customers_id_idx" ON "_header_v_rels" USING btree ("customers_id");`)
 }
 
 export async function down({ db, payload, req }: MigrateDownArgs): Promise<void> {
@@ -2261,6 +2510,12 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
    DROP TABLE "users_sessions" CASCADE;
   DROP TABLE "users" CASCADE;
   DROP TABLE "users_rels" CASCADE;
+  DROP TABLE "customers_sessions" CASCADE;
+  DROP TABLE "customers" CASCADE;
+  DROP TABLE "customers_rels" CASCADE;
+  DROP TABLE "_customers_v_version_sessions" CASCADE;
+  DROP TABLE "_customers_v" CASCADE;
+  DROP TABLE "_customers_v_rels" CASCADE;
   DROP TABLE "pages_blocks_quote" CASCADE;
   DROP TABLE "pages_blocks_quote_locales" CASCADE;
   DROP TABLE "pages_blocks_cta" CASCADE;
@@ -2319,6 +2574,10 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "_tags_v_rels" CASCADE;
   DROP TABLE "audit_logs" CASCADE;
   DROP TABLE "audit_logs_rels" CASCADE;
+  DROP TABLE "bookings" CASCADE;
+  DROP TABLE "bookings_rels" CASCADE;
+  DROP TABLE "_bookings_v" CASCADE;
+  DROP TABLE "_bookings_v_rels" CASCADE;
   DROP TABLE "redirects" CASCADE;
   DROP TABLE "redirects_rels" CASCADE;
   DROP TABLE "_redirects_v" CASCADE;

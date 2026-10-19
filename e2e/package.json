@@ -14,6 +14,7 @@
     "deploy:staging": "CLOUDFLARE_ENV=staging pnpm payload migrate:fresh --force-accept-warning && CLOUDFLARE_ENV=staging pnpm build && wrangler deploy"
   },
   "dependencies": {
+    "@adirishi/offload-accounts": "4.0.0-beta.2-offload.dev",
     "@adirishi/offload-cloudflare": "4.0.0-beta.2-offload.dev",
     "@adirishi/offload-email-cloudflare": "4.0.0-beta.2-offload.dev",
     "@adirishi/offload-form-builder": "4.0.0-beta.2-offload.dev",

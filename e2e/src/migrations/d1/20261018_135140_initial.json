@@ -240,6 +240,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -270,6 +277,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "users_rels_customers_id_idx": {
+          "name": "users_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -292,6 +306,722 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "users_rels_customers_fk": {
+          "name": "users_rels_customers_fk",
+          "tableFrom": "users_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "customers_sessions": {
+      "name": "customers_sessions",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "customers_sessions_order_idx": {
+          "name": "customers_sessions_order_idx",
+          "columns": [
+            "_order"
+          ],
+          "isUnique": false
+        },
+        "customers_sessions_parent_id_idx": {
+          "name": "customers_sessions_parent_id_idx",
+          "columns": [
+            "_parent_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "customers_sessions_parent_id_fk": {
+          "name": "customers_sessions_parent_id_fk",
+          "tableFrom": "customers_sessions",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "customers": {
+      "name": "customers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reset_password_token": {
+          "name": "reset_password_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reset_password_expiration": {
+          "name": "reset_password_expiration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "salt": {
+          "name": "salt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "hash": {
+          "name": "hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reset_password_requested_at": {
+          "name": "reset_password_requested_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "_verified": {
+          "name": "_verified",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "_verificationtoken": {
+          "name": "_verificationtoken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "customers_updated_at_idx": {
+          "name": "customers_updated_at_idx",
+          "columns": [
+            "updated_at"
+          ],
+          "isUnique": false
+        },
+        "customers_created_at_idx": {
+          "name": "customers_created_at_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "customers_email_idx": {
+          "name": "customers_email_idx",
+          "columns": [
+            "email"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "customers_rels": {
+      "name": "customers_rels",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "users_id": {
+          "name": "users_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "customers_rels_order_idx": {
+          "name": "customers_rels_order_idx",
+          "columns": [
+            "order"
+          ],
+          "isUnique": false
+        },
+        "customers_rels_parent_idx": {
+          "name": "customers_rels_parent_idx",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
+        "customers_rels_path_idx": {
+          "name": "customers_rels_path_idx",
+          "columns": [
+            "path"
+          ],
+          "isUnique": false
+        },
+        "customers_rels_users_id_idx": {
+          "name": "customers_rels_users_id_idx",
+          "columns": [
+            "users_id"
+          ],
+          "isUnique": false
+        },
+        "customers_rels_customers_id_idx": {
+          "name": "customers_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "customers_rels_parent_fk": {
+          "name": "customers_rels_parent_fk",
+          "tableFrom": "customers_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "customers_rels_users_fk": {
+          "name": "customers_rels_users_fk",
+          "tableFrom": "customers_rels",
+          "tableTo": "users",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "customers_rels_customers_fk": {
+          "name": "customers_rels_customers_fk",
+          "tableFrom": "customers_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_customers_v_version_sessions": {
+      "name": "_customers_v_version_sessions",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_uuid": {
+          "name": "_uuid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "_customers_v_version_sessions_order_idx": {
+          "name": "_customers_v_version_sessions_order_idx",
+          "columns": [
+            "_order"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_version_sessions_parent_id_idx": {
+          "name": "_customers_v_version_sessions_parent_id_idx",
+          "columns": [
+            "_parent_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "_customers_v_version_sessions_parent_id_fk": {
+          "name": "_customers_v_version_sessions_parent_id_fk",
+          "tableFrom": "_customers_v_version_sessions",
+          "tableTo": "_customers_v",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_customers_v": {
+      "name": "_customers_v",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_name": {
+          "name": "version_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_updated_at": {
+          "name": "version_updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_created_at": {
+          "name": "version_created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_email": {
+          "name": "version_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version_reset_password_token": {
+          "name": "version_reset_password_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_reset_password_expiration": {
+          "name": "version_reset_password_expiration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_salt": {
+          "name": "version_salt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_hash": {
+          "name": "version_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_reset_password_requested_at": {
+          "name": "version_reset_password_requested_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version__verified": {
+          "name": "version__verified",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version__verificationtoken": {
+          "name": "version__verificationtoken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "_customers_v_parent_idx": {
+          "name": "_customers_v_parent_idx",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_version_version_updated_at_idx": {
+          "name": "_customers_v_version_version_updated_at_idx",
+          "columns": [
+            "version_updated_at"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_version_version_created_at_idx": {
+          "name": "_customers_v_version_version_created_at_idx",
+          "columns": [
+            "version_created_at"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_version_version_email_idx": {
+          "name": "_customers_v_version_version_email_idx",
+          "columns": [
+            "version_email"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_created_at_idx": {
+          "name": "_customers_v_created_at_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_updated_at_idx": {
+          "name": "_customers_v_updated_at_idx",
+          "columns": [
+            "updated_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "_customers_v_parent_id_customers_id_fk": {
+          "name": "_customers_v_parent_id_customers_id_fk",
+          "tableFrom": "_customers_v",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_customers_v_rels": {
+      "name": "_customers_v_rels",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "users_id": {
+          "name": "users_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "_customers_v_rels_order_idx": {
+          "name": "_customers_v_rels_order_idx",
+          "columns": [
+            "order"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_rels_parent_idx": {
+          "name": "_customers_v_rels_parent_idx",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_rels_path_idx": {
+          "name": "_customers_v_rels_path_idx",
+          "columns": [
+            "path"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_rels_users_id_idx": {
+          "name": "_customers_v_rels_users_id_idx",
+          "columns": [
+            "users_id"
+          ],
+          "isUnique": false
+        },
+        "_customers_v_rels_customers_id_idx": {
+          "name": "_customers_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "_customers_v_rels_parent_fk": {
+          "name": "_customers_v_rels_parent_fk",
+          "tableFrom": "_customers_v_rels",
+          "tableTo": "_customers_v",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_customers_v_rels_users_fk": {
+          "name": "_customers_v_rels_users_fk",
+          "tableFrom": "_customers_v_rels",
+          "tableTo": "users",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_customers_v_rels_customers_fk": {
+          "name": "_customers_v_rels_customers_fk",
+          "tableFrom": "_customers_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -1335,6 +2065,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -1365,6 +2102,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "pages_rels_customers_id_idx": {
+          "name": "pages_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -1387,6 +2131,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "pages_rels_customers_fk": {
+          "name": "pages_rels_customers_fk",
+          "tableFrom": "pages_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -2562,6 +3319,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -2592,6 +3356,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_pages_v_rels_customers_id_idx": {
+          "name": "_pages_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2614,6 +3385,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_pages_v_rels_customers_fk": {
+          "name": "_pages_v_rels_customers_fk",
+          "tableFrom": "_pages_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -2975,6 +3759,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -3017,6 +3808,13 @@
           "name": "posts_rels_users_id_idx",
           "columns": [
             "users_id"
+          ],
+          "isUnique": false
+        },
+        "posts_rels_customers_id_idx": {
+          "name": "posts_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
           ],
           "isUnique": false
         }
@@ -3067,6 +3865,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "posts_rels_customers_fk": {
+          "name": "posts_rels_customers_fk",
+          "tableFrom": "posts_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -3525,6 +4336,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -3567,6 +4385,13 @@
           "name": "_posts_v_rels_users_id_idx",
           "columns": [
             "users_id"
+          ],
+          "isUnique": false
+        },
+        "_posts_v_rels_customers_id_idx": {
+          "name": "_posts_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
           ],
           "isUnique": false
         }
@@ -3617,6 +4442,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_posts_v_rels_customers_fk": {
+          "name": "_posts_v_rels_customers_fk",
+          "tableFrom": "_posts_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -3735,6 +4573,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -3765,6 +4610,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "categories_rels_customers_id_idx": {
+          "name": "categories_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -3787,6 +4639,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "categories_rels_customers_fk": {
+          "name": "categories_rels_customers_fk",
+          "tableFrom": "categories_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -4576,6 +5441,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -4613,6 +5485,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "media_rels_customers_id_idx": {
+          "name": "media_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -4648,6 +5527,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "media_rels_customers_fk": {
+          "name": "media_rels_customers_fk",
+          "tableFrom": "media_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -5492,6 +6384,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -5529,6 +6428,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_media_v_rels_customers_id_idx": {
+          "name": "_media_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -5564,6 +6470,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_media_v_rels_customers_fk": {
+          "name": "_media_v_rels_customers_fk",
+          "tableFrom": "_media_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -6557,6 +7476,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -6606,6 +7532,13 @@
           "name": "field_types_rels_users_id_idx",
           "columns": [
             "users_id"
+          ],
+          "isUnique": false
+        },
+        "field_types_rels_customers_id_idx": {
+          "name": "field_types_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
           ],
           "isUnique": false
         }
@@ -6669,6 +7602,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "field_types_rels_customers_fk": {
+          "name": "field_types_rels_customers_fk",
+          "tableFrom": "field_types_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -6801,6 +7747,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -6831,6 +7784,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "folders_rels_customers_id_idx": {
+          "name": "folders_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -6853,6 +7813,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "folders_rels_customers_fk": {
+          "name": "folders_rels_customers_fk",
+          "tableFrom": "folders_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -7040,6 +8013,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -7070,6 +8050,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_folders_v_rels_customers_id_idx": {
+          "name": "_folders_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -7092,6 +8079,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_folders_v_rels_customers_fk": {
+          "name": "_folders_v_rels_customers_fk",
+          "tableFrom": "_folders_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -7224,6 +8224,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -7254,6 +8261,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "tags_rels_customers_id_idx": {
+          "name": "tags_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -7276,6 +8290,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "tags_rels_customers_fk": {
+          "name": "tags_rels_customers_fk",
+          "tableFrom": "tags_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -7463,6 +8490,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -7493,6 +8527,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_tags_v_rels_customers_id_idx": {
+          "name": "_tags_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -7515,6 +8556,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_tags_v_rels_customers_fk": {
+          "name": "_tags_v_rels_customers_fk",
+          "tableFrom": "_tags_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -7640,6 +8694,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -7670,6 +8731,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "audit_logs_rels_customers_id_idx": {
+          "name": "audit_logs_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -7692,6 +8760,496 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "audit_logs_rels_customers_fk": {
+          "name": "audit_logs_rels_customers_fk",
+          "tableFrom": "audit_logs_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bookings": {
+      "name": "bookings",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "customer_id": {
+          "name": "customer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "bookings_customer_idx": {
+          "name": "bookings_customer_idx",
+          "columns": [
+            "customer_id"
+          ],
+          "isUnique": false
+        },
+        "bookings_updated_at_idx": {
+          "name": "bookings_updated_at_idx",
+          "columns": [
+            "updated_at"
+          ],
+          "isUnique": false
+        },
+        "bookings_created_at_idx": {
+          "name": "bookings_created_at_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "bookings_customer_id_customers_id_fk": {
+          "name": "bookings_customer_id_customers_id_fk",
+          "tableFrom": "bookings",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "bookings_rels": {
+      "name": "bookings_rels",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "users_id": {
+          "name": "users_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "bookings_rels_order_idx": {
+          "name": "bookings_rels_order_idx",
+          "columns": [
+            "order"
+          ],
+          "isUnique": false
+        },
+        "bookings_rels_parent_idx": {
+          "name": "bookings_rels_parent_idx",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
+        "bookings_rels_path_idx": {
+          "name": "bookings_rels_path_idx",
+          "columns": [
+            "path"
+          ],
+          "isUnique": false
+        },
+        "bookings_rels_users_id_idx": {
+          "name": "bookings_rels_users_id_idx",
+          "columns": [
+            "users_id"
+          ],
+          "isUnique": false
+        },
+        "bookings_rels_customers_id_idx": {
+          "name": "bookings_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "bookings_rels_parent_fk": {
+          "name": "bookings_rels_parent_fk",
+          "tableFrom": "bookings_rels",
+          "tableTo": "bookings",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "bookings_rels_users_fk": {
+          "name": "bookings_rels_users_fk",
+          "tableFrom": "bookings_rels",
+          "tableTo": "users",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "bookings_rels_customers_fk": {
+          "name": "bookings_rels_customers_fk",
+          "tableFrom": "bookings_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_bookings_v": {
+      "name": "_bookings_v",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_title": {
+          "name": "version_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version_customer_id": {
+          "name": "version_customer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "version_updated_at": {
+          "name": "version_updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_created_at": {
+          "name": "version_created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))"
+        }
+      },
+      "indexes": {
+        "_bookings_v_parent_idx": {
+          "name": "_bookings_v_parent_idx",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_version_version_customer_idx": {
+          "name": "_bookings_v_version_version_customer_idx",
+          "columns": [
+            "version_customer_id"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_version_version_updated_at_idx": {
+          "name": "_bookings_v_version_version_updated_at_idx",
+          "columns": [
+            "version_updated_at"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_version_version_created_at_idx": {
+          "name": "_bookings_v_version_version_created_at_idx",
+          "columns": [
+            "version_created_at"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_created_at_idx": {
+          "name": "_bookings_v_created_at_idx",
+          "columns": [
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_updated_at_idx": {
+          "name": "_bookings_v_updated_at_idx",
+          "columns": [
+            "updated_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "_bookings_v_parent_id_bookings_id_fk": {
+          "name": "_bookings_v_parent_id_bookings_id_fk",
+          "tableFrom": "_bookings_v",
+          "tableTo": "bookings",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "_bookings_v_version_customer_id_customers_id_fk": {
+          "name": "_bookings_v_version_customer_id_customers_id_fk",
+          "tableFrom": "_bookings_v",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "version_customer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_bookings_v_rels": {
+      "name": "_bookings_v_rels",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "users_id": {
+          "name": "users_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "_bookings_v_rels_order_idx": {
+          "name": "_bookings_v_rels_order_idx",
+          "columns": [
+            "order"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_rels_parent_idx": {
+          "name": "_bookings_v_rels_parent_idx",
+          "columns": [
+            "parent_id"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_rels_path_idx": {
+          "name": "_bookings_v_rels_path_idx",
+          "columns": [
+            "path"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_rels_users_id_idx": {
+          "name": "_bookings_v_rels_users_id_idx",
+          "columns": [
+            "users_id"
+          ],
+          "isUnique": false
+        },
+        "_bookings_v_rels_customers_id_idx": {
+          "name": "_bookings_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "_bookings_v_rels_parent_fk": {
+          "name": "_bookings_v_rels_parent_fk",
+          "tableFrom": "_bookings_v_rels",
+          "tableTo": "_bookings_v",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_bookings_v_rels_users_fk": {
+          "name": "_bookings_v_rels_users_fk",
+          "tableFrom": "_bookings_v_rels",
+          "tableTo": "users",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_bookings_v_rels_customers_fk": {
+          "name": "_bookings_v_rels_customers_fk",
+          "tableFrom": "_bookings_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -7832,6 +9390,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -7874,6 +9439,13 @@
           "name": "redirects_rels_users_id_idx",
           "columns": [
             "users_id"
+          ],
+          "isUnique": false
+        },
+        "redirects_rels_customers_id_idx": {
+          "name": "redirects_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
           ],
           "isUnique": false
         }
@@ -7924,6 +9496,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "redirects_rels_customers_fk": {
+          "name": "redirects_rels_customers_fk",
+          "tableFrom": "redirects_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -8120,6 +9705,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -8162,6 +9754,13 @@
           "name": "_redirects_v_rels_users_id_idx",
           "columns": [
             "users_id"
+          ],
+          "isUnique": false
+        },
+        "_redirects_v_rels_customers_id_idx": {
+          "name": "_redirects_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
           ],
           "isUnique": false
         }
@@ -8212,6 +9811,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_redirects_v_rels_customers_fk": {
+          "name": "_redirects_v_rels_customers_fk",
+          "tableFrom": "_redirects_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -10396,6 +12008,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -10426,6 +12045,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "forms_rels_customers_id_idx": {
+          "name": "forms_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -10448,6 +12074,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "forms_rels_customers_fk": {
+          "name": "forms_rels_customers_fk",
+          "tableFrom": "forms_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -12548,6 +14187,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -12578,6 +14224,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_forms_v_rels_customers_id_idx": {
+          "name": "_forms_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -12600,6 +14253,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_forms_v_rels_customers_fk": {
+          "name": "_forms_v_rels_customers_fk",
+          "tableFrom": "_forms_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -12799,6 +14465,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -12829,6 +14502,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "form_submissions_rels_customers_id_idx": {
+          "name": "form_submissions_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -12851,6 +14531,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "form_submissions_rels_customers_fk": {
+          "name": "form_submissions_rels_customers_fk",
+          "tableFrom": "form_submissions_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -13112,6 +14805,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -13142,6 +14842,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_form_submissions_v_rels_customers_id_idx": {
+          "name": "_form_submissions_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -13164,6 +14871,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_form_submissions_v_rels_customers_fk": {
+          "name": "_form_submissions_v_rels_customers_fk",
+          "tableFrom": "_form_submissions_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -13650,6 +15370,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "pages_id": {
           "name": "pages_id",
           "type": "integer",
@@ -13701,6 +15428,13 @@
         },
         "audit_logs_id": {
           "name": "audit_logs_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "bookings_id": {
+          "name": "bookings_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -13764,6 +15498,13 @@
           ],
           "isUnique": false
         },
+        "payload_locked_documents_rels_customers_id_idx": {
+          "name": "payload_locked_documents_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
+        },
         "payload_locked_documents_rels_pages_id_idx": {
           "name": "payload_locked_documents_rels_pages_id_idx",
           "columns": [
@@ -13820,6 +15561,13 @@
           ],
           "isUnique": false
         },
+        "payload_locked_documents_rels_bookings_id_idx": {
+          "name": "payload_locked_documents_rels_bookings_id_idx",
+          "columns": [
+            "bookings_id"
+          ],
+          "isUnique": false
+        },
         "payload_locked_documents_rels_redirects_id_idx": {
           "name": "payload_locked_documents_rels_redirects_id_idx",
           "columns": [
@@ -13869,6 +15617,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_customers_fk": {
+          "name": "payload_locked_documents_rels_customers_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -13973,6 +15734,19 @@
           "tableTo": "audit_logs",
           "columnsFrom": [
             "audit_logs_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_bookings_fk": {
+          "name": "payload_locked_documents_rels_bookings_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "bookings",
+          "columnsFrom": [
+            "bookings_id"
           ],
           "columnsTo": [
             "id"
@@ -14143,6 +15917,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -14173,6 +15954,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "payload_preferences_rels_customers_id_idx": {
+          "name": "payload_preferences_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -14195,6 +15983,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_preferences_rels_customers_fk": {
+          "name": "payload_preferences_rels_customers_fk",
+          "tableFrom": "payload_preferences_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -14382,6 +16183,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -14412,6 +16220,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "payload_llm_instructions_rels_customers_id_idx": {
+          "name": "payload_llm_instructions_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -14434,6 +16249,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_llm_instructions_rels_customers_fk": {
+          "name": "payload_llm_instructions_rels_customers_fk",
+          "tableFrom": "payload_llm_instructions_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -14657,6 +16485,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -14687,6 +16522,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "site_settings_rels_customers_id_idx": {
+          "name": "site_settings_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -14709,6 +16551,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "site_settings_rels_customers_fk": {
+          "name": "site_settings_rels_customers_fk",
+          "tableFrom": "site_settings_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -14970,6 +16825,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -15000,6 +16862,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_site_settings_v_rels_customers_id_idx": {
+          "name": "_site_settings_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -15022,6 +16891,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_site_settings_v_rels_customers_fk": {
+          "name": "_site_settings_v_rels_customers_fk",
+          "tableFrom": "_site_settings_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -15212,6 +17094,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -15242,6 +17131,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "header_rels_customers_id_idx": {
+          "name": "header_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -15264,6 +17160,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "header_rels_customers_fk": {
+          "name": "header_rels_customers_fk",
+          "tableFrom": "header_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -15519,6 +17428,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "customers_id": {
+          "name": "customers_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -15549,6 +17465,13 @@
             "users_id"
           ],
           "isUnique": false
+        },
+        "_header_v_rels_customers_id_idx": {
+          "name": "_header_v_rels_customers_id_idx",
+          "columns": [
+            "customers_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -15571,6 +17494,19 @@
           "tableTo": "users",
           "columnsFrom": [
             "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "_header_v_rels_customers_fk": {
+          "name": "_header_v_rels_customers_fk",
+          "tableFrom": "_header_v_rels",
+          "tableTo": "customers",
+          "columnsFrom": [
+            "customers_id"
           ],
           "columnsTo": [
             "id"
@@ -15631,6 +17567,6 @@
   "internal": {
     "indexes": {}
   },
-  "id": "c6a2fd0d-b526-4910-9502-aad87f301edc",
+  "id": "a517f473-b864-4c3e-b6bc-c1157e3b1f12",
   "prevId": "00000000-0000-0000-0000-000000000000"
 }
