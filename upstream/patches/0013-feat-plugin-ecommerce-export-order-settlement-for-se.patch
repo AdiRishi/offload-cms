@@ -22,6 +22,13 @@ its resolved collection slugs in config.custom, so settleTransaction uses
 the site's slug map, and getEcommerceCollectionSlugs(config) returns it for
 other server code. Settlement's writes no longer populate relationships.
 
+Orders get a unique settlementKey, the ID of the transaction that settlement
+created them for. The order's link to its transaction lives in a separate
+table, so on a database without transactions a request that stops between
+the two inserts leaves an order that no query by transaction finds, and a
+retry would create a second one. The key is on the order's own row: the
+unique index refuses a second order, and recovery code can find the first.
+
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
 the browser offered the customer the payment again. When the wait ends with
@@ -36,13 +43,14 @@ Drop-When: the pinned release lets a payment adapter settle a transaction outsid
 Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts; e2e suite (tests/checkout.spec.ts, tests/settlement.spec.ts)
 ---
  docs/ecommerce/payments.mdx                   |  17 +
+ .../orders/createOrdersCollection.ts          |  17 +
  .../src/endpoints/confirmOrder.spec.ts        |   7 +-
  .../src/endpoints/confirmOrder.ts             | 312 +-------------
  packages/plugin-ecommerce/src/index.ts        |   9 +
  .../src/utilities/ecommerceSlugs.ts           |  26 ++
  .../src/utilities/settleTransaction.spec.ts   | 192 +++++++++
- .../src/utilities/settleTransaction.ts        | 396 ++++++++++++++++++
- 7 files changed, 665 insertions(+), 294 deletions(-)
+ .../src/utilities/settleTransaction.ts        | 397 ++++++++++++++++++
+ 8 files changed, 683 insertions(+), 294 deletions(-)
  create mode 100644 packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.ts
@@ -75,6 +83,34 @@ index 32091fa3f..11a897f1a 100644
  ### Stripe Webhooks
  
  You can also add your own webhooks to handle [events from Stripe](https://docs.stripe.com/api/events). This is optional and the plugin internally does not use webhooks for any core functionality. It receives the following arguments:
+diff --git a/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts b/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
+index 2be0a20e5..b20bda847 100644
+--- a/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
++++ b/packages/plugin-ecommerce/src/collections/orders/createOrdersCollection.ts
+@@ -117,6 +117,23 @@ export const createOrdersCollection: (props: Props) => CollectionConfig = (props
+         // @ts-expect-error - translations are not typed in plugins yet
+         t('plugin-ecommerce:customerEmail'),
+     },
++    {
++      // The transaction that settlement created the order for, on the order's own row. The
++      // relationship below lives in another table, which a database without transactions can
++      // leave unwritten when a request stops, and the unique index refuses a second order.
++      name: 'settlementKey',
++      type: 'text',
++      access: {
++        create: access.adminOnlyFieldAccess,
++        read: access.adminOnlyFieldAccess,
++        update: () => false,
++      },
++      admin: {
++        hidden: true,
++      },
++      index: true,
++      unique: true,
++    },
+     {
+       name: 'transactions',
+       type: 'relationship',
 diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
 index fe564f2ab..63ce856e2 100644
 --- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
@@ -504,7 +540,7 @@ index 000000000..55128ab0d
 +}
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
 new file mode 100644
-index 000000000..6efac4ce2
+index 000000000..ec8189dab
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
 @@ -0,0 +1,192 @@
@@ -647,7 +683,7 @@ index 000000000..6efac4ce2
 +
 +    expect(second.id).toBe(first.id)
 +    expect(state.orders).toHaveLength(1)
-+    expect(state.orders[0]).toMatchObject({ ...orderData, transactions: [42] })
++    expect(state.orders[0]).toMatchObject({ ...orderData, settlementKey: '42', transactions: [42] })
 +    expect(state.transaction).toMatchObject({ order: first.id, status: 'succeeded' })
 +    expect(state.cart.purchasedAt).toEqual(expect.any(String))
 +    expect(state.inventory.get('variants:11')).toBe(4)
@@ -702,10 +738,10 @@ index 000000000..6efac4ce2
 +})
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
 new file mode 100644
-index 000000000..2106c67d0
+index 000000000..23f72976f
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
-@@ -0,0 +1,396 @@
+@@ -0,0 +1,397 @@
 +import {
 +  commitTransaction,
 +  type DefaultDocumentIDType,
@@ -897,6 +933,7 @@ index 000000000..2106c67d0
 +    collection: ordersSlug,
 +    data: {
 +      ...orderData,
++      settlementKey: String(transactionID),
 +      transactions: [transactionID],
 +    },
 +    depth: 0,

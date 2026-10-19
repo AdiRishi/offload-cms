@@ -23,6 +23,13 @@ its resolved collection slugs in config.custom, so settleTransaction uses
 the site's slug map, and getEcommerceCollectionSlugs(config) returns it for
 other server code. Settlement's writes no longer populate relationships.
 
+Orders get a unique settlementKey, the ID of the transaction that settlement
+created them for. The order's link to its transaction lives in a separate
+table, so on a database without transactions a request that stops between
+the two inserts leaves an order that no query by transaction finds, and a
+retry would create a second one. The key is on the order's own row: the
+unique index refuses a second order, and recovery code can find the first.
+
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
 the browser offered the customer the payment again. When the wait ends with
