@@ -19,9 +19,18 @@ variant. It refuses a variant that belongs to another product and a product
 with variants enabled that has no variant, then runs the products validation
 with both, which checks the variant's price and stock.
 
-Initiate also refuses a cart that has already been bought, which a second
-payment would charge again, and a quantity that isn't a whole number of at
-least 1, which would decrement stock by a fraction.
+Initiate also refuses:
+- a cart that has already been bought, which a second payment would charge
+  again;
+- a quantity that isn't a whole number of at least 1, which would decrement
+  stock by a fraction;
+- a product or variant that has never been published, which a guest could
+  otherwise buy by its ID;
+- a cart whose subtotal no longer matches the current prices. The carts
+  collection computes the subtotal only when the cart is saved, so a price
+  change left it stale and the customer paid the old price. Initiate saves
+  the items again, which recomputes the subtotal, and answers 409 so the
+  customer reviews the new total.
 
 - **Patch:** `ecommerce-initiate-variant-validation`, committed as `fix(plugin-ecommerce): validate variant items before a payment starts`
 - **Upstream:** Not proposed
