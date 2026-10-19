@@ -53,7 +53,7 @@ The helpers import Payload, so call them in server functions and server componen
 
 ### getVisitorPayload()
 
-Returns Payload with no user. Queries that pass `overrideAccess: false` see what any visitor sees, so their results are safe to cache in a shared cache, such as a sitemap or a list of redirects. The Local API skips access control unless a query passes `overrideAccess: false`.
+Returns Payload with no user. Payload v4's Local API applies access control unless a query passes `overrideAccess: true`, so a query with no `user` sees what any visitor sees. Its results are safe to cache in a shared cache, such as a sitemap or a list of redirects. The examples on this page pass `overrideAccess: false` anyway, so the intent shows in the query.
 
 ### getPayloadForRequest()
 

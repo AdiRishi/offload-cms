@@ -39,8 +39,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  */
 export const createPayloadHelpers = ({ getConfig, documentPath }: PayloadHelpersOptions) => {
   /**
-   * Payload without a user. Reads with `overrideAccess: false` see what any visitor sees, so the
-   * result is safe to cache publicly.
+   * Payload without a user. The Local API applies access control unless a read passes
+   * `overrideAccess: true`, so a read without a user sees what any visitor sees, and the result is
+   * safe to cache publicly.
    */
   const getVisitorPayload = async () => {
     const { getPayload } = await import("payload");
