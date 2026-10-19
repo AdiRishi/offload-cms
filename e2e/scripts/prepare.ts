@@ -3,12 +3,14 @@
 // Hyperdrive; otherwise the run uses D1.
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, rmSync } from "node:fs";
+import { copyFileSync, rmSync } from "node:fs";
 
 const run = (command: string, args: string[]) => execFileSync(command, args, { stdio: "inherit" });
 
-// Local secrets for the Worker. The example values are fine for tests.
-if (!existsSync(".dev.vars")) copyFileSync(".dev.vars.example", ".dev.vars");
+// Local secrets for the Worker, and the public values for the build. The example values are fine
+// for tests, and copying them each run picks up values added since the last run.
+copyFileSync(".dev.vars.example", ".dev.vars");
+copyFileSync(".env.example", ".env.local");
 
 // Local D1 and R2 data for both environments.
 rmSync(".wrangler/state", { force: true, recursive: true });

@@ -27,7 +27,8 @@ import { Header, SiteSettings } from "./globals";
 import { jobs, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const env = await getBindings();
+// Server functions import the bindings from here, so Node starts one Wrangler platform proxy.
+export const env = await getBindings();
 
 // The default Wrangler environment binds D1. CLOUDFLARE_ENV=postgres binds Hyperdrive instead.
 // Cloudflare's upload validation runs this module without bindings, so nothing here may
