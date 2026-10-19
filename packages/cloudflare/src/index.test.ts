@@ -7,7 +7,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { before, test } from "node:test";
 
-/** A site whose `wrangler`, like the real one, loads node:domain. */
+/**
+ * A site whose `wrangler` records each platform proxy it starts and, like the
+ * real one, loads node:domain.
+ */
 const site = () => {
   const root = mkdtempSync(path.join(tmpdir(), "offload-site-"));
   writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "site" }));
@@ -17,13 +20,49 @@ const site = () => {
   writeFileSync(
     path.join(wrangler, "index.js"),
     `require("node:domain");
-exports.getPlatformProxy = async ({ environment }) => ({ env: { environment }, dispose: async () => {} });`,
+exports.started = [];
+exports.getPlatformProxy = async ({ environment }) => {
+  const env = { environment };
+  exports.started.push(env);
+  return { env, dispose: async () => {} };
+};`,
   );
   return root;
 };
 
+const startedProxies = (): unknown[] =>
+  createRequire(path.join(process.cwd(), "package.json"))("wrangler").started;
+
 before(() => {
   process.chdir(site());
+  delete process.env.CLOUDFLARE_ENV;
+});
+
+test("one platform proxy serves every call in the process, including from a reloaded module", async () => {
+  const { getBindings } = await import("./index.ts");
+  // A query string evaluates the module again, as a Vite dev config reload does.
+  const reloaded: typeof import("./index.ts") = await import(
+    new URL("index.ts?reload", import.meta.url).href
+  );
+
+  const [first, concurrent] = await Promise.all([getBindings(), getBindings()]);
+  const afterReload = await reloaded.getBindings();
+
+  assert.equal(concurrent, first);
+  assert.equal(afterReload, first);
+  assert.deepEqual(startedProxies(), [{ environment: undefined }]);
+});
+
+test("another Wrangler environment gets its own platform proxy", async () => {
+  const { getBindings } = await import("./index.ts");
+
+  const defaultBindings = await getBindings();
+  process.env.CLOUDFLARE_ENV = "postgres";
+  const postgresBindings = await getBindings();
+  delete process.env.CLOUDFLARE_ENV;
+
+  assert.deepEqual(postgresBindings, { environment: "postgres" });
+  assert.equal(await getBindings(), defaultBindings);
 });
 
 test("CommonJS packages still get EventEmitter from node:events after Wrangler loads", async () => {

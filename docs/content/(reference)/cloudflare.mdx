@@ -71,7 +71,11 @@ getBindings(): Promise<Cloudflare.Env>
 
 Returns the Worker's bindings. In workerd, the bindings come from `cloudflare:workers`. In Node, for `vite dev` and the Payload CLI, they come from Wrangler's `getPlatformProxy()`, which reads the same local D1 and R2 state as `vite preview`. `CLOUDFLARE_ENV` selects the Wrangler environment.
 
-Call it with top-level `await` in `payload.config.ts`. In Node, it throws if the site doesn't have `wrangler` installed.
+Call it with top-level `await` in `payload.config.ts`, and in a server function that reads a binding or secret when it runs. In Node, it throws if the site doesn't have `wrangler` installed.
+
+In Node, the first call for a Wrangler environment starts a platform proxy, and every later call in the process returns its bindings. `vite dev` reloads the Payload config after each edit and keeps the proxy, so restart `vite dev` after you change `wrangler.jsonc` or `.dev.vars`.
+
+To keep test data apart from development data, give the tests their own Wrangler environment with a different D1 `database_id` and R2 bucket, and run the Payload CLI, the build, and the tests with `CLOUDFLARE_ENV` set to it. Wrangler keeps local state per database and bucket, so the two sets of data never mix.
 
 ## hyperdrivePoolConfig()
 
