@@ -305,7 +305,9 @@ export const settlePaidTransaction = async ({
   transaction: Transaction;
 }) => {
   assertPaymentMatches(paid, transaction);
-  await assertCartOpen(req, transaction, paid.id);
+  // A settled or settling transaction gets its existing order back from `finalize`. Its cart
+  // already counts as bought, by this transaction or one that is settling it right now.
+  if (transaction.status === "pending") await assertCartOpen(req, transaction, paid.id);
   try {
     return await finalize({
       transactionID: transaction.id,
