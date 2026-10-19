@@ -15,6 +15,9 @@ catalogs:
     '@payloadcms/live-preview-react':
       specifier: 4.0.0-beta.2
       version: 4.0.0-beta.2
+    '@payloadcms/plugin-ecommerce':
+      specifier: 4.0.0-beta.2
+      version: 4.0.0-beta.2
     '@payloadcms/tanstack-start':
       specifier: 4.0.0-beta.2
       version: 4.0.0-beta.2
@@ -229,6 +232,30 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
 
+  packages/payments:
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 'catalog:'
+        version: 5.20261012.1
+      '@payloadcms/plugin-ecommerce':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.2(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.2(graphql@16.11.0)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
+      '@repo/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.3
+      payload:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.2(graphql@16.11.0)(supports-color@10.2.2)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
+
   packages/tanstack:
     dependencies:
       '@payloadcms/live-preview-react':
@@ -277,6 +304,9 @@ importers:
       '@adirishi/offload-form-builder':
         specifier: workspace:*
         version: link:../packages/form-builder
+      '@adirishi/offload-payments':
+        specifier: workspace:*
+        version: link:../packages/payments
       '@adirishi/offload-tanstack':
         specifier: workspace:*
         version: link:../packages/tanstack
@@ -1802,6 +1832,13 @@ packages:
 
   '@payloadcms/live-preview@4.0.0-beta.2':
     resolution: {integrity: sha512-ASnW+Yv6NDFS1ivh3R5cXqzoE8WSaGnfC0EhNCN+/qrWzMlUS6JTSIS8nOmOjDR3ffXjCoJU/qGJpgjGxYp8gg==}
+
+  '@payloadcms/plugin-ecommerce@4.0.0-beta.2':
+    resolution: {integrity: sha512-jUMo3hp7WfzFLXxr5j9qOnrVAkm/m6NIu53Bge7F5gCVeYtMuTrItITpgh79M/3urf4x2m/h2D944SkxFMBtXw==}
+    peerDependencies:
+      payload: 4.0.0-beta.2
+      react: ^19.0.1 || ^19.1.2 || ^19.2.1
+      react-dom: ^19.0.1 || ^19.1.2 || ^19.2.1
 
   '@payloadcms/tanstack-start@4.0.0-beta.2':
     resolution: {integrity: sha512-MoKUXWWsZOFZUdvcuX4ug+soFul/+v9AV5uTf3vJRVj1z0Uf5+96+7EM42wY7RfsRq8VMtdvr1ClQv6SwP4qbg==}
@@ -8540,6 +8577,21 @@ snapshots:
       react-dom: 19.3.1(react@19.3.1)
 
   '@payloadcms/live-preview@4.0.0-beta.2': {}
+
+  '@payloadcms/plugin-ecommerce@4.0.0-beta.2(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.2(graphql@16.11.0)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)':
+    dependencies:
+      '@payloadcms/translations': 4.0.0-beta.2
+      '@payloadcms/ui': 4.0.0-beta.2(@types/react@19.3.0)(monaco-editor@0.57.0)(payload@4.0.0-beta.2(graphql@16.11.0)(supports-color@10.2.2)(typescript@7.0.2))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)(typescript@7.0.2)
+      payload: 4.0.0-beta.2(graphql@16.11.0)(supports-color@10.2.2)(typescript@7.0.2)
+      qs-esm: 8.0.1
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+    transitivePeerDependencies:
+      - '@types/react'
+      - date-fns-tz
+      - monaco-editor
+      - supports-color
+      - typescript
 
   '@payloadcms/tanstack-start@4.0.0-beta.2(0e408d6283c3f91dea165da9fa4b1ecc)':
     dependencies:
