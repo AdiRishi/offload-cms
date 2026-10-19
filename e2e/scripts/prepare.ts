@@ -31,5 +31,28 @@ if (process.env.CLOUDFLARE_ENV === "postgres") {
   ]);
 }
 
+// Drop a database that has documents in it, then run every migration's down, so a database
+// command that fails on D1 fails the run. migrate:fresh puts every migration in one batch, which
+// migrate:down rolls back newest first. migrate:reset would run the downs oldest first
+// (payloadcms/payload#15334). The CLI opens the local database, so it must finish before the
+// suite starts the preview server.
+run("pnpm", ["payload", "migrate"]);
+run("pnpm", [
+  "payload",
+  "createDocuments",
+  "--slug=pages",
+  `--documents=${JSON.stringify([
+    {
+      data: {
+        _status: "published",
+        layout: [{ blockType: "cta", href: "/", label: "Home" }],
+        slug: "reset",
+        title: "Reset",
+      },
+    },
+  ])}`,
+]);
+run("pnpm", ["payload", "migrate:fresh", "--force-accept-warning"]);
+run("pnpm", ["payload", "migrate:down"]);
 run("pnpm", ["payload", "migrate"]);
 run("pnpm", ["build"]);
