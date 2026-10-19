@@ -1,5 +1,66 @@
 # @adirishi/offload-cloudflare
 
-Runs [Offload](https://adirishi.github.io/offload-cms/), Payload CMS v4 with TanStack Start, on Cloudflare Workers: the Vite preset, Cloudflare bindings, Worker entry and GraphQL route.
+Runs a Payload v4 site built with TanStack Start as one Cloudflare Worker. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
 
-See [Getting started](https://adirishi.github.io/offload-cms/getting-started) to set up a site, and [Cloudflare package](https://adirishi.github.io/offload-cms/cloudflare) for each export and what `offloadVite()` fixes.
+It exports five functions:
+
+| Function                                                              | Use it for                                                                                       |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `offloadVite()` from `@adirishi/offload-cloudflare/vite`              | The site's Vite config. `vite build` and `vite preview` target workerd. `vite dev` runs in Node. |
+| `getBindings()` from `@adirishi/offload-cloudflare`                   | The Worker's bindings in `payload.config.ts`, in workerd and in Node.                            |
+| `hyperdrivePoolConfig()` from `@adirishi/offload-cloudflare`          | Pool options for `postgresAdapter` behind Hyperdrive.                                            |
+| `createPayloadWorker()` from `@adirishi/offload-cloudflare/worker`    | The Worker entry. TanStack Start serves requests, and each Cron Trigger runs Payload's jobs.     |
+| `payloadGraphQLHandlers()` from `@adirishi/offload-cloudflare/routes` | A route for Payload's GraphQL API, which the TanStack Start template doesn't include.            |
+
+## Install
+
+The package is on GitHub Packages, which needs a token with the `read:packages` scope:
+
+```ini
+# .npmrc
+@adirishi:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+```bash
+pnpm add --save-exact @adirishi/offload-cloudflare
+```
+
+## Use it
+
+```ts
+// vite.config.ts
+import { offloadVite } from "@adirishi/offload-cloudflare/vite";
+import path from "node:path";
+import { defineConfig } from "vite";
+
+export default defineConfig(
+  offloadVite({ payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts") }),
+);
+```
+
+```ts
+// src/payload.config.ts
+import { getBindings } from "@adirishi/offload-cloudflare";
+import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
+import { buildConfig } from "payload";
+
+const env = await getBindings();
+
+export default buildConfig({
+  db: sqliteD1Adapter({ binding: env.D1, push: false }),
+  secret: env.PAYLOAD_SECRET,
+  // collections, editor, plugins
+});
+```
+
+```ts
+// src/server.ts, the `main` file in wrangler.jsonc
+import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
+import config from "@payload-config";
+import handler from "@tanstack/react-start/server-entry";
+
+export default createPayloadWorker({ config, handler });
+```
+
+[Getting started](https://adirishi.github.io/offload-cms/getting-started) walks through a complete site. The [package reference](https://adirishi.github.io/offload-cms/cloudflare) lists every option and what `offloadVite()` changes in the build.

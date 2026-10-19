@@ -49,7 +49,7 @@ export const releaseManifest = (
       homepage: rootManifest.homepage,
       repository: rootManifest.repository,
       author: undefined,
-      description: `Offload build of ${upstream}. Payload CMS v4 for TanStack Start sites on Cloudflare Workers.`,
+      description: `${upstream} with Offload's patches, for Payload sites on Cloudflare Workers`,
       funding: undefined,
       keywords: ["offload", "payload", "cms", "cloudflare-workers", "tanstack-start"],
       maintainers: undefined,

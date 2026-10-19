@@ -5,18 +5,68 @@
   </picture>
 </p>
 
-Offload is [Payload CMS](https://github.com/payloadcms/payload) v4 for websites built with TanStack Start and hosted on Cloudflare Workers, on D1 or on Postgres through Hyperdrive. It is a pinned upstream Payload release, a small series of patches on top of it, and packages that run it on Workers, all published to GitHub Packages under `@adirishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
+<p align="center"><strong>Payload CMS on Cloudflare Workers.</strong></p>
 
-**[Read the documentation](https://adirishi.github.io/offload-cms/)** to install Offload in a site, choose a database, see what each patch changes, or contribute.
+Offload runs a whole [Payload](https://payloadcms.com) site as one Cloudflare Worker. The TanStack Start frontend, the admin panel, the REST and GraphQL APIs, and scheduled jobs deploy together, on D1 and R2 or on Postgres through Hyperdrive.
 
-## Develop
+Payload v4 can run on TanStack Start instead of Next.js, which makes Workers a realistic host. Upstream Payload doesn't build for Workers yet. A deployed Worker rejects its password hashing, GraphQL queries with arguments fail, and its Vite setup expects a Node server with `node_modules`. Offload fixes each of these and publishes the result to GitHub Packages as `@adirishi/offload-*`.
 
-You need Node 24 (see `.node-version`) and pnpm through Corepack.
+Your code doesn't change. A site installs Offload under the upstream package names, so `import { buildConfig } from "payload"` still works and Payload's own documentation still applies.
 
-```bash
-pnpm install
-pnpm upstream checkout
-pnpm check
-```
+## What you get
 
-`pnpm release e2e` runs the end-to-end suite against the working tree, and `pnpm docs:dev` runs the documentation site locally. [Develop Offload](https://adirishi.github.io/offload-cms/contributing) covers the layout and every command.
+- **Upstream Payload with a short patch list.** Offload is a pinned Payload release plus a few patches. Each patch says what breaks without it and when it can be dropped, so the list shrinks as upstream merges fixes. [See the patches](https://adirishi.github.io/offload-cms/patches).
+- **One package for the Workers setup.** `@adirishi/offload-cloudflare` has the Vite preset, the bindings helper, and the Worker entry that runs Payload's jobs on a Cron Trigger.
+- **A real site under test.** Every push publishes the packages to a throwaway registry, installs them in a Payload site, and runs a Playwright suite against its Worker build, once on D1 and once on Postgres.
+- **Signed packages.** Every published tarball has a build provenance attestation that `gh attestation verify` checks.
+
+## Quick start
+
+These steps add Offload to an existing TanStack Start site. [Getting started](https://adirishi.github.io/offload-cms/getting-started) covers the whole setup, including routes, Wrangler, and the first run.
+
+1. GitHub Packages needs a token, even for public packages. Create a token with the `read:packages` scope, export it as `GITHUB_TOKEN`, and add this `.npmrc` to the site:
+
+   ```ini
+   @adirishi:registry=https://npm.pkg.github.com
+   //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+   ```
+
+2. Install Offload under the upstream names:
+
+   ```bash
+   pnpm add --save-exact @adirishi/offload-cloudflare payload@npm:@adirishi/offload-payload @payloadcms/ui@npm:@adirishi/offload-ui @payloadcms/tanstack-start@npm:@adirishi/offload-tanstack-start @payloadcms/db-d1-sqlite@npm:@adirishi/offload-db-d1-sqlite
+   ```
+
+3. Build with the Offload Vite preset:
+
+   ```ts
+   // vite.config.ts
+   import { offloadVite } from "@adirishi/offload-cloudflare/vite";
+   import path from "node:path";
+   import { defineConfig } from "vite";
+
+   export default defineConfig(
+     offloadVite({ payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts") }),
+   );
+   ```
+
+4. Export the Worker:
+
+   ```ts
+   // src/server.ts
+   import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
+   import config from "@payload-config";
+   import handler from "@tanstack/react-start/server-entry";
+
+   export default createPayloadWorker({ config, handler });
+   ```
+
+## Status
+
+Offload follows the Payload v4 betas. [`upstream/payload.json`](upstream/payload.json) names the release the current packages are built on. Read [Known limits](https://adirishi.github.io/offload-cms/limits) before you commit a site to it. The most important limit is that D1 has no transactions.
+
+## Contributing
+
+[Develop Offload](https://adirishi.github.io/offload-cms/contributing) covers setup, the repository layout, and how to change Payload.
+
+Payload is MIT-licensed by Payload CMS, LLC. Offload is not affiliated with Payload.

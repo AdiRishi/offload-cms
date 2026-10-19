@@ -1,11 +1,10 @@
-import { checkoutDir, offloadPackageName, offloadVersion } from "@repo/upstream";
+import { checkoutDir, offloadPackageName, offloadVersion, pin } from "@repo/upstream";
 import { execFile } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import rootManifest from "../../package.json" with { type: "json" };
 import { repoRoot, run } from "./exec.ts";
 import { releaseManifest } from "./manifest.ts";
 import {
@@ -33,19 +32,37 @@ const mapConcurrent = async <T, R>(items: T[], limit: number, task: (item: T) =>
   return results;
 };
 
-const offloadReadme = ({ published, upstream }: { published: string; upstream: string }) =>
+const docsUrl = "https://adirishi.github.io/offload-cms";
+
+const offloadReadme = ({
+  packageDir,
+  published,
+  upstreamName,
+}: {
+  packageDir: string;
+  published: string;
+  upstreamName: string;
+}) =>
   [
     `# ${published}`,
     "",
-    `Part of [Offload](${rootManifest.homepage.replace(/#readme$/, "")}): [Payload CMS](https://payloadcms.com) v4 for TanStack Start sites on Cloudflare Workers.`,
+    `This package is \`${upstreamName}\` from Payload ${pin.tag}, with [Offload's patches](${docsUrl}/patches) applied. [Offload](${docsUrl}) runs Payload sites built with TanStack Start on Cloudflare Workers.`,
     "",
-    `This package is \`${upstream}\` with Offload's patches applied. Offload is not affiliated with Payload. Install it under the upstream name, so code and Payload's documentation keep working:`,
+    "## Install",
+    "",
+    "Install the package under its upstream name, so imports and Payload's documentation keep working:",
     "",
     "```json",
-    `"${upstream.slice(0, upstream.lastIndexOf("@"))}": "npm:${published}@${offloadVersion}"`,
+    `"${upstreamName}": "npm:${published}@${offloadVersion}"`,
     "```",
     "",
-    "Payload is MIT-licensed by Payload CMS, LLC. See `LICENSE.md`.",
+    `GitHub Packages needs a token with the \`read:packages\` scope. [Getting started](${docsUrl}/getting-started) shows the \`.npmrc\` and the rest of a site's setup.`,
+    "",
+    "## Documentation",
+    "",
+    `Use [Payload's documentation](https://payloadcms.com/docs) and the [upstream source](https://github.com/payloadcms/payload/tree/${pin.tag}/packages/${path.basename(packageDir)}).`,
+    "",
+    "Offload is not affiliated with Payload. Payload is MIT-licensed by Payload CMS, LLC. See `LICENSE.md`.",
     "",
   ].join("\n");
 
@@ -108,10 +125,7 @@ export const publish = async ({ registry, token }: { registry: string; token: st
         if (upstreamNames.has(manifest.name)) {
           writeFileSync(
             path.join(directory, "README.md"),
-            offloadReadme({
-              published: release.name,
-              upstream: `${manifest.name}@${manifest.version}`,
-            }),
+            offloadReadme({ packageDir, published: release.name, upstreamName: manifest.name }),
           );
           // MIT requires Payload's notice in every copy; some packages don't ship it.
           if (!existsSync(path.join(directory, "LICENSE.md"))) {
