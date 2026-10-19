@@ -5,6 +5,7 @@ import { mipsAdapter } from "@adirishi/offload-payments/mips";
 import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
 import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
 import { postgresAdapter } from "@payloadcms/db-postgres";
+import { adminOrOwner } from "@adirishi/offload-accounts/config";
 import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
 import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";
 import { nestedDocsPlugin } from "@payloadcms/plugin-nested-docs";
@@ -18,7 +19,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
-import { isCustomer, isDocumentOwner, isStaff, publishedOrStaff } from "./access";
+import { isStaff, publishedOrStaff } from "./access";
 import { PullQuote } from "./blocks";
 import { AuditLogs } from "./collections/AuditLogs";
 import { Bookings } from "./collections/Bookings";
@@ -138,11 +139,11 @@ export default buildConfig({
         adminOnlyFieldAccess: isStaff,
         adminOrPublishedStatus: publishedOrStaff,
         isAdmin: isStaff,
-        isCustomer,
-        isDocumentOwner,
+        isCustomer: ({ req }) => req.user?.collection === Customers.slug,
+        isDocumentOwner: adminOrOwner(Customers.slug, "customer"),
       },
       currencies: { defaultCurrency: MUR.code, supportedCurrencies: [MUR, INR] },
-      customers: { slug: Users.slug },
+      customers: { slug: Customers.slug },
       payments: { paymentMethods },
       products: {
         productsCollectionOverride: ({ defaultCollection }) => ({
