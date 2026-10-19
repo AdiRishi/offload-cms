@@ -1,0 +1,48 @@
+---
+title: Use Postgres through Hyperdrive
+description: Connect an Offload site to Postgres through a Hyperdrive binding instead of D1.
+---
+
+Payload's Postgres adapter works on Workers through Hyperdrive. Offload adds a pool config for it, because a Worker can't hand the adapter a connection string up front.
+
+<Steps>
+  <Step title="Install the adapter">
+    ```json package.json
+    "@payloadcms/db-postgres": "npm:@adirishi/offload-db-postgres@{{version}}",
+    "pg": "^8.20.0"
+    ```
+  </Step>
+  <Step title="Bind Hyperdrive">
+    Create a Hyperdrive configuration for your database with `pnpm wrangler hyperdrive create`, then bind it. `localConnectionString` is the database that `vite dev`, `vite preview`, and the Payload CLI use on your machine.
+
+    ```jsonc wrangler.jsonc
+    "hyperdrive": [
+      {
+        "binding": "HYPERDRIVE",
+        "id": "<the ID from hyperdrive create>",
+        "localConnectionString": "postgres://user:password@localhost:5432/my-site"
+      }
+    ]
+    ```
+
+  </Step>
+  <Step title="Configure the adapter">
+    ```ts src/payload.config.ts
+    import { getBindings, hyperdrivePoolConfig } from "@adirishi/offload-cloudflare";
+    import { postgresAdapter } from "@payloadcms/db-postgres";
+
+    const env = await getBindings();
+
+    const db = postgresAdapter({
+      migrationDir: path.resolve(dirname, "migrations"),
+      pool: hyperdrivePoolConfig(env.HYPERDRIVE),
+      push: false,
+    });
+    ```
+
+    A Worker can read `env.HYPERDRIVE.connectionString` only inside a request. `hyperdrivePoolConfig()` reads it when Payload opens its pool, during the first request. It also gives each query a new connection, because Hyperdrive does the pooling.
+
+  </Step>
+</Steps>
+
+`offloadVite()` resolves `pg-pool` to its CommonJS build, which the Worker needs to start. [Known limits](/limits) has one open upstream issue with the Postgres pool on Workers.

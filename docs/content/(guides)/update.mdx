@@ -15,8 +15,6 @@ pnpm release use-version ../my-site {{version}}
 
 Leave out the version to use the release that the checkout pins.
 
-A release on a new Payload tag can change the schema. Run `pnpm payload migrate:create` after you install it. The command creates a migration only when the schema changed.
-
 ## Verify a package
 
 Every published tarball has a signed build provenance attestation. It ties the tarball to the commit and the workflow run that built it. To check a package, download it and verify it with the GitHub CLI:

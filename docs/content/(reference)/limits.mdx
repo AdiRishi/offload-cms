@@ -11,11 +11,9 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 - Workers can't run `sharp`. Payload stores uploaded images as they are and reads their dimensions without it, but it can't generate `imageSizes` or crop.
 - Nodemailer needs TCP sockets, which Workers don't give it. Send email through an adapter that uses `fetch`, such as Payload's Resend adapter.
 
-## Data
+## Postgres
 
-- D1 has no transactions. A Worker that stops partway through a save can leave a document half-written. [Choose a database](/databases) explains the trade-off.
-- Payload v4 stores sessions on the user document. Two logins for the same user at the same moment can overwrite each other's session and sign the first one out. Postgres shows this more than D1, because its writes interleave.
-- Payload keeps one Postgres pool per isolate. Upstream issue [payloadcms/payload#17335](https://github.com/payloadcms/payload/issues/17335) reports that a query which hangs until Workers cancels its request can leave the pool unusable for the rest of the isolate's life. The symptom is requests that fail in about a millisecond. The reported fix is a pool for each request. Offload doesn't include it, because the hang doesn't reproduce locally.
+Payload keeps one Postgres pool per isolate. Upstream issue [payloadcms/payload#17335](https://github.com/payloadcms/payload/issues/17335) reports that a query which hangs until Workers cancels its request can leave the pool unusable for the rest of the isolate's life. The symptom is requests that fail in about a millisecond. The reported fix is a pool for each request. Offload doesn't include it, because the hang doesn't reproduce locally.
 
 ## Passwords
 
