@@ -12,7 +12,7 @@ pnpm release e2e
 pnpm release e2e --postgres
 ```
 
-The Postgres run needs Docker. CI runs both on every push. Each run does these steps:
+The Postgres run needs Docker. CI runs both on every pull request and every push to `main`. Each run does these steps:
 
 1. Start a registry that exists only for the run, and publish the working tree to it.
 2. Install `e2e` from that registry. Every run publishes the same version, so the install discards the previous one.
