@@ -126,3 +126,17 @@ test("a form that no published page offers refuses submissions", async ({ api, p
   );
   expect(await submissionsOf(api, form.id)).toEqual([]);
 });
+
+test("visitors can't create form submissions through the API", async ({ anonymous, api }) => {
+  const form = await api.create("forms", {
+    confirmationMessage: lexical(["Thanks."]),
+    confirmationType: "message",
+    fields: [{ blockType: "email", label: "Email address", name: "email", required: true }],
+    title: unique("Closed to the API"),
+  });
+
+  const response = await anonymous.request.post("/api/form-submissions", {
+    data: { form: form.id, submissionData: [{ field: "email", value: "spam@example.com" }] },
+  });
+  expect(response.status()).toBe(403);
+});

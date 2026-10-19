@@ -14,6 +14,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
+import { isStaff } from "./access";
 import { AuditLogs } from "./collections/AuditLogs";
 import { Categories } from "./collections/Categories";
 import { FieldTypes } from "./collections/FieldTypes";
@@ -84,7 +85,11 @@ export default buildConfig({
     }),
     redirectsPlugin({ collections: ["pages", "posts"] }),
     searchPlugin({ collections: ["posts"], defaultPriorities: { posts: 10 } }),
-    formBuilderPlugin({ fields: { payment: false } }),
+    formBuilderPlugin({
+      fields: { payment: false },
+      // Visitors submit through saveFormSubmission(), after the rate limit and Turnstile.
+      formSubmissionOverrides: { access: { create: isStaff } },
+    }),
   ],
   secret: env.PAYLOAD_SECRET,
   storage: [r2Storage({ bucket: env.R2, collections: { media: true } })],
