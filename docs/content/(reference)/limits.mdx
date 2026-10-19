@@ -1,0 +1,34 @@
+---
+title: Known limits
+description: What works differently when Payload runs on Cloudflare Workers through Offload, and what the test suite doesn't cover.
+---
+
+## Runtime
+
+- `vite dev` runs in Node, and a deployed site runs in workerd. A difference between the two runtimes shows up only in `vite preview` or on a deployed Worker.
+- A site needs the Workers Paid plan. A Payload Worker is about 4 MB compressed, and the free plan allows 3 MB.
+- The admin is always at `/admin`. Payload's TanStack Start adapter doesn't support `routes.admin`.
+- Workers can't run `sharp`. Payload stores uploaded images as they are and reads their dimensions without it, but it can't generate `imageSizes` or crop.
+- Nodemailer needs TCP sockets, which Workers don't give it. Send email through an adapter that uses `fetch`, such as Payload's Resend adapter.
+
+## Data
+
+- D1 has no transactions. A Worker that stops partway through a save can leave a document half-written. [Choose a database](/databases) explains the trade-off.
+- Payload v4 stores sessions on the user document. Two logins for the same user at the same moment can overwrite each other's session and sign the first one out. Postgres shows this more than D1, because its writes interleave.
+- Payload keeps one Postgres pool per isolate. Upstream issue [payloadcms/payload#17335](https://github.com/payloadcms/payload/issues/17335) reports that a query which hangs until Workers cancels its request can leave the pool unusable for the rest of the isolate's life. The symptom is requests that fail in about a millisecond. The reported fix is a pool for each request. Offload doesn't include it, because the hang doesn't reproduce locally.
+
+## Passwords
+
+A deployed Worker rejects PBKDF2 with more than 100,000 iterations, and Payload uses 600,000. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes with 100,000 iterations on Workers, which is below OWASP's recommendation of 600,000 for PBKDF2-SHA256.
+
+A user created in Node, through the Payload CLI or a seed script, gets a 600,000-iteration hash that the Worker can't verify. Create users through the deployed admin or the Worker's API.
+
+## Not tested
+
+The e2e suite doesn't cover these on Workers:
+
+- live preview
+- multi-tenant sites
+- `plugin-ecommerce` and payment providers
+- upload size limits, and multipart uploads of large files to R2
+- admin performance with large collections on D1

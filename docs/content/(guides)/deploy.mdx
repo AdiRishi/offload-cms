@@ -1,0 +1,65 @@
+---
+title: Deploy to Cloudflare
+description: Create the D1 database and R2 bucket, apply migrations, and deploy an Offload site as a Worker.
+---
+
+This guide deploys a site set up as in [Getting started](/getting-started). You need a Cloudflare account on the Workers Paid plan.
+
+The Payload CLI runs in Node and reaches D1 through Wrangler. To run migrations against the deployed database, give production its own Wrangler environment whose bindings are remote. Local runs keep the default environment and its local state.
+
+<Steps>
+  <Step title="Create the database and the bucket">
+    ```bash
+    pnpm wrangler d1 create my-site
+    pnpm wrangler r2 bucket create my-site
+    ```
+
+    `d1 create` prints the new database's ID.
+
+  </Step>
+  <Step title="Add a production environment">
+    Add a `production` environment to `wrangler.jsonc` with the database ID and `"remote": true` on each binding:
+
+    ```jsonc wrangler.jsonc
+    "env": {
+      "production": {
+        "d1_databases": [
+          {
+            "binding": "D1",
+            "database_name": "my-site",
+            "database_id": "<the ID from d1 create>",
+            "remote": true
+          }
+        ],
+        "r2_buckets": [{ "binding": "R2", "bucket_name": "my-site", "remote": true }]
+      }
+    }
+    ```
+
+  </Step>
+  <Step title="Set the secret">
+    ```bash
+    pnpm wrangler secret put PAYLOAD_SECRET --env production
+    ```
+  </Step>
+  <Step title="Migrate, build, and deploy">
+    `CLOUDFLARE_ENV` selects the environment for the Payload CLI and for the build. `wrangler deploy` then deploys the environment that the build selected.
+
+    ```bash
+    CLOUDFLARE_ENV=production pnpm payload migrate
+    CLOUDFLARE_ENV=production pnpm vite build
+    pnpm wrangler deploy
+    ```
+
+  </Step>
+  <Step title="Create the first user on the Worker">
+    Open `/admin` on the deployed Worker and create the first user there.
+
+    :::warning
+    Create users through the Worker, not through the Payload CLI or a seed script in Node. Node hashes passwords with more PBKDF2 iterations than a deployed Worker can verify, so those users can't log in. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) explains the limit.
+    :::
+
+  </Step>
+</Steps>
+
+To deploy a change, run the commands from the fourth step again. `payload migrate` skips migrations that are already applied.

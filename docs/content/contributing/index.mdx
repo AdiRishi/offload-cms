@@ -1,9 +1,9 @@
 ---
 title: Develop Offload
-description: Set up the repository, find your way around the workspace, and the commands that build, test and release Offload.
+description: Set up the repository, find your way around it, and run the commands that build, test, and release Offload.
 ---
 
-You need Node 24 (see `.node-version`) and pnpm through Corepack.
+You need Node 24 and pnpm through Corepack. Docker is needed only for the Postgres test run.
 
 ```bash
 pnpm install
@@ -11,7 +11,7 @@ pnpm upstream checkout
 pnpm check
 ```
 
-`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks and the tests through Turborepo.
+`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests.
 
 ## Layout
 
@@ -19,36 +19,37 @@ pnpm check
 
 - packages/
   - cloudflare/ `@adirishi/offload-cloudflare`, published
-  - tsconfig/ `@repo/tsconfig`, shared TypeScript configuration
+  - tsconfig/ `@repo/tsconfig`, the TypeScript configs that every package extends
 - upstream/ `@repo/upstream`
   - payload.json the pinned Payload release and Offload revision
   - patches/ one `git format-patch` file per change to Payload
-  - payload/ the checkout, created by `pnpm upstream checkout` and gitignored
+  - payload/ the Payload checkout, created by `pnpm upstream checkout`
   - src/ the `upstream` CLI
 - release/ `@repo/release`, the `release` CLI
 - e2e/ a Payload site on Workers that the Playwright suite drives
-- docs/ this site, built with Blume
+- docs/ this site
 
 </FileTree>
 
-The workspace contains `docs`, `packages/*`, `upstream` and `release`. Every dependency version comes from the catalog in `pnpm-workspace.yaml`. Node runs the `upstream` and `release` CLIs straight from TypeScript. `e2e` is a separate pnpm project, because it installs Offload from a registry the way a site in its own repository does.
+The pnpm workspace holds `docs`, `packages/*`, `upstream`, and `release`. Every dependency version comes from the catalog in `pnpm-workspace.yaml`. Node runs the `upstream` and `release` CLIs straight from TypeScript. `e2e` is a separate pnpm project, because it installs Offload from a registry the way a site does.
 
 ## Commands
 
-| Command                                            | What it does                                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `pnpm check`                                       | Lint, format check, type checks and tests                                                        |
-| `pnpm lint` / `pnpm lint:fix`                      | oxlint with type-aware rules                                                                     |
-| `pnpm format` / `pnpm format:fix`                  | oxfmt check, or write                                                                            |
-| `pnpm build`                                       | Build Payload in `upstream/payload`, the packages in `packages/`, and this site                  |
-| `pnpm docs:dev`                                    | Run this site locally                                                                            |
-| `pnpm upstream checkout [--force]`                 | Create `upstream/payload` from the pin and the patches                                           |
-| `pnpm upstream export`                             | Write the commits in `upstream/payload` to `upstream/patches` and the [patch pages](/patches)    |
-| `pnpm upstream status [--against <tag>]`           | Show each patch's upstream PR state, and whether `<tag>` already contains it                     |
-| `pnpm upstream upgrade <tag> [--drop <id>]`        | Move the patch series to a newer Payload release                                                 |
-| `pnpm release publish`                             | Build the packages, then publish them at the pinned version to `OFFLOAD_REGISTRY`                |
-| `pnpm release use-version <site-dir> [version]`    | Point a site's Offload dependencies at a release                                                 |
-| `pnpm release e2e` / `pnpm release e2e --postgres` | Release the working tree to a throwaway registry and run the Playwright suite, on D1 or Postgres |
+| Command                                         | What it does                                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pnpm check`                                    | Lint, format check, type checks, and tests                                        |
+| `pnpm format:fix`, `pnpm lint:fix`              | Fix formatting and lint problems                                                  |
+| `pnpm build`                                    | Build Payload, the packages in `packages/`, and this site                         |
+| `pnpm docs:dev`                                 | Serve this site locally                                                           |
+| `pnpm upstream checkout [--force]`              | Create `upstream/payload` from the pin and the patches                            |
+| `pnpm upstream export`                          | Write the commits in `upstream/payload` to `upstream/patches` and the patch pages |
+| `pnpm upstream status [--against <tag>]`        | Show each patch's upstream pull request, and whether `<tag>` already contains it  |
+| `pnpm upstream upgrade <tag> [--drop <id>]`     | Move the patch series to a newer Payload release                                  |
+| `pnpm release e2e [--postgres]`                 | Publish the working tree to a throwaway registry and run the e2e suite            |
+| `pnpm release use-version <site-dir> [version]` | Point a site's Offload dependencies at a release                                  |
+| `pnpm release publish`                          | Build and publish the packages at the pinned version to `OFFLOAD_REGISTRY`        |
+
+Run `pnpm upstream` or `pnpm release` with no command to print its options.
 
 ## Editor
 

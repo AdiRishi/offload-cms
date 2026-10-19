@@ -1,37 +1,41 @@
 ---
-title: Changing Payload
-description: Decide where a change belongs, and write, export and release a patch to Payload.
+title: Make a change
+description: Decide whether a change belongs in a package or a patch, then add the package or write the patch.
 ---
 
-## Where a change goes
+Put a change in a package in `packages/` when Payload's config or plugin API can express it. Write a patch to Payload only for behaviour that has no extension point. [How Offload works](/how-it-works#most-of-the-workers-support-is-not-a-patch) explains why patches are the last choice.
 
-1. **Site code** when Payload's config or plugin API can express it: collections, hooks, endpoints, admin components.
-2. **A package in `packages/`** when it's new and reusable: adapters, plugins, the Cloudflare preset. Add it to the dependencies of `release/package.json` too, so Turborepo builds it before publishing and the release includes it.
-3. **A patch to Payload** only for behaviour with no extension point. Keep each patch small, and propose it upstream when it's general.
+## Add a package
+
+1. Create the package in `packages/`. Extend `@repo/tsconfig/library.json` and take dependency versions from the catalog, as `packages/cloudflare` does.
+2. Add the package to `release/package.json` as a `workspace:*` dependency. The release builds and publishes only the packages listed there.
+3. Write its `README.md`, which is its page on GitHub Packages.
 
 ## Write a patch
 
 <Steps>
   <Step title="Commit in the checkout">
-    Edit `upstream/payload` and commit there. The commit message documents the patch: an intent paragraph explaining what breaks without it and how the patch fixes it, then these trailers.
+    Make the change in `upstream/payload` and commit it there. The commit message is the only record of the patch. Write a paragraph that says what breaks without the patch and how the patch fixes it, then add these trailers:
 
     ```text
-    Offload-Patch: short-stable-id
+    Offload-Patch: a-short-stable-id
     Upstream: https://github.com/payloadcms/payload/pull/<n>
-    Drop-When: <the condition under which upstream makes this patch unnecessary>
-    Tests: <commands that prove the patch works>
+    Drop-When: <the upstream change that makes this patch unnecessary>
+    Tests: <the commands that prove the patch works>
     ```
 
-    `Upstream` is optional. Commits in `upstream/payload` skip upstream's git hooks and aren't signed, because the patch files keep only the diff and the message.
+    `Upstream` is optional. Commits in `upstream/payload` skip upstream's git hooks and aren't signed, because the patch file keeps only the diff and the message.
 
   </Step>
   <Step title="Export it">
     Run `pnpm upstream export`. It writes the commits to `upstream/patches` and regenerates the [patch pages](/patches) from their messages.
   </Step>
-  <Step title="Bump the revision">
-    Increase `revision` in `upstream/payload.json`. The release version is `<tag>-offload.<revision>`, and a version is only ever published once.
-  </Step>
   <Step title="Test it">
-    Run `pnpm release e2e` and `pnpm release e2e --postgres`. See [Testing](/contributing/testing).
+    Run `pnpm release e2e` and `pnpm release e2e --postgres`. [Testing](/contributing/testing) explains the suite.
+  </Step>
+  <Step title="Bump the revision">
+    Increase `revision` in `upstream/payload.json`. Each release version is `<tag>-offload.<revision>` and publishes once, so a change without a new revision never reaches sites.
   </Step>
 </Steps>
+
+To change an existing patch, amend or rebase its commit in `upstream/payload`, then export again. If the patch is general, propose it upstream and add the pull request as its `Upstream` trailer.

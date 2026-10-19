@@ -1,30 +1,101 @@
 ---
-title: Cloudflare package
-description: "@adirishi/offload-cloudflare: the Vite preset, Cloudflare bindings, Worker entry and GraphQL route that run Payload on Workers."
+title: "@adirishi/offload-cloudflare"
+description: Reference for the Vite preset, the bindings and Hyperdrive helpers, the Worker entry, and the GraphQL route.
 ---
 
-| Export                                                            | What it does                                                                                                                                                               |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@adirishi/offload-cloudflare/vite`: `offloadVite()`              | The Vite config. `vite build` and `vite preview` target workerd; `vite dev` runs in Node.                                                                                  |
-| `@adirishi/offload-cloudflare`: `getBindings()`                   | The Worker's bindings: from workerd at runtime, and from Wrangler's platform proxy in Node (dev and the Payload CLI). Call it with top-level await in `payload.config.ts`. |
-| `@adirishi/offload-cloudflare`: `hyperdrivePoolConfig()`          | Pool options for `postgresAdapter` behind Hyperdrive. See [Databases](/databases).                                                                                         |
-| `@adirishi/offload-cloudflare/worker`: `createPayloadWorker()`    | The Worker entry: TanStack Start serves requests, and each Cron Trigger runs Payload's jobs, including scheduled publishing.                                               |
-| `@adirishi/offload-cloudflare/routes`: `payloadGraphQLHandlers()` | Handlers for a `/_payload/api/graphql` route.                                                                                                                              |
+| Entry point                           | Exports                                   |
+| ------------------------------------- | ----------------------------------------- |
+| `@adirishi/offload-cloudflare/vite`   | `offloadVite()`, `OffloadViteOptions`     |
+| `@adirishi/offload-cloudflare`        | `getBindings()`, `hyperdrivePoolConfig()` |
+| `@adirishi/offload-cloudflare/worker` | `createPayloadWorker()`                   |
+| `@adirishi/offload-cloudflare/routes` | `payloadGraphQLHandlers()`                |
 
-## What `offloadVite()` fixes
+## offloadVite()
 
-Payload's TanStack Start adapter is built for a Node server. On a workerd build, `offloadVite()`:
+```ts
+offloadVite(options: OffloadViteOptions): UserConfigFnPromise
+```
 
-- drops the adapter's Node externals, because a Worker has no `node_modules`
-- removes the `browser` resolve condition for server code, which otherwise loads Payload's client-only entry
-- replaces `import.meta.url`, which is undefined in a Worker bundle, with a placeholder
-- makes the adapter's hidden GraphQL imports literal, so they bundle
-- resolves every `graphql` import to one build; two copies break every query with arguments
-- resolves `pg-pool` to its CommonJS build for Postgres
-- imports `@cloudflare/vite-plugin` only for build and preview, because loading it breaks Node-mode dev
+Returns the site's Vite config: Payload's `withPayload()` with TanStack Start, React Server Components, and React. `vite build` and `vite preview` target workerd through `@cloudflare/vite-plugin`. `vite dev` runs in Node, because the RSC module runner can't load Payload's CommonJS dependencies in workerd.
 
-Each fix has a comment in [`packages/cloudflare/src/vite.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/vite.ts).
+| Option                      | Type                              | Description                                                                                     |
+| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `payloadConfigPath`         | `string`                          | Required. The path to `payload.config.ts`.                                                      |
+| `vite`                      | `(env: ConfigEnv) => UserConfig`  | The site's own Vite config, merged over Offload's.                                              |
+| `cloudflare`                | `@cloudflare/vite-plugin` options | Passed to the Cloudflare plugin. Offload sets `viteEnvironment`.                                |
+| `devServerExternalPackages` | `string[]`                        | CommonJS packages that `vite dev` leaves to Node, in addition to `prompts`, which Offload adds. |
 
-:::note
-`vite dev` runs in Node because the RSC module runner can't load Payload's CommonJS dependencies inside workerd. `getBindings()` reaches the same local D1 and R2 state from Node, so dev and `vite preview` share data.
-:::
+### Changes to the workerd build
+
+For `vite build` and `vite preview`, `offloadVite()` changes Payload's Node-oriented build in these ways:
+
+| Change                                                             | Without it                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Removes the Node externals that `withPayload()` sets               | The bundle imports packages from `node_modules`, which a Worker doesn't have.                    |
+| Removes the `browser` resolve condition from server environments   | workerd resolves `payload` to its client-only entry.                                             |
+| Replaces `import.meta.url` with a placeholder when it is undefined | Payload fails at module scope, where it derives a directory from `import.meta.url`.              |
+| Makes the adapter's hidden GraphQL imports literal                 | The GraphQL handler can't load, because the bundler never saw its imports.                       |
+| Resolves every server import of `graphql` to its ESM build         | Two copies of `graphql` load, and every query with arguments fails with "Unexpected input type". |
+| Resolves `pg-pool` to its CommonJS build                           | The Worker fails at startup with `Class extends value #<Object> is not a constructor`.           |
+| Imports `@cloudflare/vite-plugin` only for build and preview       | Loading the plugin breaks CommonJS interop in Node-mode dev.                                     |
+
+[`packages/cloudflare/src/vite.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/vite.ts) has one Vite plugin per change.
+
+## getBindings()
+
+```ts
+getBindings(): Promise<Cloudflare.Env>
+```
+
+Returns the Worker's bindings. In workerd, the bindings come from `cloudflare:workers`. In Node, for `vite dev` and the Payload CLI, they come from Wrangler's `getPlatformProxy()`, which reads the same local D1 and R2 state as `vite preview`. `CLOUDFLARE_ENV` selects the Wrangler environment.
+
+Call it with top-level `await` in `payload.config.ts`. In Node, it throws if the site doesn't have `wrangler` installed.
+
+## hyperdrivePoolConfig()
+
+```ts
+hyperdrivePoolConfig(hyperdrive: Hyperdrive, options?: PoolConfig): PoolConfig
+```
+
+Returns the `pool` option for `postgresAdapter()`. The returned config reads `hyperdrive.connectionString` when the pool connects, because a Worker can read it only inside a request. It sets `maxUses: 1`, so each query gets a new connection and Hyperdrive does the pooling. Values in `options` override both.
+
+## createPayloadWorker()
+
+```ts
+createPayloadWorker(args: {
+  config: Promise<SanitizedConfig>;
+  handler: { fetch: (request: Request) => Response | Promise<Response> };
+  jobs?: RunOptions;
+}): ExportedHandler
+```
+
+Returns the Worker's default export.
+
+| Argument  | Description                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------------- |
+| `config`  | The default export of `@payload-config`.                                                                       |
+| `handler` | The default export of `@tanstack/react-start/server-entry`. It serves every request.                           |
+| `jobs`    | Options for `payload.jobs.run()`, except `req`. The defaults are `allQueues: true` and `overrideAccess: true`. |
+
+On each Cron Trigger, the Worker queues Payload's scheduled jobs with `payload.jobs.handleSchedules()`, then runs the due jobs with `payload.jobs.run()`. Scheduled publishing runs this way.
+
+## payloadGraphQLHandlers()
+
+```ts
+payloadGraphQLHandlers(args: { getConfig: () => Promise<SanitizedConfig> }): { POST }
+```
+
+Returns the server handlers for a TanStack Start route at `/_payload/api/graphql`. Payload's TanStack Start template routes only REST.
+
+```ts src/app/_payload/api.graphql.ts
+import { payloadGraphQLHandlers } from "@adirishi/offload-cloudflare/routes";
+import { createFileRoute } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/_payload/api/graphql")({
+  server: {
+    handlers: payloadGraphQLHandlers({
+      getConfig: async () => (await import("@payload-config")).default,
+    }),
+  },
+});
+```

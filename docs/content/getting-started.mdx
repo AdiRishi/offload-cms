@@ -1,13 +1,17 @@
 ---
 title: Getting started
-description: Install Offload in a TanStack Start site, configure Vite and Payload, and run it as a Cloudflare Worker.
+description: Set up a TanStack Start site that runs Payload as a Cloudflare Worker on D1 and R2, and run it locally.
 ---
 
-[`e2e`](https://github.com/AdiRishi/offload-cms/tree/main/e2e) in the repository is a complete working site. Each step below shows the part of it that matters.
+This guide sets up a site whose Worker serves your frontend, the Payload admin at `/admin`, and Payload's API, with content in D1 and uploads in R2. At the end, the admin runs locally and you can create your first user.
+
+[`e2e`](https://github.com/AdiRishi/offload-cms/tree/main/e2e) in the repository is a complete site built this way. Copy files from it when a step says so.
+
+You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the Workers Paid plan, because a Payload Worker is larger than the free plan's 3 MB limit.
 
 <Steps>
-  <Step title="Authenticate to GitHub Packages">
-    GitHub Packages needs a token even for public packages. Create a GitHub token with the `read:packages` scope, export it as `GITHUB_TOKEN`, and add an `.npmrc` to the site:
+  <Step title="Connect to GitHub Packages">
+    Offload is on GitHub Packages, which needs a token even for public packages. Create a GitHub token with the `read:packages` scope and export it as `GITHUB_TOKEN`. Then add an `.npmrc` to the site:
 
     ```ini .npmrc
     @adirishi:registry=https://npm.pkg.github.com
@@ -15,8 +19,8 @@ description: Install Offload in a TanStack Start site, configure Vite and Payloa
     ```
 
   </Step>
-  <Step title="Install Offload under the upstream names">
-    Alias each Payload package to its Offload build, and install Offload's own Cloudflare package directly:
+  <Step title="Install the packages">
+    Install each Payload package under its upstream name, as an alias of its Offload build. Code keeps importing `payload` and `@payloadcms/*`.
 
     ```json package.json
     "dependencies": {
@@ -26,11 +30,33 @@ description: Install Offload in a TanStack Start site, configure Vite and Payloa
       "@payloadcms/storage-r2": "npm:@adirishi/offload-storage-r2@{{version}}",
       "@payloadcms/tanstack-start": "npm:@adirishi/offload-tanstack-start@{{version}}",
       "@payloadcms/ui": "npm:@adirishi/offload-ui@{{version}}",
-      "payload": "npm:@adirishi/offload-payload@{{version}}"
+      "@tanstack/react-router": "^1.170.0",
+      "@tanstack/react-start": "^1.169.1",
+      "graphql": "^16.11.0",
+      "payload": "npm:@adirishi/offload-payload@{{version}}",
+      "react": "^19.3.0",
+      "react-dom": "^19.3.0"
+    },
+    "devDependencies": {
+      "@cloudflare/vite-plugin": "^1.64.0",
+      "@vitejs/plugin-react": "^6.0.0",
+      "@vitejs/plugin-rsc": "^0.5.21",
+      "vite": "^8.0.0",
+      "wrangler": "^4.151.0"
     }
     ```
 
-    Every Payload package Payload publishes has an Offload build of the same name, such as `@payloadcms/plugin-seo` as `@adirishi/offload-plugin-seo`.
+    Every package that Payload publishes has an Offload build. For example, `@payloadcms/plugin-seo` is `@adirishi/offload-plugin-seo`. Give every Offload package the same version, because Payload checks that its packages match.
+
+    With pnpm 11, exclude Offload from the minimum release age, so a release installs on the day it's published. Allow the install scripts of `workerd` and `esbuild` too:
+
+    ```yaml pnpm-workspace.yaml
+    allowBuilds:
+      esbuild: true
+      workerd: true
+    minimumReleaseAgeExclude:
+      - "@adirishi/*"
+    ```
 
   </Step>
   <Step title="Configure Vite">
@@ -48,26 +74,81 @@ description: Install Offload in a TanStack Start site, configure Vite and Payloa
     );
     ```
 
+    Map `@payload-config` to the same file in `tsconfig.json`, under `compilerOptions.paths`:
+
+    ```json tsconfig.json
+    "paths": { "@payload-config": ["./src/payload.config.ts"] }
+    ```
+
   </Step>
-  <Step title="Read the bindings in the Payload config">
-    `getBindings()` returns the Worker's bindings in workerd, and Wrangler's local bindings in Node:
+  <Step title="Configure Wrangler">
+    Bind a D1 database and an R2 bucket. The Cron Trigger runs Payload's jobs, including scheduled publishing.
+
+    ```jsonc wrangler.jsonc
+    {
+      "name": "my-site",
+      "main": "src/server.ts",
+      "compatibility_date": "2026-10-01",
+      "compatibility_flags": ["nodejs_compat"],
+      "triggers": { "crons": ["*/5 * * * *"] },
+      "d1_databases": [{ "binding": "D1", "database_name": "my-site", "database_id": "local" }],
+      "r2_buckets": [{ "binding": "R2", "bucket_name": "my-site" }]
+    }
+    ```
+
+    Put Payload's secret in `.dev.vars`, which Wrangler reads for local runs. Keep this file out of git.
+
+    ```ini .dev.vars
+    PAYLOAD_SECRET=a-long-random-string
+    ```
+
+    Run `pnpm wrangler types` to generate the `Env` type for these bindings.
+
+  </Step>
+  <Step title="Write the Payload config">
+    `getBindings()` returns the Worker's bindings. In workerd they come from the runtime. In Node, for `vite dev` and the Payload CLI, they come from Wrangler's local state.
 
     ```ts src/payload.config.ts
     import { getBindings } from "@adirishi/offload-cloudflare";
     import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
+    import { lexicalEditor } from "@payloadcms/richtext-lexical";
+    import { r2Storage } from "@payloadcms/storage-r2";
+    import path from "node:path";
+    import { fileURLToPath } from "node:url";
     import { buildConfig } from "payload";
 
+    const dirname = path.dirname(fileURLToPath(import.meta.url));
     const env = await getBindings();
 
     export default buildConfig({
-      db: sqliteD1Adapter({ binding: env.D1, push: false }),
-      // collections, editor, plugins, ...
+      admin: { importMap: { baseDir: dirname } },
+      collections: [
+        { slug: "users", auth: true, fields: [] },
+        { slug: "media", upload: true, fields: [] },
+      ],
+      db: sqliteD1Adapter({
+        binding: env.D1,
+        migrationDir: path.resolve(dirname, "migrations"),
+        push: false,
+      }),
+      editor: lexicalEditor(),
+      secret: env.PAYLOAD_SECRET,
+      storage: [r2Storage({ bucket: env.R2, collections: { media: true } })],
     });
     ```
 
   </Step>
+  <Step title="Add the routes">
+    Payload's TanStack Start adapter keeps the site's routes in `src/app`. Copy these files from `e2e`:
+
+    - `src/router.tsx` and `src/app/__root.tsx`, which pass Payload's search-param handling and root wrapper to TanStack Router
+    - `src/app/_payload.tsx` and the `src/app/_payload/` directory, which hold the admin, REST, and server-function routes from Payload's TanStack Start template, plus `api.graphql.ts` for GraphQL
+
+    Then run `pnpm payload generate:importmap` to rebuild `src/app/_payload/importMap.js` for your config. Your own pages go next to `_payload`, as `e2e` does in `src/app/_frontend`.
+
+  </Step>
   <Step title="Export the Worker">
-    `createPayloadWorker()` serves requests through TanStack Start and runs Payload's jobs on every Cron Trigger:
+    `createPayloadWorker()` serves requests through TanStack Start and runs Payload's jobs on each Cron Trigger:
 
     ```ts src/server.ts
     import { createPayloadWorker } from "@adirishi/offload-cloudflare/worker";
@@ -77,20 +158,34 @@ description: Install Offload in a TanStack Start site, configure Vite and Payloa
     export default createPayloadWorker({ config, handler });
     ```
 
-    Set `main` in `wrangler.jsonc` to this file.
+  </Step>
+  <Step title="Create the schema and start the site">
+    Generate the first migration, apply it to the local D1 database, and start the dev server:
+
+    ```bash
+    pnpm payload migrate:create
+    pnpm payload migrate
+    pnpm vite dev
+    ```
+
+    Open `/admin` on the address that Vite prints. Payload asks you to create the first user. After you create it, you see the dashboard with the **Users** and **Media** collections.
+
+  </Step>
+  <Step title="Run the Worker build">
+    `vite dev` runs in Node. To run the bundle that Cloudflare runs, build it and serve it in local workerd:
+
+    ```bash
+    pnpm vite build
+    pnpm vite preview
+    ```
+
+    The preview uses the same local D1 and R2 state as `vite dev`, so the user you created can log in.
 
   </Step>
 </Steps>
 
-## Move to a new release
+## Next steps
 
-Change every Offload version in `package.json` to the new release. From a checkout of this repository, `pnpm release use-version <site-dir> [version]` does it for you, and defaults to the release the checkout pins.
-
-## Verify a package
-
-Every published tarball has a signed build provenance attestation that ties it to the commit and workflow run that built it. To check one, download it and verify it with the GitHub CLI:
-
-```bash
-npm pack @adirishi/offload-payload@{{version}}
-gh attestation verify adirishi-offload-payload-{{version}}.tgz --repo AdiRishi/offload-cms
-```
+- [Deploy to Cloudflare](/deploy) puts the site on a real Worker.
+- [Choose a database](/databases) explains when to use Postgres through Hyperdrive instead of D1.
+- [Known limits](/limits) lists what works differently on Workers.

@@ -1,0 +1,27 @@
+---
+title: Update Offload
+description: Move a site to a new Offload release, and check that a package came from this repository's release workflow.
+---
+
+## Move to a new release
+
+Every Offload package in a site must have the same version. Change each `@adirishi/offload-*` version in `package.json` to the new release, including the npm aliases, then install.
+
+From a checkout of this repository, one command does the edit:
+
+```bash
+pnpm release use-version ../my-site {{version}}
+```
+
+Leave out the version to use the release that the checkout pins.
+
+A release on a new Payload tag can change the schema. Run `pnpm payload migrate:create` after you install it. The command creates a migration only when the schema changed.
+
+## Verify a package
+
+Every published tarball has a signed build provenance attestation. It ties the tarball to the commit and the workflow run that built it. To check a package, download it and verify it with the GitHub CLI:
+
+```bash
+npm pack @adirishi/offload-payload@{{version}}
+gh attestation verify adirishi-offload-payload-{{version}}.tgz --repo AdiRishi/offload-cms
+```

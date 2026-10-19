@@ -1,12 +1,12 @@
 ---
 title: Patches
-description: What Offload changes in Payload, why, and the condition under which each change can be dropped.
+description: Every change Offload makes to Payload, why, and the upstream change that makes each one unnecessary.
 ---
 
-Offload is upstream Payload at the commit pinned in [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json), plus one patch per change below. Each patch is a commit whose message explains what breaks without it, links the upstream pull request when there is one, and names the condition under which upstream makes it unnecessary.
+Offload is Payload at the commit pinned in [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json), plus the patches below. Each page says what breaks without the patch, links the upstream pull request when there is one, and names the condition for dropping the patch.
 
-A patch is for behaviour that Payload's config or plugin API can't express. [Changing Payload](/contributing/changing-payload) covers when to write one and how.
+A patch is for behaviour that Payload's config or plugin API can't express. [Make a change](/contributing/making-changes) explains when to write one.
 
 :::note
-`pnpm upstream export` generates these pages from the patches' commit messages. Edit the commit, not the page.
+`pnpm upstream export` generates these pages from the patches' commit messages. To change a page, change the commit.
 :::

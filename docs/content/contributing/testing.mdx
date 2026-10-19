@@ -1,38 +1,36 @@
 ---
 title: Testing
-description: The end-to-end suite that installs Offload from a registry and drives a Payload site on Workers with Playwright.
+description: Run the end-to-end suite that installs Offload from a registry and drives a Payload site on Workers with Playwright.
 ---
 
-`e2e` is a Payload site on Cloudflare Workers that exists to be tested. It installs Offload from a registry the way a real site does, runs as a real Worker bundle in local workerd, and is driven by Playwright. The suite tests what Offload changes or depends on, plus the main flows that prove Payload works on top of it. It doesn't re-test Payload's own features; Payload's test suite does that.
+`e2e` is a Payload site on Cloudflare Workers that exists to be tested. It installs Offload from a registry the way a real site does, and Playwright drives its Worker build in local workerd. The suite tests what Offload changes or depends on, plus the main editor flows. Payload's own test suite covers Payload's features.
 
-## Run it
+## Run the suite
 
 ```bash
 pnpm release e2e
 pnpm release e2e --postgres
 ```
 
-The Postgres run needs Docker. Each run:
+The Postgres run needs Docker. CI runs both on every push. Each run does these steps:
 
-1. starts a registry that exists only for the run, and publishes the working tree to it
-2. installs `e2e` from it, forgetting the previous install, since every run republishes the same version
-3. type-checks `e2e`
-4. resets the local D1 and R2 state, or the Postgres schema, applies the migrations and builds the Worker
-5. serves the build with `vite preview`, creates the first admin through the admin panel, and runs the suite
+1. Start a registry that exists only for the run, and publish the working tree to it.
+2. Install `e2e` from that registry. Every run publishes the same version, so the install discards the previous one.
+3. Type-check `e2e`.
+4. Reset the local D1 and R2 state, or the Postgres schema. Apply the migrations and build the Worker.
+5. Serve the build with `vite preview`, create the first admin user through the admin panel, and run the suite.
 
-CI runs both on every push.
+## Rerun the suite without publishing
 
-## Iterate on the suite
+After one `pnpm release e2e`, `e2e` has the release installed. From `e2e`, run `pnpm test`, or `CLOUDFLARE_ENV=postgres pnpm test` for Postgres.
 
-After one `pnpm release e2e`, `e2e` has the release installed and no longer needs a registry. From `e2e`, rerun the suite with `pnpm test`, or `CLOUDFLARE_ENV=postgres pnpm test`.
-
-To read the Worker's logs, start the server yourself and let the suite reuse it:
+To read the Worker's logs, start the server yourself:
 
 ```bash
 node scripts/prepare.ts && pnpm preview
 ```
 
-Then, in another terminal:
+Then run the suite from another terminal. It uses the running server:
 
 ```bash
 E2E_REUSE_SERVER=1 pnpm exec playwright test
@@ -40,32 +38,32 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 
 ## What the suite covers
 
-| File                     | Covers                                                                                                                                                     |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/auth.setup.ts`    | Creating the first user through the admin, which hashes the password inside the Worker                                                                     |
-| `tests/admin.spec.ts`    | The admin's rendering, server functions and saves: drafting, publishing and translating a page, uploading to R2, and a document that uses every field type |
-| `tests/api.spec.ts`      | REST, GraphQL with arguments (which needs Offload's single-graphql fix), and access control                                                                |
-| `tests/workers.spec.ts`  | R2 byte ranges, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins                      |
-| `tests/frontend.spec.ts` | TanStack Start routes rendering Payload content through the Local API                                                                                      |
+| File                     | Covers                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/auth.setup.ts`    | Creating the first user through the admin, which hashes the password inside the Worker                                                            |
+| `tests/admin.spec.ts`    | Admin rendering, server functions, and saves: drafting, publishing, and translating a page, uploading to R2, and a document with every field type |
+| `tests/api.spec.ts`      | REST, GraphQL queries with arguments, and access control                                                                                          |
+| `tests/workers.spec.ts`  | R2 byte ranges, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins             |
+| `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API                                                                           |
 
-## How the app is set up
+## How the site is set up
 
-| File                                           | Purpose                                                                                                                                 |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `wrangler.jsonc`                               | D1 and R2 by default. The `postgres` environment binds Hyperdrive to the Docker Postgres in `docker-compose.yml`.                       |
-| `src/payload.config.ts`                        | Picks the database adapter from whichever binding exists                                                                                |
-| `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, and again with `CLOUDFLARE_ENV=postgres`. |
-| `src/jobs.ts`                                  | A job task and workflow, and two endpoints that queue work for the Cron Trigger                                                         |
-| `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                 |
+| File                                           | Purpose                                                                                                                                  |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `wrangler.jsonc`                               | D1 and R2 by default. The `postgres` environment binds Hyperdrive to the Docker Postgres in `docker-compose.yml`.                        |
+| `src/payload.config.ts`                        | Picks the database adapter from the binding that exists                                                                                  |
+| `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, then again with `CLOUDFLARE_ENV=postgres`. |
+| `src/jobs.ts`                                  | A job task, a workflow, and two endpoints that queue work for the Cron Trigger                                                           |
+| `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                  |
 
-The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and real sites should keep it that way.
+The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and a real site should keep it closed.
 
-## Staging on Cloudflare
+## Test on Cloudflare
 
-Some behaviour only shows up on a real deployment, such as the Workers limit on password hashing that the [PBKDF2 patch](/patches/workers-pbkdf2-cap) works around. The `staging` environment in `wrangler.jsonc` deploys `e2e` to the "Adishwar Rishi (Personal)" account as `offload-e2e-staging`, with its own D1 database and R2 bucket. From `e2e`:
+Some behaviour shows up only on a deployed Worker, such as the Workers limit on password hashing that the [PBKDF2 patch](/patches/workers-pbkdf2-cap) works around. The `staging` environment in `wrangler.jsonc` deploys `e2e` as `offload-e2e-staging`, with its own D1 database and R2 bucket. From `e2e`, run:
 
 ```bash
 pnpm deploy:staging
 ```
 
-This applies migrations to the remote D1 database, builds for staging, and deploys. The staging admin's credentials are in `e2e/.staging-admin.json`, which is gitignored. `PAYLOAD_SECRET` is a Wrangler secret on the Worker.
+The command applies migrations to the remote D1 database, builds for staging, and deploys. The staging admin's credentials are in `e2e/.staging-admin.json`, which git ignores. `PAYLOAD_SECRET` is a Wrangler secret on the Worker.

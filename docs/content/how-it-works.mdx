@@ -1,0 +1,46 @@
+---
+title: How Offload works
+description: Why Offload is a pinned Payload release with a few patches and one package, and why sites install it under Payload's own names.
+---
+
+Offload has three parts:
+
+- **A pinned Payload release.** [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json) names a Payload tag, its commit, and Offload's `revision` on top of it.
+- **A patch series.** [`upstream/patches`](https://github.com/AdiRishi/offload-cms/tree/main/upstream/patches) holds one `git format-patch` file per change to Payload. The [patch pages](/patches) list them.
+- **Offload's own packages.** Today that is [`@adirishi/offload-cloudflare`](/cloudflare), which has the Workers setup.
+
+A release builds Payload with the patches applied, packs every package that Payload publishes, and renames each one to `@adirishi/offload-<name>`. All packages share one version, `<tag>-offload.<revision>`, because Payload checks that its packages share a version.
+
+## Sites keep Payload's package names
+
+A site installs `npm:@adirishi/offload-payload@{{version}}` under the name `payload`. Inside each published package, dependencies on other Payload packages are aliases too. Every `import "payload"`, every import-map string, and every peer check in Payload's code still finds what it expects, and a site resolves one copy of `payload`.
+
+The alternative was renaming the source. That would change about 2,900 import lines and 117 import-map strings, and every upgrade would conflict with them, for no difference at runtime. Aliases cost one line per dependency in a site's `package.json`.
+
+## Most of the Workers support is not a patch
+
+A change goes in the first place that can hold it:
+
+1. Site code, when Payload's config or plugin API can express it.
+2. A package in `packages/`, when it's new and reusable.
+3. A patch to Payload, only for behaviour that has no extension point.
+
+The proof of concept that started Offload needed ten fixes to run Payload on Workers. Eight fit in a Vite preset and a Worker entry, which became `@adirishi/offload-cloudflare`. The ninth, the GraphQL route, is one route file. Only password hashing needed a change inside Payload.
+
+Patches are the expensive layer. Each one must be carried across every Payload upgrade, and each one is a way Offload differs from the Payload that Payload's docs describe. So a patch says when it can go: its `Drop-When` names the upstream fix that makes it unnecessary. The series should shrink over time.
+
+## Patches are files, not a fork branch
+
+Offload keeps its changes to Payload as patch files in this repository, applied to a fresh checkout of the pinned commit. A long-lived fork branch would also work, but patch files have three advantages:
+
+- A change to a patch is a diff in this repository's pull requests, where it gets reviewed with the code that depends on it.
+- Each patch's commit message carries its intent and trailers, such as `Upstream` and `Drop-When`. When a patch no longer applies to a new release, an agent running the [`upgrade-payload` skill](/contributing/upgrading-payload) rewrites the change from its intent instead of forcing the old diff.
+- History never needs a force-push.
+
+The checkout in `upstream/payload` stays its own pnpm workspace. Payload has its own catalogs, overrides, and pinned pnpm version, and merging them into this workspace would turn every upgrade into a manifest merge.
+
+## Payload v4 on TanStack Start
+
+Payload v4 made Workers possible. Its core, its admin UI, Lexical, and its plugins no longer import `next` at runtime. Routing, cookies, redirects, and server functions go through adapter interfaces, and the TanStack Start adapter renders the admin with React Server Components through `@vitejs/plugin-rsc`. Upstream runs its full end-to-end matrix against TanStack Start as a required CI check.
+
+The cost is a young toolchain. TanStack Start's RSC support and `@vitejs/plugin-rsc` are pre-1.0, and the adapter changes between betas. Those changes land in `offloadVite()`, so sites usually don't need to change for them.

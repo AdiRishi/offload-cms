@@ -1,30 +1,36 @@
 ---
 title: Offload
-description: Payload CMS v4 for TanStack Start sites on Cloudflare Workers, on D1 or on Postgres through Hyperdrive.
+description: Run a Payload CMS site as one Cloudflare Worker, on D1 and R2 or on Postgres through Hyperdrive.
 ---
 
-Offload is a pinned upstream Payload release, a small series of patches on top of it, and packages that run it on Cloudflare Workers. Everything is published to GitHub Packages under `@adirishi/offload-*`. Payload is MIT-licensed, and Offload keeps upstream's code, names and license.
+Offload runs a Payload v4 site built with TanStack Start as one Cloudflare Worker. The Worker serves your frontend, the admin panel, and Payload's REST and GraphQL APIs. It also runs Payload's scheduled jobs on a Cron Trigger.
 
-Sites keep importing `payload` and `@payloadcms/*`. They install the Offload builds under those names through npm aliases:
+Offload is upstream Payload with a few patches, plus a package for the Workers setup. A site installs it under Payload's own package names, so code imports `payload` and `@payloadcms/*`, and [Payload's documentation](https://payloadcms.com/docs) applies:
 
 ```json package.json
 "payload": "npm:@adirishi/offload-payload@{{version}}",
 "@payloadcms/ui": "npm:@adirishi/offload-ui@{{version}}"
 ```
 
-The current release is `{{version}}`: Payload's tag, then Offload's revision on top of it.
+The current release is `{{version}}`. The part before `-offload` is the Payload release it's built on.
 
 <CardGroup cols={2}>
   <Card title="Getting started" href="/getting-started" icon="rocket">
-    Install Offload in a TanStack Start site and run it on Workers.
+    Set up a site and run the admin locally.
   </Card>
-  <Card title="Cloudflare package" href="/cloudflare" icon="cloud">
-    The Vite preset, bindings and Worker entry that run Payload on Workers.
+  <Card title="Deploy to Cloudflare" href="/deploy" icon="cloud">
+    Create the database and bucket, migrate, and deploy.
   </Card>
-  <Card title="Databases" href="/databases" icon="database">
-    Choose D1 or Postgres through Hyperdrive.
+  <Card title="Choose a database" href="/databases" icon="database">
+    D1 for content sites, Postgres through Hyperdrive for transactions.
+  </Card>
+  <Card title="Known limits" href="/limits" icon="triangle-alert">
+    What works differently on Workers.
+  </Card>
+  <Card title="How Offload works" href="/how-it-works" icon="layers">
+    The pinned release, the patches, and the npm aliases.
   </Card>
   <Card title="Patches" href="/patches" icon="git-branch">
-    What Offload changes in Payload, and when each change can go.
+    Every change Offload makes to Payload, and when it can go.
   </Card>
 </CardGroup>

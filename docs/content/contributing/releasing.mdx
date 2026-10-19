@@ -1,31 +1,32 @@
 ---
 title: Releasing
-description: How Offload builds, publishes and attests its packages, and what CI runs on every push.
+description: Publish a release to GitHub Packages, and what the release workflow builds, renames, and attests.
 ---
 
-Releases go to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms). To publish one, bump `revision` in `upstream/payload.json` and push to `main`. The Publish workflow releases it once CI passes.
+To publish a release, bump `revision` in `upstream/payload.json` and push to `main`. The Publish workflow runs after CI passes and publishes to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms). A push without a new revision publishes nothing, because that version is already in the registry.
+
+:::warning
+Publish each version to a real registry once. To try a change, run `pnpm release e2e`, which publishes to a registry that exists only for that run.
+:::
 
 ## What `pnpm release publish` does
 
-`pnpm release publish` first checks the registry. If the pinned version is already there, it does nothing. Otherwise it builds `upstream/payload` and `packages/` through Turborepo. The Payload build refuses to run if `upstream/payload` doesn't match the pin and the patches.
+1. Checks the registry. If the pinned version is already there, it stops.
+2. Builds `upstream/payload` and `packages/` through Turborepo. The Payload build stops if `upstream/payload` doesn't match the pin and the patches.
+3. Packs every package with pnpm. Each Payload package becomes `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, with internal dependencies rewritten to npm aliases and a README that points back to Offload.
+4. Publishes the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
 
-It then packs every package with pnpm, renames each Payload package to `@adirishi/offload-<name>` at `<tag>-offload.<revision>`, rewrites internal dependencies to npm aliases, and publishes the tarballs to `OFFLOAD_REGISTRY`, with `OFFLOAD_REGISTRY_TOKEN` when the registry needs one.
-
-Offload's own packages are the public workspace packages that `release/package.json` depends on. That dependency also puts them in the build.
-
-:::warning
-Never publish a version twice to a real registry. To try a change, run `pnpm release e2e`, which publishes to a registry that exists only for that run.
-:::
+Offload's own packages are the public workspace packages that `release/package.json` depends on.
 
 ## Provenance
 
-npm's `--provenance` only works on the public npm registry, so the Publish workflow signs each published tarball with [`actions/attest`](https://github.com/actions/attest) instead. That records SLSA build provenance through Sigstore: which commit, workflow and run produced the file. `publish` uploads the exact tarballs it attests, so the registry serves the attested bytes. [Verify a package](/getting-started#verify-a-package) shows how a site checks one.
+npm's `--provenance` works only on the public npm registry. Instead, the Publish workflow signs each published tarball with [`actions/attest`](https://github.com/actions/attest). The attestation is SLSA build provenance, recorded through Sigstore, and names the commit, workflow, and run that produced the file. `publish` uploads the exact tarballs that the workflow attests. [Update Offload](/update#verify-a-package) shows how a site checks a package.
 
 ## Continuous integration
 
 Every push runs these GitHub Actions jobs:
 
 - `pnpm check`
-- the e2e suite on D1 and on Postgres, against a release of that commit to a throwaway registry inside the runner
+- the e2e suite on D1 and on Postgres, against a release of that commit to a registry inside the runner
 
-After CI passes on `main`, the Publish workflow releases to GitHub Packages. Every push to `main` also deploys this site to GitHub Pages.
+After CI passes on `main`, the Publish workflow runs. Every push to `main` also deploys this site to GitHub Pages.

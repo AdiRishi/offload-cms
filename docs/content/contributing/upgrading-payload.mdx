@@ -1,15 +1,24 @@
 ---
 title: Upgrading Payload
-description: Move Offload to a newer Payload release, carrying the patch series across it.
+description: Move Offload to a newer Payload release and carry the patch series across it.
 ---
 
-Ask an agent to upgrade Payload to a tag. The [`upgrade-payload` skill](https://github.com/AdiRishi/offload-cms/blob/main/.claude/skills/upgrade-payload/SKILL.md) takes it through a survey of the release, a replay of the patches, upstream's tests, the e2e suite on both databases, and a report.
+Ask an agent to upgrade Payload to a tag. The [`upgrade-payload` skill](https://github.com/AdiRishi/offload-cms/blob/main/.claude/skills/upgrade-payload/SKILL.md) takes it through these stages:
 
-The skill drives two commands you can also run yourself:
+1. Survey the release and decide, for each patch, whether to drop it, keep it, or rework it.
+2. Replay the patches onto the new tag.
+3. Run upstream's build and each patch's `Tests` command.
+4. Run the e2e suite on both databases.
+5. Check the release on the staging Worker.
+6. Report each patch's outcome and what sites must change.
+
+The skill uses two commands that you can also run yourself:
 
 ```bash
 pnpm upstream status --against v4.0.0-beta.3
 pnpm upstream upgrade v4.0.0-beta.3 --drop <id>
 ```
 
-`upstream status` shows each patch's upstream pull request and whether the new tag already contains it. `upstream upgrade` cherry-picks the remaining patches onto the tag one at a time. On a conflict it stops and prints the patch's intent. Resolve the conflict in `upstream/payload` so the patch still meets that intent, run `git -C upstream/payload cherry-pick --continue`, then `pnpm upstream upgrade --continue`. A patch that becomes empty is already upstream and is dropped.
+`upstream status` shows each patch's upstream pull request, and whether the new tag already contains it. `upstream upgrade` cherry-picks the remaining patches onto the tag one at a time, and drops a patch that becomes empty because upstream already has it.
+
+On a conflict, `upstream upgrade` stops and prints the patch's intent. Resolve the conflict in `upstream/payload` so the patch still meets that intent. Then run `git -C upstream/payload cherry-pick --continue` and `pnpm upstream upgrade --continue`.

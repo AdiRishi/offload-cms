@@ -4,10 +4,10 @@ export default defineMeta({
   pages: [
     "index",
     "getting-started",
-    "cloudflare",
-    "databases",
+    "guides",
+    "reference",
     "patches",
+    "how-it-works",
     "contributing",
-    "assessment",
   ],
 });
