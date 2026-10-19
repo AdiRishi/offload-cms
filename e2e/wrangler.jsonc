@@ -26,7 +26,7 @@
       "images": { "binding": "IMAGES" },
     },
     // A real deployment on Cloudflare, for behaviour that local workerd doesn't reproduce.
-    // Deploy with `pnpm deploy:staging`.
+    // Deploy with `pnpm deploy:staging`, which drops every table in its D1 database first.
     "staging": {
       "account_id": "34c911069f69b7cc1f38573958c3db45",
       "d1_databases": [
