@@ -6,7 +6,16 @@ export const Users: CollectionConfig = {
   slug: "users",
   admin: { useAsTitle: "email" },
   auth: true,
-  access: { create: isStaff, delete: isStaff, read: isStaff, update: isStaff },
-  fields: [{ name: "name", type: "text" }],
+  access: { admin: isStaff, create: isStaff, delete: isStaff, read: isStaff, update: isStaff },
+  fields: [
+    { name: "name", type: "text" },
+    {
+      name: "role",
+      type: "select",
+      defaultValue: "admin",
+      options: ["admin", "customer"],
+      required: true,
+    },
+  ],
   versions: false,
 };

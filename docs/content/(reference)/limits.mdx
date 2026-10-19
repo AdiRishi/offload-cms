@@ -6,7 +6,7 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 ## Runtime
 
 - `vite dev` runs in Node, and a deployed site runs in workerd. A difference between the two runtimes shows up only in `vite preview` or on a deployed Worker.
-- Plan for the Workers Paid plan, which allows a Worker of 10 MB compressed. The free plan allows 3 MB, and the `e2e` site's Worker is already 2.7 MB. Each collection, plugin, and dependency adds to it.
+- Plan for the Workers Paid plan, which allows a Worker of 10 MB compressed. The free plan allows 3 MB, and the `e2e` site's Worker is already 2.9 MB. Each collection, plugin, and dependency adds to it.
 - A server route or `src/server.ts` that imports `payload` or `@payload-config` bundles a second copy of Payload, about 1.1 MB compressed. Read content in server functions instead. [Where Payload runs](/cloudflare#where-payload-runs) explains why.
 - The admin is always at `/admin`. Payload's TanStack Start adapter doesn't support `routes.admin`.
 - Workers can't run `sharp`. [Process images with Cloudflare Images](/images) instead. It reads only JPEG, PNG, GIF, WebP, and AVIF, at most 20 MiB each, and it has no equivalent of Sharp-only options such as `trimOptions`.
@@ -57,7 +57,6 @@ Use `appendChild()`, `insertBefore()`, or `replaceChildren()` to add nodes, and 
 
 The e2e suite doesn't cover these on Workers:
 
-- live preview
 - multi-tenant sites
 - `plugin-ecommerce` and payment providers
 - upload size limits, and multipart uploads of large files to R2

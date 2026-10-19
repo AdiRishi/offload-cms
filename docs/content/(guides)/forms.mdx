@@ -1,0 +1,307 @@
+---
+title: Take form submissions
+description: Render form-builder forms on public pages, and save each submission after a rate limit, a Turnstile check, and validation against the stored form.
+---
+
+Editors build forms in the admin with Payload's form builder plugin. This guide renders those forms on the site's pages and saves what visitors send. Each submission passes a Workers rate limit, a Cloudflare Turnstile check, and validation against the stored form before `@adirishi/offload-form-builder` saves it.
+
+The form's UI comes from Offload's shadcn registry. The CLI copies the components into the site, and the site owns and edits them.
+
+The site needs the setup from [Getting started](/getting-started). A form uses Tailwind CSS v4 and shadcn, and a step below sets them up.
+
+<Steps>
+  <Step title="Install the packages">
+    ```json package.json
+    "@adirishi/offload-form-builder": "{{version}}",
+    "@adirishi/offload-tanstack": "{{version}}",
+    "@payloadcms/plugin-form-builder": "npm:@adirishi/offload-plugin-form-builder@{{version}}",
+    "zod": "^4.0.0"
+    ```
+
+    Install `@adirishi/offload-form-builder` before you add the registry components. The registry doesn't list the package, so the shadcn CLI never installs it or changes its version.
+
+  </Step>
+  <Step title="Add the form builder">
+    Keep the plugin's default fields. The package supports those blocks only. If the site enables `radio`, `date`, `payment`, or `upload`, the registry components give a type error, and the package leaves those blocks out.
+
+    The plugin lets anyone create a submission through the REST API, which skips the rate limit and Turnstile. Allow only admin users to create one. `saveFormSubmission()` creates submissions with access control bypassed, after its checks pass.
+
+    ```ts src/payload.config.ts
+    import { formBuilderPlugin } from "@payloadcms/plugin-form-builder";
+
+    export default buildConfig({
+      plugins: [
+        formBuilderPlugin({
+          formSubmissionOverrides: {
+            access: { create: ({ req }) => req.user?.collection === "users" },
+          },
+        }),
+      ],
+      // collections, db, editor
+    });
+    ```
+
+    The plugin adds the `forms` and `form-submissions` collections. Run `pnpm payload migrate:create`, then `pnpm payload generate:types`.
+
+  </Step>
+  <Step title="Bind a rate limiter">
+    Add a Rate Limiting binding to every Wrangler environment. This one allows each visitor IP five submissions a minute:
+
+    ```jsonc wrangler.jsonc
+    "ratelimits": [
+      { "name": "SUBMISSIONS", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }
+    ]
+    ```
+
+  </Step>
+  <Step title="Add the Turnstile secret">
+    Put the Turnstile secret key in `.dev.vars`. For local runs, use Cloudflare's testing secret, which passes every token:
+
+    ```ini .dev.vars
+    TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+    ```
+
+    Then run `pnpm wrangler types`, so `env.SUBMISSIONS` and `env.TURNSTILE_SECRET_KEY` have types.
+
+  </Step>
+  <Step title="Create the Payload helpers">
+    Skip this step if the site has `src/lib/payload.server.ts` from [Preview drafts and Live Preview](/live-preview).
+
+    ```ts src/lib/payload.server.ts
+    import { createPayloadHelpers } from "@adirishi/offload-tanstack/server";
+
+    export const { getPayloadForRequest, getRequestPayload, getVisitorPayload } = createPayloadHelpers({
+      getConfig: async () => (await import("@payload-config")).default,
+    });
+    ```
+
+  </Step>
+  <Step title="Write the submission server function">
+    The registry components import `submitForm` from `@/server/forms.functions`. Create that file:
+
+    ```ts src/server/forms.functions.ts
+    import { getBindings } from "@adirishi/offload-cloudflare";
+    import { submissionInput } from "@adirishi/offload-form-builder";
+    import { saveFormSubmission } from "@adirishi/offload-form-builder/server";
+    import { hideServerErrors } from "@adirishi/offload-tanstack";
+    import { createServerFn } from "@tanstack/react-start";
+    import { getRequest } from "@tanstack/react-start/server";
+
+    import { getVisitorPayload } from "@/lib/payload.server";
+
+    export const submitForm = createServerFn({ method: "POST" })
+      .middleware([hideServerErrors])
+      .validator(submissionInput)
+      .handler(async ({ data }) => {
+        const [env, payload] = await Promise.all([getBindings(), getVisitorPayload()]);
+        return saveFormSubmission({
+          submission: data,
+          payload,
+          request: getRequest(),
+          turnstileSecret: env.TURNSTILE_SECRET_KEY,
+          rateLimit: env.SUBMISSIONS,
+          isOffered: async (form) => {
+            const { totalDocs } = await payload.count({
+              collection: "pages",
+              where: { "layout.form": { equals: form.id } },
+              overrideAccess: false,
+            });
+            return totalDocs > 0;
+          },
+        });
+      });
+    ```
+
+    `getBindings()` returns the Worker's bindings and secrets. Under `vite dev`, it reuses the Wrangler platform proxy that `payload.config.ts` started.
+
+    `isOffered` accepts a form only when a page that a visitor can read has it in a block. [Choose which forms take submissions](#choose-which-forms-take-submissions) explains the rule.
+
+  </Step>
+  <Step title="Set up Tailwind and shadcn">
+    Skip this step if the site already uses shadcn with Tailwind v4.
+
+    Install `tailwindcss` and `@tailwindcss/vite`. Add the Tailwind plugin and the `@/` alias through the `vite` option of `offloadVite()`:
+
+    ```ts vite.config.ts
+    import { offloadVite } from "@adirishi/offload-cloudflare/vite";
+    import tailwindcss from "@tailwindcss/vite";
+    import path from "node:path";
+    import { defineConfig } from "vite";
+
+    export default defineConfig(
+      offloadVite({
+        payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts"),
+        vite: () => ({
+          plugins: [tailwindcss()],
+          resolve: { alias: { "@/": `${path.resolve(import.meta.dirname, "src")}/` } },
+        }),
+      }),
+    );
+    ```
+
+    Map the alias in `tsconfig.json` too, under `compilerOptions.paths`:
+
+    ```json tsconfig.json
+    "paths": {
+      "@/*": ["./src/*"],
+      "@payload-config": ["./src/payload.config.ts"]
+    }
+    ```
+
+    Put `@import "tailwindcss";` in a stylesheet that only the site's pages load, such as `src/app/_frontend/styles.css` linked from the head of the `_frontend` layout route. The admin then keeps its own styles. Run `pnpm dlx shadcn@latest init`, and choose that stylesheet.
+
+  </Step>
+  <Step title="Add Offload's registry">
+    In `components.json`, set `rsc` to `true` and add the `@offload` registry:
+
+    ```json components.json
+    "rsc": true,
+    "registries": {
+      "@offload": "https://adirishi.github.io/offload-cms/r/{name}.json"
+    }
+    ```
+
+    The form renders inside server components. Without `rsc`, the CLI removes the `"use client"` directive from the client components. The items depend on `@offload/turnstile`, which the CLI resolves through the `@offload` registry.
+
+  </Step>
+  <Step title="Install the form components">
+    ```bash
+    pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup
+    ```
+
+    The CLI copies the components into `src/components/form-builder/`, adds the shadcn components they use, and installs `@tanstack/react-form`. It also adds Cloudflare's testing site key to `.env.local`, as `VITE_TURNSTILE_SITE_KEY`. The testing key always passes and shows that it's a test.
+
+    The components work with shadcn on Radix and on Base UI. Install only the items you use. [The registry reference](/form-builder#registry) lists what each one installs.
+
+    The registry serves the items built for the latest Offload release, `{{version}}`, and each item names that release in its `meta`. Run `pnpm dlx shadcn@latest view @offload/form-builder-form` to see it. Keep `@adirishi/offload-form-builder` at the same version. When you update the package, add the items again with `--overwrite`, and merge your own changes back in.
+
+  </Step>
+  <Step title="Render a form on a page">
+    Give editors a block that picks a form:
+
+    ```ts src/collections/Pages.ts
+    {
+      name: "layout",
+      type: "blocks",
+      blocks: [
+        {
+          slug: "form",
+          interfaceName: "FormBlock",
+          fields: [{ name: "form", type: "relationship", relationTo: "forms", required: true }],
+        },
+      ],
+    },
+    ```
+
+    A server function can't return a form document as JSON, because TanStack Start rejects rich text as not serializable. Render `FormBuilderForm` with `renderServerComponent()` in the page's server function instead, and return the element:
+
+    ```tsx src/app/_frontend/$slug.tsx
+    import { hideServerErrors } from "@adirishi/offload-tanstack";
+    import { createFileRoute, notFound } from "@tanstack/react-router";
+    import { createServerFn } from "@tanstack/react-start";
+    import { renderServerComponent } from "@tanstack/react-start/rsc";
+
+    import { FormBuilderForm } from "@/components/form-builder/form";
+    import { getPayloadForRequest } from "@/lib/payload.server";
+
+    const getPage = createServerFn({ method: "GET" })
+      .middleware([hideServerErrors])
+      .validator((slug: string) => slug)
+      .handler(async ({ data: slug }) => {
+        const { payload, draft, user } = await getPayloadForRequest();
+        const { docs } = await payload.find({
+          collection: "pages",
+          where: { slug: { equals: slug } },
+          depth: 1,
+          limit: 1,
+          draft,
+          user,
+          overrideAccess: false,
+        });
+        const page = docs[0];
+        if (!page) throw notFound();
+        const blocks = await Promise.all(
+          (page.layout ?? []).map(async (block) => ({
+            id: block.id,
+            Content:
+              block.blockType === "form" && typeof block.form === "object"
+                ? await renderServerComponent(<FormBuilderForm form={block.form} />)
+                : null,
+          })),
+        );
+        return { blocks, title: page.title };
+      });
+
+    export const Route = createFileRoute("/_frontend/$slug")({
+      loader: ({ params }) => getPage({ data: params.slug }),
+      component: PageView,
+    });
+
+    function PageView() {
+      const page = Route.useLoaderData();
+      return (
+        <main>
+          <h1>{page.title}</h1>
+          {page.blocks.map((block) => (
+            <section key={block.id}>{block.Content}</section>
+          ))}
+        </main>
+      );
+    }
+    ```
+
+    Render `NewsletterSignup` the same way, from a block whose relationship picks a form with an `email` field. `depth: 1` populates the form, which both components need.
+
+  </Step>
+  <Step title="Register the submission server function">
+    Import `@/server/forms.functions` once, in the `_frontend` layout route:
+
+    ```tsx src/app/_frontend.tsx
+    import "@/server/forms.functions";
+    ```
+
+    TanStack Start's production build registers a server function only when a route reaches its module. The form components call `submitForm`, but only server components render them, and the build doesn't register a server function that it reaches only through server components, even from an import in `form.tsx`. Without the layout import, each submission on a production build fails with "Server function info not found". `vite dev` doesn't show the problem. The layout import covers every page under `_frontend`.
+
+  </Step>
+</Steps>
+
+## Check the result
+
+1. In the admin, create a form under **Forms**, and add it to a published page's layout.
+2. Run `pnpm vite build` and `pnpm vite preview`, and open the page in a private window.
+3. Send the form. It shows the form's confirmation message.
+4. In the admin, open **Form Submissions**. The submission is there.
+
+The production build in the second step is what catches a missing layout import.
+
+## Choose which forms take submissions
+
+The form builder lets anyone read every form, including drafts, tests, and forms that no page shows any more. `saveFormSubmission()` needs `isOffered`, which receives the stored form document and decides whether the site offers it. A form that `isOffered` rejects returns `refused`, and nothing is saved or emailed.
+
+The rule in `submitForm` accepts a form when a page that a visitor can read has it in a block. With the read access from [Preview drafts and Live Preview](/live-preview), `overrideAccess: false` counts only published pages, so a form that appears only on unpublished pages refuses submissions.
+
+When a second block type offers forms, such as a newsletter block, give its relationship its own name, such as `signupForm`, and join the conditions with `or`. When two block types share a field name, a `where` on `layout.<name>` matches only one of the block types.
+
+```ts
+where: {
+  or: [{ "layout.form": { equals: form.id } }, { "layout.signupForm": { equals: form.id } }],
+},
+```
+
+To accept every form that a visitor can read, pass `isOffered: () => true`.
+
+## Use real Turnstile keys
+
+The testing keys pass every visitor. Before you deploy, create a Turnstile widget in the Cloudflare dashboard for the site's hostname, and use its keys:
+
+1. Set the secret on the Worker:
+
+   ```bash
+   pnpm wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+
+2. Set `VITE_TURNSTILE_SITE_KEY` in `.env.production`, or in the environment of the production build. Vite puts the site key into the client bundle when it builds, and `.env.production` overrides `.env.local` in a build.
+
+A production secret rejects tokens from the testing site key. `saveFormSubmission()` also rejects a token that Turnstile issued on another hostname.
+
+The [package reference](/form-builder) lists every check that `saveFormSubmission()` runs, and the result that each one returns.

@@ -36,5 +36,13 @@
     "upstream/payload/**",
     "upstream/patches/**",
     "e2e/**"
+  ],
+  "overrides": [
+    {
+      "files": ["packages/form-builder/registry/**"],
+      "rules": {
+        "typescript/no-redundant-type-constituents": "off"
+      }
+    }
   ]
 }

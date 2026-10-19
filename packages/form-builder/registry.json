@@ -1,0 +1,74 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "offload",
+  "homepage": "https://adirishi.github.io/offload-cms/forms",
+  "items": [
+    {
+      "name": "turnstile",
+      "type": "registry:component",
+      "title": "Turnstile",
+      "description": "Cloudflare Turnstile, loaded when the visitor first touches a form, with a handle that resolves a token.",
+      "envVars": {
+        "VITE_TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
+      },
+      "files": [
+        {
+          "path": "registry/form-builder/turnstile.tsx",
+          "type": "registry:component",
+          "target": "@components/form-builder/turnstile.tsx"
+        }
+      ]
+    },
+    {
+      "name": "form-builder-form",
+      "type": "registry:component",
+      "title": "Form builder form",
+      "description": "Renders a Payload form-builder form with TanStack Form and shadcn fields, validates it in the browser, and submits it with a Turnstile token.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": [
+        "button",
+        "checkbox",
+        "field",
+        "input",
+        "native-select",
+        "spinner",
+        "textarea",
+        "@offload/turnstile"
+      ],
+      "docs": "Install @adirishi/offload-form-builder at the version in this item's meta. The form calls submitForm from @/server/forms.functions, which you write and import once in the _frontend layout route. See https://adirishi.github.io/offload-cms/forms",
+      "files": [
+        {
+          "path": "registry/form-builder/fields.tsx",
+          "type": "registry:component",
+          "target": "@components/form-builder/fields.tsx"
+        },
+        {
+          "path": "registry/form-builder/form.tsx",
+          "type": "registry:component",
+          "target": "@components/form-builder/form.tsx"
+        },
+        {
+          "path": "registry/form-builder/form-client.tsx",
+          "type": "registry:component",
+          "target": "@components/form-builder/form-client.tsx"
+        }
+      ]
+    },
+    {
+      "name": "newsletter-signup",
+      "type": "registry:component",
+      "title": "Newsletter sign-up",
+      "description": "A one-line email sign-up that submits a form-builder form with a Turnstile token.",
+      "dependencies": ["@tanstack/react-form"],
+      "registryDependencies": ["button", "field", "input-group", "spinner", "@offload/turnstile"],
+      "docs": "Install @adirishi/offload-form-builder at the version in this item's meta. The sign-up calls submitForm from @/server/forms.functions, which you write and import once in the _frontend layout route. See https://adirishi.github.io/offload-cms/forms",
+      "files": [
+        {
+          "path": "registry/form-builder/newsletter-signup.tsx",
+          "type": "registry:component",
+          "target": "@components/form-builder/newsletter-signup.tsx"
+        }
+      ]
+    }
+  ]
+}

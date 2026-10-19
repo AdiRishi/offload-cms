@@ -90,4 +90,26 @@ const getPost = createServerFn({ method: "GET" })
 
 Third-party plugins that list `payload` as a peer dependency install normally. Change every `@adirishi/offload-*` version together when you update.
 
+## Site pages and forms
+
+**Read page content through `@adirishi/offload-tanstack`**, instead of the `getPayload()` call above. Create the helpers once, in `src/lib/payload.server.ts`, with `createPayloadHelpers({ getConfig: async () => (await import("@payload-config")).default, documentPath })` from `@adirishi/offload-tanstack/server`:
+
+- `getPayloadForRequest()` in server functions. Pass its `draft` and `user` to every query, with `overrideAccess: false`, so the collection's read access decides what the request sees. A logged-in editor then sees drafts on the page's normal URL.
+- `getRequestPayload()` in async server components, so one render makes one auth lookup.
+- `getVisitorPayload()`, with `overrideAccess: false`, for output that is the same for everyone and may be cached, such as a sitemap.
+- `return redirectOrNotFound(pathname)` when a route finds no document. It follows the redirects plugin's redirects, and otherwise throws `notFound()`.
+
+**Add `.middleware([hideServerErrors])` to every site server function.** `hideServerErrors` comes from `@adirishi/offload-tanstack`. TanStack Start sends a thrown error's message to the browser, and a failed Payload query's message contains its SQL.
+
+**Live Preview** needs a path in `admin.livePreview.url`, such as `` ({ data }) => `/${data.slug}` ``, and `{draft && <LivePreviewListener />}` from `@adirishi/offload-tanstack` in the page's component. The admin and the site share one origin.
+
+**Public forms use `@adirishi/offload-form-builder`** and the form UI from Offload's shadcn registry:
+
+- Install the components with `pnpm dlx shadcn@latest add @offload/form-builder-form @offload/newsletter-signup`. `components.json` needs `"rsc": true` and the `@offload` registry.
+- Write `submitForm` in `src/server/forms.functions.ts`. It wraps `saveFormSubmission()` from `@adirishi/offload-form-builder/server`, with `.validator(submissionInput)`, a required `isOffered` rule that receives the stored form (every form is publicly readable, so the rule keeps drafts and retired forms closed), and a `ratelimits` binding and `TURNSTILE_SECRET_KEY` from `getBindings()`.
+- Render `FormBuilderForm` with `renderServerComponent()` in the page's server function.
+- Add `import "@/server/forms.functions";` once, to the `_frontend` layout route. TanStack Start's build registers a server function only when a route reaches its module, and the form components render only inside server components. An import in a server component doesn't register it. Without the layout import, each submission fails on a production build with "Server function info not found", while `vite dev` works. Check forms with `vite build && vite preview`.
+
+The [forms guide](https://adirishi.github.io/offload-cms/forms) and the [Live Preview guide](https://adirishi.github.io/offload-cms/live-preview) have the full setup.
+
 The Offload docs at https://adirishi.github.io/offload-cms list each patch to Payload and the known limits on Workers.

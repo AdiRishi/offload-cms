@@ -18,6 +18,8 @@
   "devDependencies": {
     "@adirishi/offload-cloudflare": "workspace:*",
     "@adirishi/offload-email-cloudflare": "workspace:*",
+    "@adirishi/offload-form-builder": "workspace:*",
+    "@adirishi/offload-tanstack": "workspace:*",
     "@repo/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"

@@ -1,5 +1,8 @@
 import { type APIRequestContext, expect, test as base } from "@playwright/test";
+import { defaultSerovalPlugins } from "@tanstack/router-core/ssr/client";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { fromCrossJSON, toJSONAsync } from "seroval";
 
 import { adminStorageState } from "./credentials";
 
@@ -143,6 +146,31 @@ export const login = async (
     throw new Error("Login returned no token");
   }
   return body.token;
+};
+
+/**
+ * Calls a server function the way TanStack Start's client does, so a test can send input that the
+ * site's components never send. A production build names each server function by the SHA-256 of
+ * its file and handler, and reads the input and writes the result with Seroval. The result is
+ * `{ result }`, or `{ error }` when the function throws.
+ */
+export const callServerFn = async (
+  request: APIRequestContext,
+  { file, name }: { file: string; name: string },
+  data: unknown,
+): Promise<unknown> => {
+  const id = createHash("sha256").update(`${file}--${name}_createServerFn_handler`).digest("hex");
+  const response = await request.post(`/_serverFn/${id}`, {
+    data: JSON.stringify(await toJSONAsync({ data })),
+    headers: {
+      "content-type": "application/json",
+      // TanStack Start refuses a server function call from another site.
+      "sec-fetch-site": "same-origin",
+      "x-tsr-serverFn": "true",
+    },
+  });
+  expect(response.status(), await response.text()).toBe(200);
+  return fromCrossJSON(await response.json(), { plugins: defaultSerovalPlugins, refs: new Map() });
 };
 
 /** A unique suffix, so tests running in parallel never collide on slugs or emails. */

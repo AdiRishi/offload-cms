@@ -20,6 +20,8 @@ pnpm check
 - packages/
   - cloudflare/ `@adirishi/offload-cloudflare`, published
   - email-cloudflare/ `@adirishi/offload-email-cloudflare`, published
+  - form-builder/ `@adirishi/offload-form-builder`, published, and the shadcn registry in `registry.json`
+  - tanstack/ `@adirishi/offload-tanstack`, published
   - tsconfig/ `@repo/tsconfig`, the TypeScript configs that every package extends
 - upstream/ `@repo/upstream`
   - payload.json the pinned Payload release
@@ -33,6 +35,8 @@ pnpm check
 </FileTree>
 
 The pnpm workspace holds `docs`, `packages/*`, `upstream`, and `release`. Every dependency version comes from the catalog in `pnpm-workspace.yaml`. Node runs the `upstream` and `release` CLIs straight from TypeScript. `e2e` is a separate pnpm project, because it installs Offload from a registry the way a site does.
+
+The docs build runs `docs/registry.ts`, which runs `shadcn build` on `packages/form-builder/registry.json` and serves the registry items from `/r/` on this site. It stamps each item's `meta` with the release that the docs show, so a site can match the items to its package version. `pnpm --filter @repo/docs registry` builds them alone.
 
 ## Commands
 
