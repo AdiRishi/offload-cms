@@ -2,5 +2,5 @@ import { defineMeta } from "blume";
 
 export default defineMeta({
   title: "Reference",
-  pages: ["cloudflare", "limits"],
+  pages: ["cloudflare", "tanstack", "form-builder", "limits"],
 });

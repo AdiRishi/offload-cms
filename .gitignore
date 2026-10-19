@@ -23,3 +23,6 @@ worker-configuration.d.ts
 *.log
 .DS_Store
 *.tsbuildinfo
+
+# The shadcn registry, built from packages/form-builder by the docs build
+/docs/public/r/

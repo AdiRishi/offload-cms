@@ -14,6 +14,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
+import { isStaff } from "./access";
 import { PullQuote } from "./blocks";
 import { AuditLogs } from "./collections/AuditLogs";
 import { Categories } from "./collections/Categories";
@@ -28,7 +29,8 @@ import { Header, SiteSettings } from "./globals";
 import { jobs, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const env = await getBindings();
+// Server functions import the bindings from here, so Node starts one Wrangler platform proxy.
+export const env = await getBindings();
 
 // The default Wrangler environment binds D1. CLOUDFLARE_ENV=postgres binds Hyperdrive instead.
 // Cloudflare's upload validation runs this module without bindings, so nothing here may
@@ -85,7 +87,11 @@ export default buildConfig({
     }),
     redirectsPlugin({ collections: ["pages", "posts"] }),
     searchPlugin({ collections: ["posts"], defaultPriorities: { posts: 10 } }),
-    formBuilderPlugin({ fields: { payment: false } }),
+    formBuilderPlugin({
+      fields: { payment: false },
+      // Visitors submit through saveFormSubmission(), after the rate limit and Turnstile.
+      formSubmissionOverrides: { access: { create: isStaff } },
+    }),
   ],
   secret: env.PAYLOAD_SECRET,
   storage: [r2Storage({ bucket: env.R2, collections: { media: true } })],

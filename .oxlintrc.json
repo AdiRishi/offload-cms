@@ -40,5 +40,13 @@
     "e2e/src/routeTree.gen.ts",
     "e2e/src/app/_payload/importMap.js",
     "e2e/worker-configuration.d.ts"
+  ],
+  "overrides": [
+    {
+      "files": ["packages/form-builder/registry/**", "e2e/src/components/form-builder/**"],
+      "rules": {
+        "typescript/no-redundant-type-constituents": "off"
+      }
+    }
   ]
 }

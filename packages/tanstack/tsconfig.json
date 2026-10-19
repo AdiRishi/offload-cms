@@ -1,0 +1,11 @@
+{
+  "extends": "@repo/tsconfig/library.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "rewriteRelativeImportExtensions": true,
+    "jsx": "react-jsx",
+    "lib": ["es2024", "dom"]
+  },
+  "include": ["src"]
+}

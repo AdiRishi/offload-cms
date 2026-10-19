@@ -1,0 +1,128 @@
+---
+title: Preview drafts and Live Preview
+description: Show logged-in editors the latest draft on the site's own pages, and refresh the page in the admin's Live Preview when they save.
+---
+
+The admin and the site run in one Worker, so the browser sends the editor's Payload cookie with every page request. A page can authenticate that request, serve the latest draft to a logged-in editor, and serve the published version to everyone else on the same URL. Live Preview loads that URL in an iframe and refreshes it when the editor saves.
+
+This guide uses `@adirishi/offload-tanstack`. The collection needs drafts, through `versions: { drafts: true }`.
+
+<Steps>
+  <Step title="Install the package">
+    ```json package.json
+    "@adirishi/offload-tanstack": "{{version}}"
+    ```
+  </Step>
+  <Step title="Let only admin users read drafts">
+    Give admin users every document, and everyone else published documents. `users` is the collection that `admin.user` names:
+
+    ```ts src/collections/Pages.ts
+    export const Pages: CollectionConfig = {
+      slug: "pages",
+      access: {
+        read: ({ req }) => req.user?.collection === "users" || { _status: { equals: "published" } },
+      },
+      versions: { drafts: true },
+      // fields
+    };
+    ```
+
+  </Step>
+  <Step title="Create the Payload helpers">
+    ```ts src/lib/payload.server.ts
+    import { createPayloadHelpers } from "@adirishi/offload-tanstack/server";
+
+    export const { getPayloadForRequest, getRequestPayload, getVisitorPayload, redirectOrNotFound } =
+      createPayloadHelpers({
+        getConfig: async () => (await import("@payload-config")).default,
+        documentPath: ({ relationTo, value }) =>
+          relationTo === "posts" ? `/posts/${value.slug}` : `/${value.slug}`,
+      });
+    ```
+
+    `documentPath` gives the public path of a document that a redirect from the redirects plugin points to.
+
+  </Step>
+  <Step title="Serve drafts from the page's server function">
+    `getPayloadForRequest()` authenticates the request. Pass its `draft` and `user` to the query, with `overrideAccess: false`, so the read access from the previous step decides what the request sees:
+
+    ```tsx src/app/_frontend/$slug.tsx
+    import { hideServerErrors } from "@adirishi/offload-tanstack";
+    import { createServerFn } from "@tanstack/react-start";
+
+    import { getPayloadForRequest, redirectOrNotFound } from "@/lib/payload.server";
+
+    const getPage = createServerFn({ method: "GET" })
+      .middleware([hideServerErrors])
+      .validator((slug: string) => slug)
+      .handler(async ({ data: slug }) => {
+        const { payload, draft, user } = await getPayloadForRequest();
+        const { docs } = await payload.find({
+          collection: "pages",
+          where: { slug: { equals: slug } },
+          limit: 1,
+          draft,
+          user,
+          overrideAccess: false,
+        });
+        const page = docs[0];
+        if (!page) return redirectOrNotFound(`/${slug}`);
+        return { draft, title: page.title };
+      });
+    ```
+
+    `redirectOrNotFound()` follows a matching redirect from the redirects plugin, or throws `notFound()`. A site without the redirects plugin throws `notFound()` from `@tanstack/react-router` instead.
+
+  </Step>
+  <Step title="Render the Live Preview listener">
+    Render `LivePreviewListener` in the page's component while the request is a draft:
+
+    ```tsx src/app/_frontend/$slug.tsx
+    import { LivePreviewListener } from "@adirishi/offload-tanstack";
+    import { createFileRoute } from "@tanstack/react-router";
+
+    export const Route = createFileRoute("/_frontend/$slug")({
+      loader: ({ params }) => getPage({ data: params.slug }),
+      component: PageView,
+    });
+
+    function PageView() {
+      const page = Route.useLoaderData();
+      return (
+        <main>
+          {page.draft && <LivePreviewListener />}
+          <h1>{page.title}</h1>
+        </main>
+      );
+    }
+    ```
+
+  </Step>
+  <Step title="Point Live Preview at the page">
+    Return the page's path from `admin.livePreview.url`. A path loads from the admin's own origin, which is the site's:
+
+    ```ts src/collections/Pages.ts
+    admin: {
+      livePreview: { url: ({ data }) => `/${data.slug}` },
+    },
+    ```
+
+    To give the document's **Preview** button the same page, return the same path from `admin.preview`.
+
+  </Step>
+</Steps>
+
+## Check the result
+
+1. Log in to `/admin` and open a published page.
+2. Click **Live Preview**. The iframe shows the page.
+3. Change the title, and click **Save draft**. The iframe shows the new title without a reload.
+4. Open the page's URL in a private window. It shows the published title.
+
+## When the page refreshes
+
+Live Preview refreshes the page after each save. With autosave, through `versions: { drafts: { autosave: true } }`, every autosave refreshes it. Without autosave, the page refreshes when the editor clicks **Save draft**.
+
+A logged-in editor sees drafts on every page that reads through `getPayloadForRequest()`, in Live Preview and in a normal browser tab. That response depends on the editor's cookies, so don't put it in a shared cache. For output that you cache, such as a sitemap, read with `getVisitorPayload()` and `overrideAccess: false`.
+
+The [package reference](/tanstack) lists every option of the helpers.

@@ -5,13 +5,15 @@
   "description": "The Offload documentation site, built with Blume",
   "type": "module",
   "scripts": {
-    "build": "blume build",
+    "build": "pnpm registry && blume build",
     "typecheck": "blume check --strict --isolated",
-    "dev": "blume dev",
+    "dev": "pnpm registry && blume dev",
+    "registry": "shadcn build registry.json --cwd ../packages/form-builder --output ../../docs/public/r",
     "test": "blume validate --strict"
   },
   "devDependencies": {
     "@repo/upstream": "workspace:*",
-    "blume": "catalog:"
+    "blume": "catalog:",
+    "shadcn": "catalog:"
   }
 }

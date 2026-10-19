@@ -34,6 +34,18 @@ export const Pages: CollectionConfig = {
         },
         { slug: "content", fields: [{ name: "body", type: "richText" }] },
         "pullQuote",
+        {
+          slug: "form",
+          interfaceName: "FormBlock",
+          fields: [{ name: "form", type: "relationship", relationTo: "forms", required: true }],
+        },
+        {
+          slug: "newsletter",
+          interfaceName: "NewsletterBlock",
+          fields: [
+            { name: "signupForm", type: "relationship", relationTo: "forms", required: true },
+          ],
+        },
       ],
     },
   ],

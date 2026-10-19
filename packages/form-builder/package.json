@@ -1,0 +1,46 @@
+{
+  "name": "@adirishi/offload-form-builder",
+  "version": "0.0.0",
+  "description": "Validation, Turnstile verification and a submission handler for Payload form-builder forms on public pages",
+  "homepage": "https://github.com/AdiRishi/offload-cms/tree/main/packages/form-builder#readme",
+  "bugs": {
+    "url": "https://github.com/AdiRishi/offload-cms/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdiRishi/offload-cms.git",
+    "directory": "packages/form-builder"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@repo/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "payload": "catalog:",
+    "typescript": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "payload": "4.0.0-beta.2",
+    "zod": "^4.0.0"
+  }
+}

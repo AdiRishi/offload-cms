@@ -1,1 +1,3 @@
 PAYLOAD_SECRET=change-me-to-a-long-random-string
+# Cloudflare's Turnstile testing secret: every token passes.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
