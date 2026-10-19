@@ -79,6 +79,8 @@ export function Turnstile({
     token?: string;
     error?: Error;
     waiters: Waiter[];
+    /** Loads the script and renders the widget again, after either failed. */
+    retry?: () => void;
   }>({ waiters: [] });
 
   useImperativeHandle(ref, () => ({
@@ -89,12 +91,11 @@ export function Turnstile({
       return new Promise((resolve, reject) => state.current.waiters.push({ resolve, reject }));
     },
     reset: () => {
-      const { api, widgetId } = state.current;
-      // Without a widget there is nothing to retry, so a load error stays and fails the next token.
-      if (!api || !widgetId) return;
+      const { api, widgetId, retry } = state.current;
       state.current.token = undefined;
       state.current.error = undefined;
-      api.reset(widgetId);
+      if (api && widgetId) api.reset(widgetId);
+      else retry?.();
     },
   }));
 
@@ -112,36 +113,40 @@ export function Turnstile({
     };
 
     let cancelled = false;
-    loadTurnstile().then(
-      (api) => {
-        if (cancelled || !container.current) return;
-        current.api = api;
-        const options: RenderOptions = {
-          sitekey: siteKey,
-          action,
-          appearance: "interaction-only",
-          theme,
-          "refresh-expired": "auto",
-          callback: (token) => settle({ token }),
-          "expired-callback": () => {
-            current.token = undefined;
-          },
-          "error-callback": (code) =>
-            settle({ error: new Error(`Turnstile failed with error ${code}.`) }),
-        };
-        try {
-          current.widgetId = api.render(container.current, options) ?? undefined;
-        } catch (error) {
-          settle({
-            error: error instanceof Error ? error : new Error("Turnstile did not render."),
-          });
-        }
-      },
-      (error: Error) => settle({ error }),
-    );
+    const mount = () =>
+      loadTurnstile().then(
+        (api) => {
+          if (cancelled || !container.current) return;
+          current.api = api;
+          const options: RenderOptions = {
+            sitekey: siteKey,
+            action,
+            appearance: "interaction-only",
+            theme,
+            "refresh-expired": "auto",
+            callback: (token) => settle({ token }),
+            "expired-callback": () => {
+              current.token = undefined;
+            },
+            "error-callback": (code) =>
+              settle({ error: new Error(`Turnstile failed with error ${code}.`) }),
+          };
+          try {
+            current.widgetId = api.render(container.current, options) ?? undefined;
+          } catch (error) {
+            settle({
+              error: error instanceof Error ? error : new Error("Turnstile did not render."),
+            });
+          }
+        },
+        (error: Error) => settle({ error }),
+      );
+    current.retry = mount;
+    void mount();
 
     return () => {
       cancelled = true;
+      current.retry = undefined;
       if (current.api && current.widgetId) current.api.remove(current.widgetId);
       current.widgetId = undefined;
     };

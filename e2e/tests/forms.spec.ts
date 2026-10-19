@@ -101,6 +101,39 @@ test("a visitor signs up through a newsletter form", async ({ api, page }) => {
   ]);
 });
 
+test("a sign-up recovers after the Turnstile script fails to load", async ({ api, page }) => {
+  const form = await api.create("forms", {
+    confirmationMessage: lexical(["Thanks."]),
+    confirmationType: "message",
+    fields: [{ blockType: "email", label: "Email address", name: "email", required: true }],
+    title: unique("Offline"),
+  });
+  const slug = unique("offline-page");
+  await api.create("pages", {
+    _status: "published",
+    layout: [{ blockType: "newsletter", signupForm: form.id }],
+    slug,
+    title: "Patchy connection",
+  });
+  let blocked = false;
+  await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js*", (route) => {
+    if (blocked) return route.continue();
+    blocked = true;
+    return route.abort();
+  });
+
+  const element = await visit(page, `/${slug}`);
+  await element.getByRole("textbox", { name: "Email address" }).fill("patchy@example.com");
+  await element.getByRole("button", { name: "Subscribe" }).click();
+  await expect(element.getByRole("alert")).toHaveText("Something went wrong. Please try again.");
+
+  await element.getByRole("button", { name: "Subscribe" }).click();
+  await expect(page.getByText("Thank you. You will hear from us soon.")).toBeVisible();
+  expect(await submissionsOf(api, form.id)).toMatchObject([
+    { submissionData: [{ field: "email", value: "patchy@example.com" }] },
+  ]);
+});
+
 test("a form that no published page offers refuses submissions", async ({ api, page }) => {
   const form = await api.create("forms", {
     confirmationMessage: lexical(["Thanks."]),
