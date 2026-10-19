@@ -3,6 +3,7 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
    CREATE TYPE "public"."_locales" AS ENUM('en', 'fr');
+  CREATE TYPE "public"."enum_users_role" AS ENUM('admin', 'customer');
   CREATE TYPE "public"."enum_pages_status" AS ENUM('draft', 'published');
   CREATE TYPE "public"."enum__pages_v_published_locale" AS ENUM('en', 'fr');
   CREATE TYPE "public"."enum__pages_v_version_status" AS ENUM('draft', 'published');
@@ -36,6 +37,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE TABLE "users" (
   	"id" serial PRIMARY KEY NOT NULL,
   	"name" varchar,
+  	"role" "enum_users_role" DEFAULT 'admin' NOT NULL,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"email" varchar NOT NULL,
@@ -2406,6 +2408,7 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "_header_v_rels" CASCADE;
   DROP TABLE "payload_jobs_stats" CASCADE;
   DROP TYPE "public"."_locales";
+  DROP TYPE "public"."enum_users_role";
   DROP TYPE "public"."enum_pages_status";
   DROP TYPE "public"."enum__pages_v_published_locale";
   DROP TYPE "public"."enum__pages_v_version_status";

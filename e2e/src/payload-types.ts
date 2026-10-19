@@ -267,6 +267,7 @@ export interface PullQuote {
 export interface User {
   id: number;
   name?: string | null;
+  role: 'admin' | 'customer';
   createdBy?: {
     relationTo: 'users';
     value: number | User;
@@ -1223,6 +1224,7 @@ export interface PayloadLlmInstruction {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  role?: T;
   createdBy?: T;
   updatedBy?: T;
   updatedAt?: T;

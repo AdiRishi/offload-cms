@@ -15,6 +15,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE TABLE \`users\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`name\` text,
+  	\`role\` text DEFAULT 'admin' NOT NULL,
   	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`email\` text NOT NULL,

@@ -27,6 +27,8 @@ This guide uses `@adirishi/offload-tanstack`. The collection needs drafts, throu
     };
     ```
 
+    If the site also keeps customers in `users` and closes the admin to them with `access.admin`, as Payload's ecommerce template does, check the same rule here, such as `req.user?.roles?.includes("admin")`. The helpers give drafts only to users that `access.admin` accepts.
+
   </Step>
   <Step title="Create the Payload helpers">
     ```ts src/lib/payload.server.ts

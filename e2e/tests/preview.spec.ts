@@ -1,6 +1,6 @@
 // Drafts, Live Preview and redirects on the site, through @adirishi/offload-tanstack.
 
-import { expect, test, unique } from "./fixtures";
+import { expect, login, test, unique } from "./fixtures";
 
 test("a logged-in editor sees a page's draft, and a visitor sees the published page", async ({
   api,
@@ -19,6 +19,25 @@ test("a logged-in editor sees a page's draft, and a visitor sees the published p
   await visitor.goto(`/${slug}`);
   await expect(visitor.getByRole("heading", { level: 1 })).toHaveText("Published title");
   await visitor.close();
+});
+
+test("a logged-in customer, who can't open the admin, sees the published page", async ({
+  api,
+  baseURL,
+  browser,
+}) => {
+  const slug = unique("customer-page");
+  const doc = await api.create("pages", { _status: "published", slug, title: "Published title" });
+  await api.update("pages", doc.id, { title: "Draft title" }, "?draft=true");
+  const email = `${unique("customer")}@offload.test`;
+  const password = unique("password");
+  await api.create("users", { email, password, role: "customer" });
+
+  const customer = await browser.newPage({ baseURL, storageState: { cookies: [], origins: [] } });
+  await login(customer.request, "users", email, password);
+  await customer.goto(`/${slug}`);
+  await expect(customer.getByRole("heading", { level: 1 })).toHaveText("Published title");
+  await customer.close();
 });
 
 test("Live Preview shows a saved draft without a reload", async ({ api, page }) => {

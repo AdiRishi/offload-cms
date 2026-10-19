@@ -49,14 +49,15 @@ export const createPayloadHelpers = ({ getConfig, documentPath }: PayloadHelpers
 
   /**
    * Payload for the current request, with the user its cookies or headers authenticate. `draft`
-   * is true only for a user of the admin's auth collection, so a site's other logged-in users,
-   * such as customers, see published content. Pass `draft`, `user`, and `overrideAccess: false`
-   * to queries, so the collection's read access decides what the request sees.
+   * is true only for a user who can open the admin, as the admin's auth collection and its
+   * `access.admin` decide, so a site's other logged-in users, such as customers, see published
+   * content. Pass `draft`, `user`, and `overrideAccess: false` to queries, so the collection's
+   * read access decides what the request sees.
    */
   const getPayloadForRequest = async () => {
     const payload = await getVisitorPayload();
-    const { user } = await payload.auth({ headers: getRequestHeaders() });
-    return { payload, user, draft: user?.collection === payload.config.admin.user };
+    const { user, permissions } = await payload.auth({ headers: getRequestHeaders() });
+    return { payload, user, draft: permissions.canAccessAdmin === true };
   };
 
   /**

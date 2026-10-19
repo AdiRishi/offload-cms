@@ -57,13 +57,15 @@ Returns Payload with no user. Queries that pass `overrideAccess: false` see what
 
 ### getPayloadForRequest()
 
-Authenticates the current request from its headers with `payload.auth()`, and returns Payload, the user, and `draft`. `draft` is `true` only for a user of the admin's auth collection, `admin.user` in the config. A user of another auth collection, such as a site's customers, gets `draft: false` and published content.
+Authenticates the current request from its headers with `payload.auth()`, and returns Payload, the user, and `draft`. `draft` is `permissions.canAccessAdmin` from the same `payload.auth()` call, so it is `true` only for a user who can open the admin: a user of the admin's auth collection, `admin.user` in the config, that the collection's `access.admin` accepts. Every other logged-in user gets `draft: false` and published content. That includes a user of another auth collection, and a customer in the admin's collection whom `access.admin` turns away, as in Payload's ecommerce template.
 
 Pass `draft`, `user`, and `overrideAccess: false` to each query. The collection's read access then decides what the request sees. For example, this read access gives admin users every document and everyone else published documents:
 
 ```ts
 read: ({ req }) => req.user?.collection === "users" || { _status: { equals: "published" } },
 ```
+
+When `users` also holds customers, give drafts to the users that `access.admin` accepts, with the same check.
 
 The result depends on the request's cookies. Don't put it in a shared cache.
 

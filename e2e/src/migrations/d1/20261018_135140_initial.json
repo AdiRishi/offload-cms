@@ -93,6 +93,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'admin'"
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "text",
@@ -15623,6 +15631,6 @@
   "internal": {
     "indexes": {}
   },
-  "id": "061d1221-67ed-4739-9837-ef65c408dadb",
+  "id": "c6a2fd0d-b526-4910-9502-aad87f301edc",
   "prevId": "00000000-0000-0000-0000-000000000000"
 }

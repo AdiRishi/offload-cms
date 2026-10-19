@@ -106,6 +106,14 @@
           "primaryKey": false,
           "notNull": false
         },
+        "role": {
+          "name": "role",
+          "type": "enum_users_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admin'"
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp(3) with time zone",
@@ -19093,6 +19101,14 @@
         "fr"
       ]
     },
+    "public.enum_users_role": {
+      "name": "enum_users_role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "customer"
+      ]
+    },
     "public.enum_pages_status": {
       "name": "enum_pages_status",
       "schema": "public",
@@ -19284,6 +19300,6 @@
     "tables": {},
     "columns": {}
   },
-  "id": "823c26ed-56bd-4e69-80df-e34576e4134e",
+  "id": "b91a9ef6-d4e0-4616-a1c9-7abae9ce3899",
   "prevId": "00000000-0000-0000-0000-000000000000"
 }
