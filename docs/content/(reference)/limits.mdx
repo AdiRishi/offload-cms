@@ -29,6 +29,15 @@ A user created in Node, through `vite dev`, the Payload CLI, or a seed script, g
 
 Local workerd doesn't enforce the limit, so `vite preview` logs in a user whose hash a deployed Worker rejects. The limit exists only in Cloudflare's deployed runtime: the open-source workerd that `vite preview` runs has no such check, and Offload has no supported way to add one.
 
+## TypeScript
+
+`wrangler types` declares the Workers runtime types as globals. They include HTMLRewriter's `Element`, `Comment`, and `Text` interfaces, which merge with the DOM interfaces of the same names. In client components, two kinds of DOM call fail to type-check:
+
+- `append()`, `prepend()`, `before()`, and `after()` accept only `string | ReadableStream | Response`, so passing a DOM node fails.
+- `remove()`, `setAttribute()`, and `removeAttribute()` return an `Element`. A `useEffect` cleanup written as `() => script.remove()` fails, because a cleanup must return nothing.
+
+Use `appendChild()`, `insertBefore()`, or `replaceChildren()` to add nodes, and write the cleanup with braces: `() => { script.remove(); }`. A separate TypeScript project for client components doesn't avoid the clash in a TanStack Start site. A route imports its client components and, through its server functions, the Payload config, which needs the Workers types, so all of them end up in one program.
+
 ## Not tested
 
 The e2e suite doesn't cover these on Workers:

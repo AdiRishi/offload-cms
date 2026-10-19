@@ -122,7 +122,7 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
     PAYLOAD_SECRET=a-long-random-string
     ```
 
-    Run `pnpm wrangler types` to generate the `Env` type for these bindings.
+    Run `pnpm wrangler types` to generate the `Env` type for these bindings. The generated file also declares Workers runtime types that clash with a few DOM methods in client components. [Known limits](/limits#typescript) lists them.
 
   </Step>
   <Step title="Write the Payload config">
