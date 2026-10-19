@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["../.oxlintrc.json"],
+  "ignorePatterns": [
+    "dist/**",
+    ".wrangler/**",
+    "src/migrations/**",
+    "src/payload-types.ts",
+    "src/routeTree.gen.ts",
+    "src/app/_payload/importMap.js",
+    "worker-configuration.d.ts"
+  ]
+}

@@ -16,7 +16,7 @@ The Postgres run needs Docker. CI runs both on every pull request and every push
 
 1. Start a registry that exists only for the run, and publish the working tree to it.
 2. Install `e2e` from that registry. Every run publishes the same version, so the install starts from an empty `node_modules`.
-3. Type-check `e2e`.
+3. Type-check and lint `e2e`. The type-aware lint rules need `e2e`'s dependencies, so `pnpm check` skips `e2e`. `e2e/.oxlintrc.json` extends the root config, and the root `pnpm lint` passes `--disable-nested-config` so that it doesn't read it.
 4. Reset the local D1 and R2 state, or the Postgres schema. Apply the migrations, create a page, drop the database with `migrate:fresh`, roll back every migration with `migrate:down`, and apply them again. Then build the Worker.
 5. Serve the build with `vite preview`, create the first admin user through the admin panel, and run the suite.
 6. Start `vite dev`, edit the Payload config and a collection, and check that Payload keeps working after each reload. The check restores the files it edits. `playwright.dev.config.ts` runs this check after the main suite, because two local processes on one D1 database fail.
