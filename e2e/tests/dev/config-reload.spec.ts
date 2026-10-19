@@ -5,6 +5,7 @@ import type { Page } from "@playwright/test";
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 
 import { lexical } from "../data";
@@ -25,14 +26,19 @@ test.afterEach(() => {
   originals.clear();
 });
 
-/** The workerd processes this site's node_modules started: one per Wrangler platform proxy. */
-const workerdProcesses = () => {
-  const nodeModules = path.resolve("node_modules");
-  return execFileSync("ps", ["-A", "-o", "command="], { encoding: "utf8" })
+// The workerd binary that the site's Wrangler starts, resolved the way Miniflare resolves it,
+// wherever the package manager installed it.
+const fromSite = createRequire(path.resolve("package.json"));
+const fromMiniflare = createRequire(
+  createRequire(fromSite.resolve("wrangler/package.json")).resolve("miniflare"),
+);
+const workerdBinary: string = fromMiniflare("workerd").default;
+
+/** The running processes of that workerd binary: one per Wrangler platform proxy. */
+const workerdProcesses = () =>
+  execFileSync("ps", ["-A", "-o", "command="], { encoding: "utf8" })
     .split("\n")
-    .filter((command) => command.startsWith(nodeModules) && command.includes("/bin/workerd "))
-    .length;
-};
+    .filter((command) => command.startsWith(`${workerdBinary} `)).length;
 
 /** Polls a path until it returns 200. A request that hangs counts as a failed attempt. */
 const expectOk = async (page: Page, url: string) => {
@@ -74,6 +80,7 @@ test("Payload keeps working across config reloads", async ({ api, page }) => {
   await expectOk(page, "/api/users/init");
   await expectConfigLevelBlockWorks(api, page);
   const proxies = workerdProcesses();
+  expect(proxies).toBeGreaterThan(0);
 
   await test.step("edit the Payload config", async () => {
     edit(

@@ -69,12 +69,35 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `wrangler.jsonc`                               | D1, R2, Images, and Email Service by default. The `postgres` environment binds Hyperdrive to the Docker Postgres in `docker-compose.yml`. |
 | `src/payload.config.ts`                        | Picks the database adapter from the binding that exists                                                                                   |
-| `src/migrations/d1`, `src/migrations/postgres` | One migration history per database. After a schema change, run `pnpm payload migrate:create`, then again with `CLOUDFLARE_ENV=postgres`.  |
+| `src/migrations/d1`, `src/migrations/postgres` | One `initial` migration per database. See [Change the schema](#change-the-schema).                                                        |
 | `src/jobs.ts`                                  | A job task, a workflow, and two endpoints that queue work for the Cron Trigger                                                            |
 | `src/collections/FieldTypes.ts`                | Every field type that works on both SQLite and Postgres                                                                                   |
 | `src/blocks.ts`                                | A block defined in the config's `blocks`, which pages and the posts editor reference by slug                                              |
 
 The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs collection to REST, and a real site should keep it closed.
+
+## Change the schema
+
+Each run of the suite starts from an empty database, so `e2e` keeps exactly one migration per database: `src/migrations/d1/*_initial` and `src/migrations/postgres/*_initial`. A schema change rewrites that migration in place. It never adds a migration file, so a pull request's diff shows only the schema change.
+
+drizzle-kit writes the new migration, which keeps the SQL, indexes, foreign keys, and the order of D1's `DROP TABLE` statements correct. For each database, run these steps from `e2e`:
+
+1. Move every file in `src/migrations/d1` to a temporary directory.
+2. Generate the whole schema. With no earlier snapshot in the directory, drizzle-kit compares the schema with an empty database:
+
+   ```bash
+   pnpm payload migrate:create initial
+   ```
+
+3. Copy the generated `.ts` and `.json` files over the `_initial` files in the temporary directory, and keep the old file names.
+4. Delete the generated files, including the new `index.ts`, and move the files from the temporary directory back.
+5. Check that the migration matches the schema. This command prints `Cancelled.` and creates no file:
+
+   ```bash
+   pnpm payload migrate:create --skip-empty
+   ```
+
+For Postgres, use `src/migrations/postgres` and prefix each command with `CLOUDFLARE_ENV=postgres`. `migrate:create` doesn't connect to the database, so these steps don't need Docker. `.gitattributes` marks the `.json` snapshots as generated, so GitHub collapses them in diffs.
 
 ## Test on Cloudflare
 

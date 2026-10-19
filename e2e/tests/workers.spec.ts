@@ -80,6 +80,7 @@ test("an editor updates and deletes an image with every variant", async ({ api }
   expect(await r2Statuses(api, objectKeys)).toEqual(objectKeys.map(() => 200));
 
   expect(await api.update("media", media.id, { alt: "After" })).toMatchObject({ alt: "After" });
+  expect(await r2Statuses(api, objectKeys)).toEqual(objectKeys.map(() => 200));
 
   const deleted = await api.request.delete(`/api/media/${media.id}`, {
     headers: { Authorization: `JWT ${api.token}` },

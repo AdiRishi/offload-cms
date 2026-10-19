@@ -628,6 +628,101 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "pages_blocks_pull_quote": {
+      "name": "pages_blocks_pull_quote",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_path": {
+          "name": "_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote": {
+          "name": "quote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "attribution": {
+          "name": "attribution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "block_name": {
+          "name": "block_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "pages_blocks_pull_quote_order_idx": {
+          "name": "pages_blocks_pull_quote_order_idx",
+          "columns": [
+            "_order"
+          ],
+          "isUnique": false
+        },
+        "pages_blocks_pull_quote_parent_id_idx": {
+          "name": "pages_blocks_pull_quote_parent_id_idx",
+          "columns": [
+            "_parent_id"
+          ],
+          "isUnique": false
+        },
+        "pages_blocks_pull_quote_path_idx": {
+          "name": "pages_blocks_pull_quote_path_idx",
+          "columns": [
+            "_path"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "pages_blocks_pull_quote_parent_id_fk": {
+          "name": "pages_blocks_pull_quote_parent_id_fk",
+          "tableFrom": "pages_blocks_pull_quote",
+          "tableTo": "pages",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "pages_breadcrumbs": {
       "name": "pages_breadcrumbs",
       "columns": {
@@ -1418,6 +1513,108 @@
         "_pages_v_blocks_content_parent_id_fk": {
           "name": "_pages_v_blocks_content_parent_id_fk",
           "tableFrom": "_pages_v_blocks_content",
+          "tableTo": "_pages_v",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "_pages_v_blocks_pull_quote": {
+      "name": "_pages_v_blocks_pull_quote",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "_path": {
+          "name": "_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quote": {
+          "name": "quote",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "attribution": {
+          "name": "attribution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "_uuid": {
+          "name": "_uuid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "block_name": {
+          "name": "block_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "_pages_v_blocks_pull_quote_order_idx": {
+          "name": "_pages_v_blocks_pull_quote_order_idx",
+          "columns": [
+            "_order"
+          ],
+          "isUnique": false
+        },
+        "_pages_v_blocks_pull_quote_parent_id_idx": {
+          "name": "_pages_v_blocks_pull_quote_parent_id_idx",
+          "columns": [
+            "_parent_id"
+          ],
+          "isUnique": false
+        },
+        "_pages_v_blocks_pull_quote_path_idx": {
+          "name": "_pages_v_blocks_pull_quote_path_idx",
+          "columns": [
+            "_path"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "_pages_v_blocks_pull_quote_parent_id_fk": {
+          "name": "_pages_v_blocks_pull_quote_parent_id_fk",
+          "tableFrom": "_pages_v_blocks_pull_quote",
           "tableTo": "_pages_v",
           "columnsFrom": [
             "_parent_id"
@@ -3377,6 +3574,342 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "variants_square_url": {
+          "name": "variants_square_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square_width": {
+          "name": "variants_square_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square_height": {
+          "name": "variants_square_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square_mime_type": {
+          "name": "variants_square_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square_filesize": {
+          "name": "variants_square_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square_filename": {
+          "name": "variants_square_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square_prefix": {
+          "name": "variants_square_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_square__objectkey": {
+          "name": "variants_square__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_url": {
+          "name": "variants_small_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_width": {
+          "name": "variants_small_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_height": {
+          "name": "variants_small_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_mime_type": {
+          "name": "variants_small_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_filesize": {
+          "name": "variants_small_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_filename": {
+          "name": "variants_small_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small_prefix": {
+          "name": "variants_small_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_small__objectkey": {
+          "name": "variants_small__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_url": {
+          "name": "variants_card_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_width": {
+          "name": "variants_card_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_height": {
+          "name": "variants_card_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_mime_type": {
+          "name": "variants_card_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_filesize": {
+          "name": "variants_card_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_filename": {
+          "name": "variants_card_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card_prefix": {
+          "name": "variants_card_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_card__objectkey": {
+          "name": "variants_card__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_url": {
+          "name": "variants_medium_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_width": {
+          "name": "variants_medium_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_height": {
+          "name": "variants_medium_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_mime_type": {
+          "name": "variants_medium_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_filesize": {
+          "name": "variants_medium_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_filename": {
+          "name": "variants_medium_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium_prefix": {
+          "name": "variants_medium_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_medium__objectkey": {
+          "name": "variants_medium__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_url": {
+          "name": "variants_large_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_width": {
+          "name": "variants_large_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_height": {
+          "name": "variants_large_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_mime_type": {
+          "name": "variants_large_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_filesize": {
+          "name": "variants_large_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_filename": {
+          "name": "variants_large_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large_prefix": {
+          "name": "variants_large_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_large__objectkey": {
+          "name": "variants_large__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_url": {
+          "name": "variants_og_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_width": {
+          "name": "variants_og_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_height": {
+          "name": "variants_og_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_mime_type": {
+          "name": "variants_og_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_filesize": {
+          "name": "variants_og_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_filename": {
+          "name": "variants_og_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og_prefix": {
+          "name": "variants_og_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "variants_og__objectkey": {
+          "name": "variants_og__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -3419,6 +3952,48 @@
           "name": "media_variants_thumbnail_variants_thumbnail_filename_idx",
           "columns": [
             "variants_thumbnail_filename"
+          ],
+          "isUnique": false
+        },
+        "media_variants_square_variants_square_filename_idx": {
+          "name": "media_variants_square_variants_square_filename_idx",
+          "columns": [
+            "variants_square_filename"
+          ],
+          "isUnique": false
+        },
+        "media_variants_small_variants_small_filename_idx": {
+          "name": "media_variants_small_variants_small_filename_idx",
+          "columns": [
+            "variants_small_filename"
+          ],
+          "isUnique": false
+        },
+        "media_variants_card_variants_card_filename_idx": {
+          "name": "media_variants_card_variants_card_filename_idx",
+          "columns": [
+            "variants_card_filename"
+          ],
+          "isUnique": false
+        },
+        "media_variants_medium_variants_medium_filename_idx": {
+          "name": "media_variants_medium_variants_medium_filename_idx",
+          "columns": [
+            "variants_medium_filename"
+          ],
+          "isUnique": false
+        },
+        "media_variants_large_variants_large_filename_idx": {
+          "name": "media_variants_large_variants_large_filename_idx",
+          "columns": [
+            "variants_large_filename"
+          ],
+          "isUnique": false
+        },
+        "media_variants_og_variants_og_filename_idx": {
+          "name": "media_variants_og_variants_og_filename_idx",
+          "columns": [
+            "variants_og_filename"
           ],
           "isUnique": false
         }
@@ -3866,6 +4441,342 @@
           "notNull": false,
           "autoincrement": false
         },
+        "version_variants_square_url": {
+          "name": "version_variants_square_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square_width": {
+          "name": "version_variants_square_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square_height": {
+          "name": "version_variants_square_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square_mime_type": {
+          "name": "version_variants_square_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square_filesize": {
+          "name": "version_variants_square_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square_filename": {
+          "name": "version_variants_square_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square_prefix": {
+          "name": "version_variants_square_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_square__objectkey": {
+          "name": "version_variants_square__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_url": {
+          "name": "version_variants_small_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_width": {
+          "name": "version_variants_small_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_height": {
+          "name": "version_variants_small_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_mime_type": {
+          "name": "version_variants_small_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_filesize": {
+          "name": "version_variants_small_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_filename": {
+          "name": "version_variants_small_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small_prefix": {
+          "name": "version_variants_small_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_small__objectkey": {
+          "name": "version_variants_small__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_url": {
+          "name": "version_variants_card_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_width": {
+          "name": "version_variants_card_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_height": {
+          "name": "version_variants_card_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_mime_type": {
+          "name": "version_variants_card_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_filesize": {
+          "name": "version_variants_card_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_filename": {
+          "name": "version_variants_card_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card_prefix": {
+          "name": "version_variants_card_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_card__objectkey": {
+          "name": "version_variants_card__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_url": {
+          "name": "version_variants_medium_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_width": {
+          "name": "version_variants_medium_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_height": {
+          "name": "version_variants_medium_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_mime_type": {
+          "name": "version_variants_medium_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_filesize": {
+          "name": "version_variants_medium_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_filename": {
+          "name": "version_variants_medium_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium_prefix": {
+          "name": "version_variants_medium_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_medium__objectkey": {
+          "name": "version_variants_medium__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_url": {
+          "name": "version_variants_large_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_width": {
+          "name": "version_variants_large_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_height": {
+          "name": "version_variants_large_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_mime_type": {
+          "name": "version_variants_large_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_filesize": {
+          "name": "version_variants_large_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_filename": {
+          "name": "version_variants_large_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large_prefix": {
+          "name": "version_variants_large_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_large__objectkey": {
+          "name": "version_variants_large__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_url": {
+          "name": "version_variants_og_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_width": {
+          "name": "version_variants_og_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_height": {
+          "name": "version_variants_og_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_mime_type": {
+          "name": "version_variants_og_mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_filesize": {
+          "name": "version_variants_og_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_filename": {
+          "name": "version_variants_og_filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og_prefix": {
+          "name": "version_variants_og_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "version_variants_og__objectkey": {
+          "name": "version_variants_og__objectkey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -3930,6 +4841,48 @@
           "name": "_media_v_version_variants_thumbnail_version_variants_thu_idx",
           "columns": [
             "version_variants_thumbnail_filename"
+          ],
+          "isUnique": false
+        },
+        "_media_v_version_variants_square_version_variants_square_idx": {
+          "name": "_media_v_version_variants_square_version_variants_square_idx",
+          "columns": [
+            "version_variants_square_filename"
+          ],
+          "isUnique": false
+        },
+        "_media_v_version_variants_small_version_variants_small_f_idx": {
+          "name": "_media_v_version_variants_small_version_variants_small_f_idx",
+          "columns": [
+            "version_variants_small_filename"
+          ],
+          "isUnique": false
+        },
+        "_media_v_version_variants_card_version_variants_card_fil_idx": {
+          "name": "_media_v_version_variants_card_version_variants_card_fil_idx",
+          "columns": [
+            "version_variants_card_filename"
+          ],
+          "isUnique": false
+        },
+        "_media_v_version_variants_medium_version_variants_medium_idx": {
+          "name": "_media_v_version_variants_medium_version_variants_medium_idx",
+          "columns": [
+            "version_variants_medium_filename"
+          ],
+          "isUnique": false
+        },
+        "_media_v_version_variants_large_version_variants_large_f_idx": {
+          "name": "_media_v_version_variants_large_version_variants_large_f_idx",
+          "columns": [
+            "version_variants_large_filename"
+          ],
+          "isUnique": false
+        },
+        "_media_v_version_variants_og_version_variants_og_filenam_idx": {
+          "name": "_media_v_version_variants_og_version_variants_og_filenam_idx",
+          "columns": [
+            "version_variants_og_filename"
           ],
           "isUnique": false
         },
