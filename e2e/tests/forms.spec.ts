@@ -4,7 +4,7 @@
 import type { Page } from "@playwright/test";
 
 import { lexical } from "./data";
-import { expect, type PayloadApi, test, unique } from "./fixtures";
+import { callServerFn, expect, type PayloadApi, test, unique } from "./fixtures";
 
 const visit = async (page: Page, path: string) => {
   await page.goto(path);
@@ -17,6 +17,38 @@ const submissionsOf = async (api: PayloadApi, form: string | number) =>
   (await api.find("form-submissions", `?where[form][equals]=${form}&depth=0`)).docs;
 
 test.use({ storageState: { cookies: [], origins: [] } });
+
+const submitForm = { file: "src/server/forms.functions.ts", name: "submitForm" };
+// Cloudflare's testing secret passes this token.
+const turnstileToken = "XXXX.DUMMY.TOKEN.XXXX";
+
+/** A published page that offers a form with a required email and an optional topic. */
+const offeredForm = async (api: PayloadApi) => {
+  const form = await api.create("forms", {
+    confirmationMessage: lexical(["Thanks."]),
+    confirmationType: "message",
+    fields: [
+      { blockType: "email", label: "Email", name: "email", required: true },
+      {
+        blockType: "select",
+        label: "Topic",
+        name: "topic",
+        options: [
+          { label: "Courses", value: "courses" },
+          { label: "Retreats", value: "retreats" },
+        ],
+      },
+    ],
+    title: unique("Crafted"),
+  });
+  await api.create("pages", {
+    _status: "published",
+    layout: [{ blockType: "form", form: form.id }],
+    slug: unique("crafted-page"),
+    title: "Offers a form",
+  });
+  return form;
+};
 
 test("a visitor sends a form built in the form builder", async ({ api, page }) => {
   const form = await api.create("forms", {
@@ -172,4 +204,80 @@ test("visitors can't create form submissions through the API", async ({ anonymou
     data: { form: form.id, submissionData: [{ field: "email", value: "spam@example.com" }] },
   });
   expect(response.status()).toBe(403);
+});
+
+test.describe("submitForm called directly", () => {
+  test("drops a key that the form has no field for", async ({ anonymous, api }) => {
+    const form = await offeredForm(api);
+
+    const outcome = await callServerFn(anonymous.request, submitForm, {
+      form: form.id,
+      turnstileToken,
+      values: { email: "ada@example.com", isAdmin: true, topic: "courses" },
+    });
+
+    expect(outcome).toEqual({ result: { status: "sent" } });
+    const [submission] = await submissionsOf(api, form.id);
+    expect(submission?.submissionData).toEqual([
+      expect.objectContaining({ field: "email", value: "ada@example.com" }),
+      expect.objectContaining({ field: "topic", value: "courses" }),
+    ]);
+  });
+
+  test("refuses a select value that the form doesn't offer", async ({ anonymous, api }) => {
+    const form = await offeredForm(api);
+
+    const outcome = await callServerFn(anonymous.request, submitForm, {
+      form: form.id,
+      turnstileToken,
+      values: { email: "ada@example.com", topic: "<script>" },
+    });
+
+    expect(outcome).toEqual({
+      result: { errors: { topic: "Choose one of the options." }, status: "invalid" },
+    });
+    expect(await submissionsOf(api, form.id)).toEqual([]);
+  });
+
+  test("refuses an empty required field", async ({ anonymous, api }) => {
+    const form = await offeredForm(api);
+
+    const outcome = await callServerFn(anonymous.request, submitForm, {
+      form: form.id,
+      turnstileToken,
+      values: { email: "  ", topic: "courses" },
+    });
+
+    expect(outcome).toEqual({
+      result: { errors: { email: "This field is required." }, status: "invalid" },
+    });
+    expect(await submissionsOf(api, form.id)).toEqual([]);
+  });
+
+  test("refuses a form that no page offers", async ({ anonymous, api }) => {
+    const form = await api.create("forms", {
+      confirmationMessage: lexical(["Thanks."]),
+      confirmationType: "message",
+      fields: [{ blockType: "email", label: "Email", name: "email", required: true }],
+      title: unique("Never shown"),
+    });
+
+    const outcome = await callServerFn(anonymous.request, submitForm, {
+      form: form.id,
+      turnstileToken,
+      values: { email: "ada@example.com" },
+    });
+
+    expect(outcome).toEqual({ result: { status: "refused" } });
+    expect(await submissionsOf(api, form.id)).toEqual([]);
+  });
+
+  test("answers input it can't parse with a generic error", async ({ anonymous }) => {
+    const outcome = await callServerFn(anonymous.request, submitForm, {
+      form: { id: 1 },
+      values: "everything",
+    });
+
+    expect(outcome).toEqual({ error: new Error("The server could not complete the request.") });
+  });
 });
