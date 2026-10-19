@@ -71,6 +71,11 @@ const text = (field: InputField, rule: z.ZodType<string, string>) => {
         .optional();
 };
 
+const countryCodes = countries.map((country) => country.value);
+const countryNames: ReadonlyMap<string, string> = new Map(
+  countries.map((country) => [country.value, country.label]),
+);
+
 const fieldSchema = (
   field: InputField,
 ): z.ZodType<string | boolean | undefined, string | boolean | undefined> => {
@@ -78,7 +83,7 @@ const fieldSchema = (
     case "checkbox":
       return field.required ? z.literal(true, required) : z.boolean().optional();
     case "country":
-      return text(field, z.enum(countries, "Choose a country from the list."));
+      return text(field, z.enum(countryCodes, "Choose a country from the list."));
     case "email":
       return text(field, z.email("Enter a valid email address.").max(254));
     case "number":
@@ -124,14 +129,17 @@ export const defaultValues = (fields: readonly InputField[]): FormValues =>
   );
 
 /**
- * Turns validated values into form-builder submission rows. An optional field left empty or left
- * out has no row, and a checkbox answers `Yes` or `No`.
+ * Turns validated values into form-builder submission rows, which the admin and the form's emails
+ * show as they are. An optional field left empty or left out has no row, a checkbox answers `Yes`
+ * or `No`, and a country answers with its name and code, such as `Mauritius (MU)`.
  */
 export const submissionData = (fields: readonly InputField[], values: FormValues) =>
   fields.flatMap((field) => {
     const value = values[field.name];
     if (typeof value === "boolean") return [{ field: field.name, value: value ? "Yes" : "No" }];
-    return value ? [{ field: field.name, value }] : [];
+    if (!value) return [];
+    const country = field.blockType === "country" ? countryNames.get(value) : undefined;
+    return [{ field: field.name, value: country ? `${country} (${value})` : value }];
   });
 
 /**

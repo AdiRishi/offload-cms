@@ -117,10 +117,8 @@ function SelectField({
   );
 }
 
-const countryOptions = countries.map((country) => ({ label: country, value: country }));
-
 function CountryField(props: FieldProps) {
-  return <SelectField {...props} placeholder="Choose a country" options={countryOptions} />;
+  return <SelectField {...props} placeholder="Choose a country" options={countries} />;
 }
 
 function CheckboxField({ label, required }: FieldProps) {

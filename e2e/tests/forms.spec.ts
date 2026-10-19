@@ -69,7 +69,7 @@ test("a visitor sends a form built in the form builder", async ({ api, page }) =
       { field: "name", value: "Asha Ramdin" },
       { field: "email", value: "asha@example.mu" },
       { field: "topic", value: "retreats" },
-      { field: "country", value: "Mauritius" },
+      { field: "country", value: "Mauritius (MU)" },
       { field: "message", value: "Is there space on the next retreat?" },
       { field: "consent", value: "Yes" },
     ],

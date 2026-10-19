@@ -33,7 +33,7 @@ Returns the Zod schema that a form's values must match, with one key per field `
 | Block      | Value     | Rule                                       | Message when the rule fails       |
 | ---------- | --------- | ------------------------------------------ | --------------------------------- |
 | `checkbox` | `boolean` | If `required`, must be `true`              | This field is required.           |
-| `country`  | `string`  | One of `countries`                         | Choose a country from the list.   |
+| `country`  | `string`  | The `value` of one of `countries`          | Choose a country from the list.   |
 | `email`    | `string`  | An email address of at most 254 characters | Enter a valid email address.      |
 | `number`   | `string`  | Digits, with an optional sign and decimals | Enter a number.                   |
 | `select`   | `string`  | One of the field's option values           | Choose one of the options.        |
@@ -57,7 +57,11 @@ Returns each field's `defaultValue`, or an empty value, as the values a form sta
 submissionData(fields: readonly InputField[], values: FormValues): { field: string; value: string }[]
 ```
 
-Turns validated values into the rows of a submission's `submissionData` field. An optional field left empty or left out has no row. A checkbox answers `"Yes"` or `"No"`.
+Turns validated values into the rows of a submission's `submissionData` field. The admin and the form builder's emails show each row's value as it is, so the rows are for people to read:
+
+- An optional field left empty or left out has no row.
+- A checkbox answers `"Yes"` or `"No"`.
+- A country answers with its name and its ISO 3166-1 alpha-2 code, such as `"Mauritius (MU)"`. The name makes an email readable, and the code identifies the country after its English name changes.
 
 ## isInputField()
 
@@ -81,7 +85,7 @@ To send more, such as the page that a form is on, extend it: `submissionInput.ex
 
 ## countries
 
-A readonly array of ISO 3166-1 countries by their English short name. A `country` field submits one of these names.
+A readonly array of `{ value, label }` for every ISO 3166-1 country, sorted by `label`. `value` is the alpha-2 code, such as `"MU"`, and `label` is the English short name, such as `"Mauritius"`. A `country` field submits the code, and `submissionData()` saves `"Mauritius (MU)"`. Payload's website template submits the code too, but saves it alone.
 
 ## Types
 

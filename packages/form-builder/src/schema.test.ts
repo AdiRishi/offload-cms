@@ -41,7 +41,7 @@ const complete = {
   phone: "",
   guests: "2",
   heardFrom: "social",
-  country: "Mauritius",
+  country: "MU",
   region: "",
   notes: "",
   consent: true,
@@ -60,7 +60,7 @@ test("turns a valid submission into submission rows, leaving out empty optional 
     { field: "email", value: "asha@example.mu" },
     { field: "guests", value: "2" },
     { field: "heardFrom", value: "social" },
-    { field: "country", value: "Mauritius" },
+    { field: "country", value: "Mauritius (MU)" },
     { field: "consent", value: "Yes" },
   ]);
 });
@@ -72,7 +72,7 @@ test("accepts a submission that leaves out its optional fields", () => {
   assert.deepEqual(submissionData(fields, result), [
     { field: "fullName", value: "Asha Ramdin" },
     { field: "email", value: "asha@example.mu" },
-    { field: "country", value: "Mauritius" },
+    { field: "country", value: "Mauritius (MU)" },
     { field: "consent", value: "Yes" },
   ]);
 });
@@ -96,7 +96,7 @@ test("rejects values the form does not offer", () => {
     email: "asha@",
     guests: "two",
     heardFrom: "billboard",
-    country: "Atlantis",
+    country: "Mauritius",
   });
 
   assert.deepEqual(errors, {
