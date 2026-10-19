@@ -75,3 +75,33 @@ test("a path listed in Redirects sends visitors to the page, keeping the query s
   await expect(visitor.getByRole("heading", { level: 1 })).toHaveText("Moved here");
   await visitor.close();
 });
+
+test("a client-side link to a redirected path follows a relative custom URL", async ({
+  api,
+  baseURL,
+  browser,
+}) => {
+  const slug = unique("relative-target");
+  await api.create("pages", { _status: "published", slug, title: "Relative target" });
+  const from = `/${unique("relative-old")}`;
+  await api.create("redirects", { from, to: { type: "custom", url: slug } });
+  const start = unique("relative-start");
+  await api.create("pages", {
+    _status: "published",
+    layout: [{ blockType: "cta", href: from, label: "Old address" }],
+    slug: start,
+    title: "Start here",
+  });
+
+  const visitor = await browser.newPage({ baseURL, storageState: { cookies: [], origins: [] } });
+  await visitor.goto(`/${start}`);
+  await expect(visitor.locator("main[data-hydrated]")).toBeVisible();
+  // The router loads the page through its server function, not with a page load of the old path.
+  await Promise.all([
+    visitor.waitForRequest((request) => new URL(request.url()).pathname.startsWith("/_serverFn/")),
+    visitor.getByRole("link", { name: "Old address" }).click(),
+  ]);
+  await expect(visitor).toHaveURL(`/${slug}`);
+  await expect(visitor.getByRole("heading", { level: 1 })).toHaveText("Relative target");
+  await visitor.close();
+});

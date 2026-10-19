@@ -103,10 +103,12 @@ export const createPayloadHelpers = ({ getConfig, documentPath }: PayloadHelpers
     if (href === undefined || href === pathname) throw notFound();
 
     // A page load requests the path itself. A client-side navigation calls the server function at
-    // its own address, whose query string is the function's input, not the visitor's.
+    // its own address, whose query string is the function's input, not the visitor's. A relative
+    // URL resolves against the requested path, as it would on the page.
     const url = getRequestUrl();
-    const target = new URL(href, url);
-    const requested = withoutTrailingSlash(new URL(bare, url).pathname);
+    const page = new URL(pathname, url);
+    const target = new URL(href, page);
+    const requested = withoutTrailingSlash(page.pathname);
     if (withoutTrailingSlash(url.pathname) === requested) {
       for (const [name, entry] of url.searchParams) target.searchParams.append(name, entry);
     }

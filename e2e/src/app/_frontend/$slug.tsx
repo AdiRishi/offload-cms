@@ -1,5 +1,5 @@
 import { hideServerErrors, LivePreviewListener } from "@adirishi/offload-tanstack";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { renderServerComponent } from "@tanstack/react-start/rsc";
 
@@ -89,8 +89,12 @@ export const Route = createFileRoute("/_frontend/$slug")({
 
 function PageView() {
   const page = Route.useLoaderData();
+  const hydrated = useHydrated();
   return (
-    <main className="mx-auto my-16 flex max-w-2xl flex-col gap-6 px-4">
+    <main
+      data-hydrated={hydrated || undefined}
+      className="mx-auto my-16 flex max-w-2xl flex-col gap-6 px-4"
+    >
       {page.draft && <LivePreviewListener />}
       <nav aria-label="Breadcrumb">{page.breadcrumbs.join(" / ")}</nav>
       <h1 className="text-3xl font-semibold">{page.title}</h1>
@@ -98,9 +102,9 @@ function PageView() {
         if (block.kind === "quote") return <blockquote key={block.id}>{block.text}</blockquote>;
         if (block.kind === "cta") {
           return (
-            <a href={block.href} key={block.id}>
+            <Link to={block.href} key={block.id}>
               {block.label}
-            </a>
+            </Link>
           );
         }
         if (block.kind === "pullQuote") {

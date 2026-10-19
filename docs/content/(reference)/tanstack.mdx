@@ -89,7 +89,7 @@ Call it when a route has no page for a path. It looks up `pathname` in the `redi
 | A redirect to a document that a visitor can't read                       | Throws TanStack Router's `notFound()`.              |
 | A redirect whose target equals `pathname`, or no match                   | Throws `notFound()`.                                |
 
-The redirect keeps the query string of a page load. On a client-side navigation, the server function's own query string is its input, so the redirect drops it. The status code is the redirect's `type` field when the plugin's `redirectTypes` option adds that field, and otherwise 301.
+A relative custom URL, such as `about`, resolves against `pathname`, as a link on that page would, on a page load and on a client-side navigation. The redirect keeps the query string of a page load. On a client-side navigation, the server function's own query string is its input, so the redirect drops it. The status code is the redirect's `type` field when the plugin's `redirectTypes` option adds that field, and otherwise 301.
 
 ## hideServerErrors
 
