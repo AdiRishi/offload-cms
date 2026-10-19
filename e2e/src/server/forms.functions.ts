@@ -1,3 +1,4 @@
+import { getBindings } from "@adirishi/offload-cloudflare";
 import { submissionInput } from "@adirishi/offload-form-builder";
 import { saveFormSubmission } from "@adirishi/offload-form-builder/server";
 import { hideServerErrors } from "@adirishi/offload-tanstack";
@@ -14,8 +15,7 @@ export const submitForm = createServerFn({ method: "POST" })
   .middleware([hideServerErrors])
   .validator(submissionInput)
   .handler(async ({ data }) => {
-    const { env } = await import("@payload-config");
-    const payload = await getVisitorPayload();
+    const [env, payload] = await Promise.all([getBindings(), getVisitorPayload()]);
     return saveFormSubmission({
       submission: data,
       payload,
