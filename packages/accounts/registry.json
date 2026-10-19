@@ -84,16 +84,16 @@
       ]
     },
     {
-      "name": "verify-email-result",
+      "name": "verify-email-form",
       "type": "registry:component",
-      "title": "Verify email result",
-      "description": "Shows the result of verifyEmail for the link in a verification email.",
-      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. Pass it the result of verifyEmail from @/server/account.functions, which you write and call in the /verify-email route's loader. It links to /login. See https://adirishi.github.io/offload-cms/customer-accounts",
+      "title": "Verify email form",
+      "description": "Verifies the email of a verification link when the visitor presses a button, so mail scanners that open links verify nothing.",
+      "docs": "Install @adirishi/offload-accounts at the version in this item's meta. The form calls verifyEmail from @/server/account.functions, which you write. Render it on the /verify-email page with the link's token. It links to /login. It uses the shadcn components button and spinner, which it doesn't install. Add the ones the site lacks with shadcn add, without --overwrite. See https://adirishi.github.io/offload-cms/customer-accounts",
       "files": [
         {
-          "path": "registry/accounts/verify-email-result.tsx",
+          "path": "registry/accounts/verify-email-form.tsx",
           "type": "registry:component",
-          "target": "@components/accounts/verify-email-result.tsx"
+          "target": "@components/accounts/verify-email-form.tsx"
         }
       ]
     },

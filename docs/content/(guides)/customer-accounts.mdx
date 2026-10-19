@@ -222,7 +222,7 @@ The site needs:
     The forms import `button`, `checkbox`, `field`, `input`, `spinner`, and `textarea` from the site's own `src/components/ui`, and the account menu imports `button` and `dropdown-menu`. The registry doesn't install them, so the CLI never replaces the site's copies. Add the ones the site doesn't have first, such as `pnpm dlx shadcn@latest add dropdown-menu`. Then add the items:
 
     ```bash
-    pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/change-password-form @offload/verify-email-result @offload/account-menu
+    pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/change-password-form @offload/verify-email-form @offload/account-menu
     ```
 
     The CLI copies the components into `src/components/accounts/`, with the shared form fields in `src/components/form-fields.tsx` and the Turnstile widget. [The registry reference](/accounts#registry) lists what each item installs.
@@ -453,35 +453,31 @@ The site needs:
 
   </Step>
   <Step title="Add the email verification page">
-    The verification email links to `/verify-email?token=<token>`. The route's loader verifies the token, and the page shows the result:
+    The verification email links to `/verify-email?token=<token>`. The page verifies the token only when the visitor presses **Confirm email address**, because mail scanners open the links in emails, and a page that verified on load would verify accounts that nobody confirmed:
 
     ```tsx src/app/_frontend/verify-email.tsx
     import { createFileRoute } from "@tanstack/react-router";
     import { z } from "zod";
 
-    import { VerifyEmailResult } from "@/components/accounts/verify-email-result";
-    import { verifyEmail } from "@/server/account.functions";
+    import { VerifyEmailForm } from "@/components/accounts/verify-email-form";
 
     export const Route = createFileRoute("/_frontend/verify-email")({
       validateSearch: z.object({ token: z.string().catch("") }),
-      loaderDeps: ({ search }) => search,
-      loader: ({ deps }) =>
-        deps.token ? verifyEmail({ data: { token: deps.token } }) : { status: "invalid" as const },
       component: VerifyEmailPage,
     });
 
     function VerifyEmailPage() {
-      const result = Route.useLoaderData();
+      const { token } = Route.useSearch();
       return (
         <main>
           <h1>Confirm your email address</h1>
-          <VerifyEmailResult result={result} />
+          <VerifyEmailForm token={token} />
         </main>
       );
     }
     ```
 
-    Verifying doesn't log the visitor in. The result links to `/login`.
+    The form calls `verifyEmail`, a POST server function. Verifying doesn't log the visitor in. The result links to `/login`.
 
   </Step>
 </Steps>
@@ -490,7 +486,7 @@ The site needs:
 
 1. Run `pnpm vite build` and `pnpm vite preview`, and open `/sign-up` in a private window.
 2. Sign up. The form asks you to check your email.
-3. Open the local email explorer at `/cdn-cgi/local/explorer`, and follow the link in "Confirm your email address". The page says the address is confirmed.
+3. Open the local email explorer at `/cdn-cgi/local/explorer`, and follow the link in "Confirm your email address", and press **Confirm email address**. The page says the email is verified.
 4. Log in. The header shows the account menu.
 5. Choose **Log out** in the account menu, then open `/account`. The site sends you to the login page, and after you log in, back to `/account`.
 

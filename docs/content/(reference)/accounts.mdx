@@ -194,7 +194,7 @@ Sets a new password with the token from a reset email. Payload ends every sessio
 
 ### verifyEmail()
 
-Verifies the account's email with the token from the verification email. It doesn't log the visitor in.
+Verifies the account's email with the token from the verification email. It doesn't log the visitor in. Call it from a POST server function when the visitor presses a button, never from a page's loader, because mail scanners open the links in emails.
 
 ### changePassword()
 
@@ -281,7 +281,7 @@ Offload's shadcn registry installs the account forms as source files that the si
 | `forgot-password-form` | `components/accounts/forgot-password-form.tsx` | `@offload/form-fields`, `@offload/turnstile` | Those of `form-fields`       | `@tanstack/react-form` |
 | `reset-password-form`  | `components/accounts/reset-password-form.tsx`  | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
 | `change-password-form` | `components/accounts/change-password-form.tsx` | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
-| `verify-email-result`  | `components/accounts/verify-email-result.tsx`  | None                                         | None                         | None                   |
+| `verify-email-form`    | `components/accounts/verify-email-form.tsx`    | None                                         | `button`, `spinner`          | None                   |
 | `account-menu`         | `components/accounts/account-menu.tsx`         | None                                         | `button`, `dropdown-menu`    | None                   |
 
 Registry dependencies name only other `@offload` items. `shadcn add --overwrite` rewrites every file of every registry dependency, so an item that listed `button` would replace the site's own button on every update. Add the shadcn components that an item imports to the site yourself, with `pnpm dlx shadcn@latest add`.
@@ -299,7 +299,7 @@ The components import their server functions from `@/server/account.functions`, 
 | `ForgotPasswordForm` | None                                                        | `requestPasswordReset` |
 | `ResetPasswordForm`  | `token: string`                                             | `resetPassword`        |
 | `ChangePasswordForm` | None                                                        | `changePassword`       |
-| `VerifyEmailResult`  | `result: VerifyEmailResult`                                 | None                   |
+| `VerifyEmailForm`    | `token: string`                                             | `verifyEmail`          |
 | `AccountMenu`        | `account: { email: string; name?: string \| null } \| null` | `logOut`               |
 
 Each form shows a message for each failed status. After `signed-in`, the form invalidates the router and goes to `returnTo`. `AccountMenu` shows a **Log in** link to a visitor. For an account, it shows a menu with **Account**, **Log out**, and **Log out everywhere**, and after a logout it goes to `/` and invalidates the router.

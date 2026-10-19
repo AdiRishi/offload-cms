@@ -149,7 +149,11 @@ test("a visitor signs up with Turnstile, confirms the email, and logs in", async
   // An unverified account can't log in yet.
   expect((await restLogin(visitor.request, email)).status()).toBe(403);
 
+  // Opening the link verifies nothing, because mail scanners open links too.
   await visitor.goto(`${verification.pathname}${verification.search}`);
+  await expect(visitor.locator("form[data-hydrated]")).toBeVisible();
+  expect((await restLogin(visitor.request, email)).status()).toBe(403);
+  await visitor.getByRole("button", { name: "Confirm email address" }).click();
   await expect(visitor.getByText("Your email is verified")).toBeVisible();
 
   await visitor.goto("/login");
