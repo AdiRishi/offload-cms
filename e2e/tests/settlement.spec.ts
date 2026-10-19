@@ -373,6 +373,44 @@ test("a second payment for a bought cart is neither settled nor captured", async
   expect(payments.map(({ status }) => status)).toEqual(["authorized"]);
 });
 
+test("two payments for one cart settling at the same moment make one order", async ({
+  anonymous,
+  api,
+}) => {
+  const { cart, variant } = await shirtInCart(api, anonymous.request);
+  const checkouts = [
+    await initiateRazorpay(anonymous.request, cart),
+    await initiateRazorpay(anonymous.request, cart),
+  ];
+  const paid = await Promise.all(
+    checkouts.map(({ orderID }) =>
+      razorpay.pay(anonymous.request, orderID, { outcome: "captured", deliver: false }),
+    ),
+  );
+  const captured = paid.map(({ deliveries }) =>
+    sent(deliveries.find((delivery) => delivery.event === "payment.captured")),
+  );
+
+  // Both webhooks arrive together, and each settles after answering.
+  const answers = await Promise.all(
+    captured.map((delivery) => razorpay.send(anonymous.request, delivery.id)),
+  );
+  expect(answers.map((delivery) => delivery.response?.status)).toEqual([200, 200]);
+
+  await expect.poll(async () => (await ordersOf(api, cart.customerEmail)).length).toBe(1);
+  const transactions = async () =>
+    Promise.all(checkouts.map(({ orderID }) => razorpayTransactionOf(api, orderID)));
+  await expect
+    .poll(async () => (await transactions()).map(({ status }) => status).sort())
+    .toEqual(["pending", "succeeded"]);
+  const loser = (await transactions()).findIndex(({ status }) => status === "pending");
+  await expect
+    .poll(async () => (await transactions())[loser]?.razorpay.lastError)
+    .toMatch(new RegExp(`${paid[loser]?.payment.id}.*Refund`));
+  expect(await ordersOf(api, cart.customerEmail)).toHaveLength(1);
+  expect(await inventoryOf(api, variant)).toBe(stock - 1);
+});
+
 test("Razorpay's webhook captures a payment left authorized, then settles it", async ({
   anonymous,
   api,

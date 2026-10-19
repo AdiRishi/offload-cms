@@ -1739,6 +1739,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"customer_id" integer,
   	"customer_email" varchar,
   	"settlement_key" varchar,
+  	"cart_key" varchar,
   	"status" "enum_orders_status" DEFAULT 'processing',
   	"amount" numeric,
   	"currency" "enum_orders_currency" DEFAULT 'MUR',
@@ -1781,6 +1782,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"version_customer_id" integer,
   	"version_customer_email" varchar,
   	"version_settlement_key" varchar,
+  	"version_cart_key" varchar,
   	"version_status" "enum__orders_v_version_status" DEFAULT 'processing',
   	"version_amount" numeric,
   	"version_currency" "enum__orders_v_version_currency" DEFAULT 'MUR',
@@ -3011,6 +3013,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "orders_items_variant_idx" ON "orders_items" USING btree ("variant_id");
   CREATE INDEX "orders_customer_idx" ON "orders" USING btree ("customer_id");
   CREATE UNIQUE INDEX "orders_settlement_key_idx" ON "orders" USING btree ("settlement_key");
+  CREATE UNIQUE INDEX "orders_cart_key_idx" ON "orders" USING btree ("cart_key");
   CREATE INDEX "orders_updated_at_idx" ON "orders" USING btree ("updated_at");
   CREATE INDEX "orders_created_at_idx" ON "orders" USING btree ("created_at");
   CREATE INDEX "orders_rels_order_idx" ON "orders_rels" USING btree ("order");
@@ -3024,6 +3027,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_orders_v_parent_idx" ON "_orders_v" USING btree ("parent_id");
   CREATE INDEX "_orders_v_version_version_customer_idx" ON "_orders_v" USING btree ("version_customer_id");
   CREATE INDEX "_orders_v_version_version_settlement_key_idx" ON "_orders_v" USING btree ("version_settlement_key");
+  CREATE INDEX "_orders_v_version_version_cart_key_idx" ON "_orders_v" USING btree ("version_cart_key");
   CREATE INDEX "_orders_v_version_version_updated_at_idx" ON "_orders_v" USING btree ("version_updated_at");
   CREATE INDEX "_orders_v_version_version_created_at_idx" ON "_orders_v" USING btree ("version_created_at");
   CREATE INDEX "_orders_v_created_at_idx" ON "_orders_v" USING btree ("created_at");

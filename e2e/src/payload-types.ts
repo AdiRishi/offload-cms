@@ -1442,6 +1442,7 @@ export interface Order {
   customer?: (number | null) | Customer;
   customerEmail?: string | null;
   settlementKey?: string | null;
+  cartKey?: string | null;
   transactions?: (number | Transaction)[] | null;
   status?: OrderStatus;
   amount?: number | null;
@@ -2579,6 +2580,7 @@ export interface OrdersSelect<T extends boolean = true> {
   customer?: T;
   customerEmail?: T;
   settlementKey?: T;
+  cartKey?: T;
   transactions?: T;
   status?: T;
   amount?: T;

@@ -2493,6 +2493,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`customer_id\` integer,
   	\`customer_email\` text,
   	\`settlement_key\` text,
+  	\`cart_key\` text,
   	\`status\` text DEFAULT 'processing',
   	\`amount\` numeric,
   	\`currency\` text DEFAULT 'MUR',
@@ -2503,6 +2504,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`orders_customer_idx\` ON \`orders\` (\`customer_id\`);`)
   await db.run(sql`CREATE UNIQUE INDEX \`orders_settlement_key_idx\` ON \`orders\` (\`settlement_key\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`orders_cart_key_idx\` ON \`orders\` (\`cart_key\`);`)
   await db.run(sql`CREATE INDEX \`orders_updated_at_idx\` ON \`orders\` (\`updated_at\`);`)
   await db.run(sql`CREATE INDEX \`orders_created_at_idx\` ON \`orders\` (\`created_at\`);`)
   await db.run(sql`CREATE TABLE \`orders_rels\` (
@@ -2553,6 +2555,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`version_customer_id\` integer,
   	\`version_customer_email\` text,
   	\`version_settlement_key\` text,
+  	\`version_cart_key\` text,
   	\`version_status\` text DEFAULT 'processing',
   	\`version_amount\` numeric,
   	\`version_currency\` text DEFAULT 'MUR',
@@ -2567,6 +2570,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_orders_v_parent_idx\` ON \`_orders_v\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_customer_idx\` ON \`_orders_v\` (\`version_customer_id\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_settlement_key_idx\` ON \`_orders_v\` (\`version_settlement_key\`);`)
+  await db.run(sql`CREATE INDEX \`_orders_v_version_version_cart_key_idx\` ON \`_orders_v\` (\`version_cart_key\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_updated_at_idx\` ON \`_orders_v\` (\`version_updated_at\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_version_version_created_at_idx\` ON \`_orders_v\` (\`version_created_at\`);`)
   await db.run(sql`CREATE INDEX \`_orders_v_created_at_idx\` ON \`_orders_v\` (\`created_at\`);`)
