@@ -19,7 +19,8 @@ The Postgres run needs Docker. CI runs both on every pull request and every push
 3. Type-check `e2e`.
 4. Reset the local D1 and R2 state, or the Postgres schema. Apply the migrations, create a page, drop the database with `migrate:fresh`, roll back every migration with `migrate:down`, and apply them again. Then build the Worker.
 5. Serve the build with `vite preview`, create the first admin user through the admin panel, and run the suite.
-6. On D1, check the Worker's compressed size against its budget.
+6. Start `vite dev`, edit the Payload config and a collection, and check that Payload keeps working after each reload. The check restores the files it edits. `playwright.dev.config.ts` runs this check after the main suite, because two local processes on one D1 database fail.
+7. On D1, check the Worker's compressed size against its budget.
 
 ## Worker size budget
 
@@ -33,7 +34,7 @@ If the growth is intended, raise the budget in the same commit and keep about 5%
 
 ## Rerun the suite without publishing
 
-After one `pnpm release e2e`, `e2e` has the release installed. From `e2e`, run `pnpm test`, or `CLOUDFLARE_ENV=postgres pnpm test` for Postgres.
+After one `pnpm release e2e`, `e2e` has the release installed. From `e2e`, run `pnpm test`, or `CLOUDFLARE_ENV=postgres pnpm test` for Postgres. `pnpm test:dev` reruns only the `vite dev` check. It signs in with the admin that the main suite created.
 
 To read the Worker's logs, start the server yourself:
 
@@ -58,6 +59,7 @@ E2E_REUSE_SERVER=1 pnpm exec playwright test
 | `tests/workers.spec.ts`  | R2 byte ranges, image variants through the Images binding, updating and deleting an image whose seven variants pass D1's parameter limit, a password reset email through Email Service, hooks and endpoints in the Worker, Cron-driven jobs and scheduled publishing, and the search and form-builder plugins |
 | `tests/frontend.spec.ts` | TanStack Start routes that render Payload content through the Local API, with a post's rich text returned from a server function as a React Server Component                                                                                                                                                  |
 | `tests/sessions.spec.ts` | Concurrent logins as one user, which each keep a session that authenticates, and a logout that ends only its own session                                                                                                                                                                                      |
+| `tests/dev/*.spec.ts`    | `vite dev` after edits to the Payload config and a collection: the REST API, the admin, and a block defined in the config's `blocks` keep working, and Wrangler's platform proxy starts no new workerd process                                                                                                |
 
 ## How the site is set up
 
