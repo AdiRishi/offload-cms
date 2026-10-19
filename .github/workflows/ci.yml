@@ -1,13 +1,22 @@
 name: CI
 
+# On main, a run that passes its checks publishes the next release and then deploys the
+# docs, so the docs show the release that run tagged. `pnpm release publish` publishes
+# nothing when the commit changes nothing the packages ship since the latest release tag.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Runs on main queue instead of cancelling, so a publish or a Pages deploy never stops
+# halfway.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -39,3 +48,60 @@ jobs:
           name: playwright-report-${{ matrix.database }}
           path: e2e/playwright-report
           retention-days: 7
+
+  publish:
+    name: Publish
+    needs: [check, e2e]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The release tags decide the next version and whether anything changed.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          payload: "true"
+      - run: pnpm release publish
+        env:
+          OFFLOAD_REGISTRY: https://npm.pkg.github.com
+          OFFLOAD_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Signed SLSA build provenance for every tarball just published. Verify one with
+      # `gh attestation verify <tarball> --repo AdiRishi/offload-cms`.
+      - if: hashFiles('release/dist/*.tgz') != ''
+        uses: actions/attest@v4
+        with:
+          subject-path: release/dist/*.tgz
+
+  docs-build:
+    name: Build docs
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm turbo run build --filter=@repo/docs
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/dist
+
+  docs-deploy:
+    name: Deploy docs
+    needs: docs-build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

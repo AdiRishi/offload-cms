@@ -3,7 +3,7 @@ title: Releasing
 description: How every change that passes CI on main becomes a release on GitHub Packages, and how releases are versioned, tagged, and attested.
 ---
 
-Releases are automatic. Push to `main`, and once CI passes, the Publish workflow publishes the change to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms) if it changes what the packages ship. Nobody edits a version.
+Releases are automatic. Push to `main`, and once its checks pass, the CI run publishes the change to [GitHub Packages](https://github.com/AdiRishi?tab=packages&repo_name=offload-cms) if it changes what the packages ship. Nobody edits a version.
 
 ## Versions
 
@@ -11,9 +11,9 @@ Every package in a release has the same version, `<Payload version>-offload.<n>`
 
 Each release has a git tag, `v<version>`, on the commit it was published from. The newest tag for the pinned Payload tag is the latest release.
 
-## What the Publish workflow does
+## What the Publish job does
 
-The workflow runs `pnpm release publish` on the commit that passed CI:
+The Publish job runs `pnpm release publish` on the commit that passed the checks:
 
 1. Find the latest release tag for the pinned Payload tag.
 2. Stop if the commit is already part of that release, or if nothing the packages ship changed since it. Shipped files are `packages/`, `release/src/`, `release/package.json`, `upstream/patches/`, and `upstream/payload.json`. `AGENTS.md` files and tests don't count.
@@ -28,13 +28,13 @@ To try a change without releasing it, run `pnpm release e2e`. It publishes the w
 
 ## Provenance
 
-npm's `--provenance` works only on the public npm registry. Instead, the Publish workflow signs each published tarball with [`actions/attest`](https://github.com/actions/attest). The attestation is SLSA build provenance, recorded through Sigstore, and names the commit, workflow, and run that produced the file. `publish` uploads the exact tarballs that the workflow attests. [Update Offload](/update#verify-a-package) shows how a site checks a package.
+npm's `--provenance` works only on the public npm registry. Instead, the Publish job signs each published tarball with [`actions/attest`](https://github.com/actions/attest). The attestation is SLSA build provenance, recorded through Sigstore, and names the commit, workflow, and run that produced the file. `publish` uploads the exact tarballs that the job attests. [Update Offload](/update#verify-a-package) shows how a site checks a package.
 
 ## Continuous integration
 
-Every pull request and every push to `main` runs these GitHub Actions jobs:
+Every pull request and every push to `main` runs the CI workflow. These jobs run in parallel:
 
 - `pnpm check`
 - the e2e suite on D1 and on Postgres, against the working tree published to a registry inside the runner
 
-On `main`, the Publish workflow runs after CI passes, and the Docs workflow deploys this site after Publish, so the docs show the latest release.
+On `main`, the same run continues once both pass. The Publish job releases the commit, then the docs jobs build and deploy this site, so the docs show the latest release. A run on `main` waits for the previous one to finish instead of cancelling it. To retry a failed publish or deploy, re-run the failed jobs in the run.
