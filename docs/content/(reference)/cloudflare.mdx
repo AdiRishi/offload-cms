@@ -50,7 +50,7 @@ For `vite build` and `vite preview`, `offloadVite()` changes Payload's Node-orie
 | Resolves `pg-pool` to its CommonJS build                           | The Worker fails at startup with `Class extends value #<Object> is not a constructor`.           |
 | Imports `@cloudflare/vite-plugin` only for build and preview       | Loading the plugin breaks CommonJS interop in Node-mode dev.                                     |
 
-[`packages/cloudflare/src/vite.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/vite.ts) has one Vite plugin per change.
+[`packages/cloudflare/src/vite.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/vite.ts) and [`workerd-transforms.ts`](https://github.com/AdiRishi/offload-cms/blob/main/packages/cloudflare/src/workerd-transforms.ts) have one Vite plugin per change. The plugins that rewrite code return sourcemaps, so stack traces point at the original lines.
 
 ## getBindings()
 
