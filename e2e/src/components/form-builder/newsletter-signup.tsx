@@ -139,7 +139,7 @@ export function NewsletterSignup({
           </>
         )}
       </signup.Field>
-      {engaged ? <Turnstile ref={turnstile} action="newsletter" /> : null}
+      {engaged ? <Turnstile ref={turnstile} action="form" /> : null}
     </form>
   );
 }

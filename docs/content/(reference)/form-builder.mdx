@@ -125,7 +125,7 @@ Saves a submission to a form-builder form from a public page.
 It runs these checks in order and returns at the first one that fails:
 
 1. The rate limit, keyed by the `cf-connecting-ip` header as `form:<ip>`. Over the limit, it returns `limited`. `vite dev` doesn't set the header, so every request in dev shares one allowance.
-2. The Turnstile token, through `verifyTurnstile()` with the request's hostname. A token that fails returns `unverified`.
+2. The Turnstile token, through `verifyTurnstile()` with the request's hostname and the action `form`. A token that fails returns `unverified`.
 3. The form. A visitor must be able to read it, through a query with `overrideAccess: false`, and `isOffered` must accept the stored document. Otherwise it returns `refused`.
 4. The answers, validated with `formSchema()` against the stored form. Invalid answers return `invalid`, with the first message for each field in `errors`.
 
@@ -144,9 +144,10 @@ Checks a Turnstile token with Cloudflare's Siteverify API. `fetcher` defaults to
 | `token`    | `string` | Required. The token the widget gave the visitor.   |
 | `secret`   | `string` | Required. The widget's secret key.                 |
 | `hostname` | `string` | Required. The host that served the visitor's page. |
+| `action`   | `string` | Required. The `action` the widget rendered with.   |
 | `remoteip` | `string` | The visitor's IP address.                          |
 
-It returns `false` when Siteverify answers with an error status, rejects the token, or reports a hostname other than `hostname`. A result from Cloudflare's testing keys always reports `example.com`, so it passes on any host. A token passes only once.
+It returns `false` when Siteverify answers with an error status, rejects the token, or reports a hostname other than `hostname` or an action other than `action`. The action check stops a token from another widget on the site, such as a login form's, from submitting a form. A result from Cloudflare's testing keys always reports `example.com` and no action, so it passes on any host. A token passes only once.
 
 ## Registry
 
@@ -182,4 +183,4 @@ A client component from `components/form-builder/newsletter-signup.tsx`. `form` 
 
 ### Turnstile
 
-Both forms render the Turnstile widget when the visitor first focuses or touches the form, and ask it for a token on submit. The widget takes space only when the visitor has to interact with it. The site key's settings in Cloudflare choose the widget mode.
+Both forms render the Turnstile widget with the action `form` when the visitor first focuses or touches the form, and ask it for a token on submit. `saveFormSubmission()` rejects a token for any other action, so keep `action="form"` when you edit the components. The widget takes space only when the visitor has to interact with it. The site key's settings in Cloudflare choose the widget mode.

@@ -34,7 +34,7 @@ export type SaveFormSubmissionOptions = {
 
 /**
  * Saves a form-builder submission from a public form. In order, it applies the rate limit,
- * verifies the Turnstile token, checks that the visitor can read the form and that `isOffered`
+ * verifies the Turnstile token, which the widget must have issued for the action `form`, checks that the visitor can read the form and that `isOffered`
  * accepts it, and validates the answers against the stored form. Only then does it create the
  * submission, with access control bypassed, so `form-submissions` can stay closed to public
  * creates. A failure is logged and reaches the visitor only as `error`.
@@ -58,6 +58,7 @@ export const saveFormSubmission = async ({
       token: submission.turnstileToken,
       secret: turnstileSecret,
       hostname: new URL(request.url).hostname,
+      action: "form",
       remoteip: ip,
     });
     if (!verified) return { status: "unverified" };
