@@ -37,11 +37,11 @@ A paid payment never settles when:
 - another transaction already bought the cart. The customer paid twice, so the adapter doesn't create a second order and doesn't capture an authorized payment;
 - its transaction failed or was cancelled.
 
-The adapter then writes the reason, with the payment's ID, to the transaction's `lastError`, and logs it at error level. An admin refunds the payment from the gateway's dashboard. Two payments for one cart that settle at the same moment can't both create an order: core gives each order the cart's unique `cartKey`, so the second insert fails, and the adapter flags that payment the same way.
+The adapter then writes the reason, with the payment's ID, to the transaction's `lastError`, and logs it at error level. Inside `confirm-order`, it ends core's database transaction before that write, so the flag stays on Postgres as on D1. An admin refunds the payment from the gateway's dashboard. Two payments for one cart that settle at the same moment can't both create an order: core gives each order the cart's unique `cartKey`, so the second insert fails, and the adapter flags that payment the same way. Core's `confirm-order` answers such a refusal with `409` and `{ status: "cart_already_purchased" }` for adapters that pass the error through, such as Stripe's.
 
 A payment for a transaction that reconciliation expired reopens it and settles, when the cart is still open. A failure event never fails the transaction, because the gateway can still complete the payment. Reconciliation expires a transaction only when no payment can arrive any more.
 
-A logged-in user of the plugin's `customers.slug` collection owns the transaction and the order. Any other logged-in user, such as an admin, checks out as a guest, known by email. The [customers slug patch](/patches/ecommerce-adapter-customers-slug) passes that slug and the currencies to the adapters. Settlement uses the plugin's slugs for every collection, including a `slugMap`.
+A logged-in user of the plugin's `customers.slug` collection owns the transaction and the order. Any other logged-in user, such as an admin, checks out as a guest, known by email. The [customers slug patch](/patches/ecommerce-adapter-customers-slug) passes that slug and the currencies to the adapters. Settlement uses the plugin's slugs for every collection, including a `slugMap`. Each write sets only the transaction fields that its path owns, and a write for a pending transaction applies only while it is still pending, so a late event can't undo a settlement. That relies on the SQL database adapters, D1 and Postgres, which write only the columns they're given.
 
 ## Currencies
 
@@ -190,7 +190,7 @@ The checkout UI installs from Offload's shadcn registry, from [`packages/payment
 
 The items don't install the shadcn components they use, so `--overwrite` never replaces the site's copies. Add the ones the site lacks with `shadcn add`, without `--overwrite`.
 
-Each item's `meta` names the release of `@adirishi/offload-payments` it was built for. The components call the plugin's `usePayments()`, so they render inside `EcommerceProvider`.
+Each item's `meta` names the release of `@adirishi/offload-payments` it was built for. The components use only browser APIs in Vite's default build target, Baseline Widely Available, which includes Safari 16. The components call the plugin's `usePayments()`, so they render inside `EcommerceProvider`.
 
 ### RazorpayCheckout
 

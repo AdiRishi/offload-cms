@@ -268,6 +268,41 @@ test("a Razorpay payment that fails and is then captured makes one order", async
   expect(await inventoryOf(api, variant)).toBe(stock - 1);
 });
 
+test("a failed payment's late webhook doesn't make the payment that settled look refundable", async ({
+  anonymous,
+  api,
+}) => {
+  const { cart } = await shirtInCart(api, anonymous.request);
+  const { orderID } = await initiateRazorpay(anonymous.request, cart);
+
+  // The customer's first attempt fails, the second succeeds, and the browser confirms it.
+  const failed = await razorpay.pay(anonymous.request, orderID, {
+    outcome: "failed",
+    deliver: false,
+  });
+  const paid = await razorpay.pay(anonymous.request, orderID, {
+    outcome: "captured",
+    deliver: false,
+  });
+  const confirmed = await confirmOrder(anonymous.request, "razorpay", cart, { ...paid.checkout });
+  expect(confirmed.status(), await confirmed.text()).toBe(200);
+
+  // Then the webhooks arrive: the failure first, late, then the capture.
+  const failure = sent(failed.deliveries.find((delivery) => delivery.event === "payment.failed"));
+  const capture = sent(paid.deliveries.find((delivery) => delivery.event === "payment.captured"));
+  expect((await razorpay.send(anonymous.request, failure.id)).response?.status).toBe(200);
+  expect((await razorpay.send(anonymous.request, capture.id)).response?.status).toBe(200);
+  await expect
+    .poll(async () => (await razorpayTransactionOf(api, orderID)).razorpay.lastEventID)
+    .toBe(capture.headers["x-razorpay-event-id"]);
+
+  const transaction = await razorpayTransactionOf(api, orderID);
+  expect(transaction.status).toBe("succeeded");
+  expect(transaction.razorpay.paymentID).toBe(paid.payment.id);
+  expect(transaction.razorpay.lastError ?? "").not.toMatch(/Refund/);
+  expect(await ordersOf(api, cart.customerEmail)).toHaveLength(1);
+});
+
 test("reconciliation settles payments that no webhook, IMN or browser confirmed", async ({
   anonymous,
   api,
