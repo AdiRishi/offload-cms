@@ -15,6 +15,12 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 
 Payload keeps one Postgres pool per isolate. Upstream issue [payloadcms/payload#17335](https://github.com/payloadcms/payload/issues/17335) reports that a query which hangs until Workers cancels its request can leave the pool unusable for the rest of the isolate's life. The symptom is requests that fail in about a millisecond. The reported fix is a pool for each request. Offload doesn't include it, because the hang doesn't reproduce locally.
 
+## D1
+
+D1 allows at most 100 columns in a table and 100 bound parameters in a statement. Each field stored on a collection's main table is one column, and each image variant of an upload collection adds 8. Count a wide collection's columns in its migration before you deploy.
+
+Payload binds every column of a document twice when it saves an update, and binds every stored file name once per filename column when it deletes an upload. On D1, either can pass 100 parameters. Two patches keep them within the limit: [one column, one parameter](/patches/d1-upsert-bound-parameters) for updates and [batched file lookups](/patches/d1-file-lookup-bound-parameters) for deletes. An update can still fail on a table at the 100-column limit when the update has a `where` condition, because the condition binds its own values.
+
 ## Passwords
 
 A deployed Worker rejects PBKDF2 with more than 100,000 iterations, and Payload uses 600,000. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes with 100,000 iterations on Workers, which is below OWASP's recommendation of 600,000 for PBKDF2-SHA256.
