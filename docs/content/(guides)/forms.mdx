@@ -173,6 +173,8 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
 
     The components work with shadcn on Radix and on Base UI. Install only the items you use. [The registry reference](/form-builder#registry) lists what each one installs.
 
+    The registry serves the items built for the latest Offload release, `{{version}}`, and each item names that release in its `meta`. Run `pnpm dlx shadcn@latest view @offload/form-builder-form` to see it. Keep `@adirishi/offload-form-builder` at the same version. When you update the package, add the items again with `--overwrite`, and merge your own changes back in.
+
   </Step>
   <Step title="Render a form on a page">
     Give editors a block that picks a form:

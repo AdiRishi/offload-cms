@@ -159,6 +159,8 @@ Offload's shadcn registry installs the form's UI as source files that the site o
 | `form-builder-form` | `components/form-builder/fields.tsx`, `form.tsx`, and `form-client.tsx` | `button`, `checkbox`, `field`, `input`, `native-select`, `spinner`, `textarea`, and `@offload/turnstile` | `@tanstack/react-form` |
 | `newsletter-signup` | `components/form-builder/newsletter-signup.tsx`                         | `button`, `field`, `input-group`, `spinner`, and `@offload/turnstile`                                    | `@tanstack/react-form` |
 
+Each item targets one release of `@adirishi/offload-form-builder`, and its `meta` names it, such as `"meta": { "@adirishi/offload-form-builder": "{{version}}" }`. The registry serves only the items for the latest release. Update the package and add the items again together.
+
 `turnstile` also adds `VITE_TURNSTILE_SITE_KEY` with Cloudflare's testing site key to `.env.local`. The registry doesn't list `@adirishi/offload-form-builder`, so the shadcn CLI never changes its version.
 
 The components import `submitForm` from `@/server/forms.functions`, which the site writes. They use only the shadcn components whose props Radix and Base UI share, so they install into a project on either library. Select and country fields use `native-select`.

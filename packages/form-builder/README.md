@@ -31,6 +31,8 @@ pnpm add --save-exact @adirishi/offload-form-builder
 pnpm dlx shadcn@latest add @offload/form-builder-form
 ```
 
+The registry serves the items built for the latest Offload release, and each item names that release of `@adirishi/offload-form-builder` in its `meta`, which `shadcn view` shows. Keep the package at that version, and when you update it, add the items again with `--overwrite`.
+
 ## Use it
 
 ```ts

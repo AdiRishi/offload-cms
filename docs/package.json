@@ -8,7 +8,7 @@
     "build": "pnpm registry && blume build",
     "typecheck": "blume check --strict --isolated",
     "dev": "pnpm registry && blume dev",
-    "registry": "shadcn build registry.json --cwd ../packages/form-builder --output ../../docs/public/r",
+    "registry": "node registry.ts",
     "test": "blume validate --strict"
   },
   "devDependencies": {
