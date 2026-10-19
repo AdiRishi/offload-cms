@@ -18,15 +18,19 @@ the cart's purchasedAt, the inventory decrement and the succeeded status. A
 caller that loses the claim gets the winner's order back and writes
 nothing, so duplicate notifications and a concurrent confirm-order are
 harmless. It opens a database transaction when the adapter supports one and
-the request has none. confirm-order calls the same code.
+the request has none. confirm-order calls the same code. The plugin records
+its resolved collection slugs in config.custom, so settleTransaction uses
+the site's slug map, and getEcommerceCollectionSlugs(config) returns it for
+other server code. Settlement's writes no longer populate relationships.
 
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
 the browser offered the customer the payment again. When the wait ends with
-the transaction still unsettled, confirm-order now answers 202 with
+the transaction still unsettled, confirm-order now answers 409 with
 { status: 'processing' }, and settleTransaction throws the exported
-SettlementInProgressError. Confirming again returns the order once the
-winner finishes.
+SettlementInProgressError. A 409 is an error to clients that check
+response.ok, so none mistakes it for a confirmed order. Confirming again
+returns the order once the winner finishes.
 
 - **Patch:** `ecommerce-server-settlement`, committed as `feat(plugin-ecommerce): export order settlement for server-side confirmation`
 - **Upstream:** Not proposed

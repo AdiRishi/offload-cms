@@ -17,15 +17,19 @@ the cart's purchasedAt, the inventory decrement and the succeeded status. A
 caller that loses the claim gets the winner's order back and writes
 nothing, so duplicate notifications and a concurrent confirm-order are
 harmless. It opens a database transaction when the adapter supports one and
-the request has none. confirm-order calls the same code.
+the request has none. confirm-order calls the same code. The plugin records
+its resolved collection slugs in config.custom, so settleTransaction uses
+the site's slug map, and getEcommerceCollectionSlugs(config) returns it for
+other server code. Settlement's writes no longer populate relationships.
 
 A confirm-order that loses the claim waits 500 ms for the winner's order. On
 D1 a webhook's settlement can take longer, and the loser answered 500, so
 the browser offered the customer the payment again. When the wait ends with
-the transaction still unsettled, confirm-order now answers 202 with
+the transaction still unsettled, confirm-order now answers 409 with
 { status: 'processing' }, and settleTransaction throws the exported
-SettlementInProgressError. Confirming again returns the order once the
-winner finishes.
+SettlementInProgressError. A 409 is an error to clients that check
+response.ok, so none mistakes it for a confirmed order. Confirming again
+returns the order once the winner finishes.
 
 Offload-Patch: ecommerce-server-settlement
 Drop-When: the pinned release lets a payment adapter settle a transaction outside the confirm-order request
@@ -33,16 +37,18 @@ Tests: pnpm exec vitest run --project unit packages/plugin-ecommerce/src/utiliti
 ---
  docs/ecommerce/payments.mdx                   |  17 +
  .../src/endpoints/confirmOrder.spec.ts        |   7 +-
- .../src/endpoints/confirmOrder.ts             | 312 +------------
- packages/plugin-ecommerce/src/index.ts        |   5 +
- .../src/utilities/settleTransaction.spec.ts   | 167 +++++++
- .../src/utilities/settleTransaction.ts        | 413 ++++++++++++++++++
- 6 files changed, 627 insertions(+), 294 deletions(-)
+ .../src/endpoints/confirmOrder.ts             | 312 +-------------
+ packages/plugin-ecommerce/src/index.ts        |   9 +
+ .../src/utilities/ecommerceSlugs.ts           |  26 ++
+ .../src/utilities/settleTransaction.spec.ts   | 192 +++++++++
+ .../src/utilities/settleTransaction.ts        | 396 ++++++++++++++++++
+ 7 files changed, 665 insertions(+), 294 deletions(-)
+ create mode 100644 packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
  create mode 100644 packages/plugin-ecommerce/src/utilities/settleTransaction.ts
 
 diff --git a/docs/ecommerce/payments.mdx b/docs/ecommerce/payments.mdx
-index 32091fa3f..36da2545e 100644
+index 32091fa3f..11a897f1a 100644
 --- a/docs/ecommerce/payments.mdx
 +++ b/docs/ecommerce/payments.mdx
 @@ -79,6 +79,23 @@ If a transaction is already `succeeded` and has exactly one matching bidirection
@@ -64,13 +70,13 @@ index 32091fa3f..36da2545e 100644
 +})
 +```
 +
-+`settleTransaction` takes the cart from the transaction's `cart` field, and the collection slugs as `cartsSlug`, `ordersSlug`, `productsSlug`, `transactionsSlug` and `variantsSlug` when they differ from the defaults. It throws when the transaction cannot be settled, for example because its status is `failed` or `expired`.
++`settleTransaction` takes the cart from the transaction's `cart` field, and the collection slugs from the plugin's config, which `getEcommerceCollectionSlugs(payload.config)` also returns. It throws when the transaction cannot be settled, for example because its status is `failed` or `expired`. When another request is still settling the transaction after a short wait, it throws `SettlementInProgressError`, and confirm-order answers `409` with `{ status: 'processing' }`. Confirm again to get the order.
 +
  ### Stripe Webhooks
  
  You can also add your own webhooks to handle [events from Stripe](https://docs.stripe.com/api/events). This is optional and the plugin internally does not use webhooks for any core functionality. It receives the following arguments:
 diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
-index fe564f2ab..e0fcf3a80 100644
+index fe564f2ab..63ce856e2 100644
 --- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
 +++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.spec.ts
 @@ -482,7 +482,7 @@ describe('confirmOrderHandler', () => {
@@ -90,13 +96,13 @@ index fe564f2ab..e0fcf3a80 100644
 +    const { body, response } = await result
  
 -    expect(response.status).toBe(500)
-+    expect(response.status).toBe(202)
++    expect(response.status).toBe(409)
 +    expect(body).toMatchObject({ status: 'processing' })
      expect(harness.create).not.toHaveBeenCalled()
      expect(harness.state.inventoryUpdates).toHaveLength(0)
    })
 diff --git a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
-index 0db80602d..b81fa0ff0 100644
+index 0db80602d..c2e20e2b4 100644
 --- a/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
 +++ b/packages/plugin-ecommerce/src/endpoints/confirmOrder.ts
 @@ -14,13 +14,19 @@ import type {
@@ -133,7 +139,7 @@ index 0db80602d..b81fa0ff0 100644
 +            status: 'processing',
 +          },
 +          {
-+            status: 202,
++            status: 409,
 +          },
 +        )
 +      }
@@ -434,24 +440,74 @@ index 0db80602d..b81fa0ff0 100644
 -  )
 -}
 diff --git a/packages/plugin-ecommerce/src/index.ts b/packages/plugin-ecommerce/src/index.ts
-index 2661856e8..17e3cd167 100644
+index 2661856e8..4649290b4 100644
 --- a/packages/plugin-ecommerce/src/index.ts
 +++ b/packages/plugin-ecommerce/src/index.ts
-@@ -398,3 +398,8 @@ export { currencyField } from './fields/currencyField.js'
+@@ -17,6 +17,7 @@ import { createVariantTypesCollection } from './collections/variants/createVaria
+ import { confirmOrderHandler } from './endpoints/confirmOrder.js'
+ import { initiatePaymentHandler } from './endpoints/initiatePayment.js'
+ import { translations } from './translations/index.js'
++import { getEcommerceCollectionSlugs, recordCollectionSlugMap } from './utilities/ecommerceSlugs.js'
+ import { getCollectionSlugMap } from './utilities/getCollectionSlugMap.js'
+ import { pushTypeScriptProperties } from './utilities/pushTypeScriptProperties.js'
+ import { sanitizePluginConfig } from './utilities/sanitizePluginConfig.js'
+@@ -53,6 +54,8 @@ export const ecommercePlugin = definePlugin<EcommercePluginConfig | undefined>({
+      */
+     const collectionSlugMap = getCollectionSlugMap({ enableVariants, sanitizedPluginConfig })
+ 
++    recordCollectionSlugMap(incomingConfig, collectionSlugMap)
++
+     const currenciesConfig: Required<SanitizedEcommercePluginConfig['currencies']> =
+       sanitizedPluginConfig.currencies
+ 
+@@ -398,3 +401,9 @@ export { currencyField } from './fields/currencyField.js'
  export { pricesField } from './fields/pricesField.js'
  export { statusField } from './fields/statusField.js'
  export { variantsFields } from './fields/variantsFields.js'
++export { getEcommerceCollectionSlugs }
 +export {
 +  SettlementInProgressError,
 +  settleTransaction,
 +  type SettleTransactionArgs,
 +} from './utilities/settleTransaction.js'
+diff --git a/packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts b/packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
+new file mode 100644
+index 000000000..55128ab0d
+--- /dev/null
++++ b/packages/plugin-ecommerce/src/utilities/ecommerceSlugs.ts
+@@ -0,0 +1,26 @@
++import type { Config, SanitizedConfig } from 'payload'
++
++import type { CollectionSlugMap } from '../types/index.js'
++
++const key = '@payloadcms/plugin-ecommerce'
++
++/** Records the plugin's resolved collection slugs in `config.custom`, for server code to read. */
++export const recordCollectionSlugMap = (config: Config, collectionSlugMap: CollectionSlugMap) => {
++  config.custom = { ...config.custom, [key]: { collectionSlugMap } }
++}
++
++/**
++ * The collection slugs the ecommerce plugin was configured with, including any `slugMap` and
++ * `customers.slug`. Throws when the plugin isn't in the config.
++ */
++export const getEcommerceCollectionSlugs = (
++  config: Pick<SanitizedConfig, 'custom'>,
++): CollectionSlugMap => {
++  const recorded = config.custom?.[key]?.collectionSlugMap
++
++  if (!recorded) {
++    throw new Error('The ecommerce plugin is not in this Payload config.')
++  }
++
++  return recorded
++}
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
 new file mode 100644
-index 000000000..76baa02d3
+index 000000000..6efac4ce2
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.spec.ts
-@@ -0,0 +1,167 @@
+@@ -0,0 +1,192 @@
 +import { beforeEach, describe, expect, it, vi } from 'vitest'
 +
 +const payloadUtilities = vi.hoisted(() => ({
@@ -497,6 +553,21 @@ index 000000000..76baa02d3
 +    })
 +
 +  const payload = {
++    config: {
++      custom: {
++        '@payloadcms/plugin-ecommerce': {
++          collectionSlugMap: {
++            addresses: 'addresses',
++            carts: 'carts',
++            customers: 'customers',
++            orders: 'orders',
++            products: 'products',
++            transactions: 'transactions',
++            variants: 'variants',
++          },
++        },
++      },
++    },
 +    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
 +      const order = { ...data, id: state.orders.length + 100 }
 +      state.orders.push(order)
@@ -618,13 +689,23 @@ index 000000000..76baa02d3
 +    ).rejects.toThrow('order insert failed')
 +    expect(payloadUtilities.killTransaction).toHaveBeenCalledWith(failing.req)
 +  })
++
++  it('refuses to settle in a config without the ecommerce plugin', async () => {
++    const { payload, req, state } = createStore(pendingTransaction)
++    payload.config.custom = {} as typeof payload.config.custom
++
++    await expect(settleTransaction({ orderData, req, transactionID: 42 })).rejects.toThrow(
++      'The ecommerce plugin is not in this Payload config.',
++    )
++    expect(state.transaction.status).toBe('pending')
++  })
 +})
 diff --git a/packages/plugin-ecommerce/src/utilities/settleTransaction.ts b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
 new file mode 100644
-index 000000000..569962751
+index 000000000..2106c67d0
 --- /dev/null
 +++ b/packages/plugin-ecommerce/src/utilities/settleTransaction.ts
-@@ -0,0 +1,413 @@
+@@ -0,0 +1,396 @@
 +import {
 +  commitTransaction,
 +  type DefaultDocumentIDType,
@@ -632,6 +713,8 @@ index 000000000..569962751
 +  killTransaction,
 +  type PayloadRequest,
 +} from 'payload'
++
++import { getEcommerceCollectionSlugs } from './ecommerceSlugs.js'
 +
 +type RecordValue = Record<string, unknown>
 +
@@ -651,35 +734,15 @@ index 000000000..569962751
 +
 +export type SettleTransactionArgs = {
 +  /**
-+   * The slug of the carts collection, defaults to 'carts'.
-+   */
-+  cartsSlug?: string
-+  /**
 +   * The provider-validated data used to create the order. Settlement adds the canonical
 +   * transaction relationship and owns all settlement side effects.
 +   */
 +  orderData: RecordValue
-+  /**
-+   * The slug of the orders collection, defaults to 'orders'.
-+   */
-+  ordersSlug?: string
-+  /**
-+   * The slug of the products collection, defaults to 'products'.
-+   */
-+  productsSlug?: string
 +  req: PayloadRequest
 +  /**
 +   * The ecommerce transaction that represents the payment.
 +   */
 +  transactionID: DefaultDocumentIDType
-+  /**
-+   * The slug of the transactions collection, defaults to 'transactions'.
-+   */
-+  transactionsSlug?: string
-+  /**
-+   * The slug of the variants collection, defaults to 'variants'.
-+   */
-+  variantsSlug?: string
 +}
 +
 +/**
@@ -696,15 +759,13 @@ index 000000000..569962751
 + * still settling it.
 + */
 +export const settleTransaction = async ({
-+  cartsSlug = 'carts',
 +  orderData,
-+  ordersSlug = 'orders',
-+  productsSlug = 'products',
 +  req,
 +  transactionID,
-+  transactionsSlug = 'transactions',
-+  variantsSlug = 'variants',
 +}: SettleTransactionArgs): Promise<RecordValue> => {
++  const slugs = getEcommerceCollectionSlugs(req.payload.config)
++  const transactionsSlug = slugs.transactions
++  const ordersSlug = slugs.orders
 +  const transaction = await req.payload.findByID({
 +    id: transactionID,
 +    collection: transactionsSlug,
@@ -723,14 +784,14 @@ index 000000000..569962751
 +  try {
 +    const order = await finalizeTransactionOrder({
 +      cartID,
-+      cartsSlug,
++      cartsSlug: slugs.carts,
 +      orderData,
 +      ordersSlug,
-+      productsSlug,
++      productsSlug: slugs.products,
 +      req,
 +      transactionID,
 +      transactionsSlug,
-+      variantsSlug,
++      variantsSlug: slugs.variants ?? 'variants',
 +    })
 +
 +    if (shouldCommit) {
@@ -838,6 +899,7 @@ index 000000000..569962751
 +      ...orderData,
 +      transactions: [transactionID],
 +    },
++    depth: 0,
 +    overrideAccess: true,
 +    req,
 +  })) as RecordValue
@@ -847,6 +909,7 @@ index 000000000..569962751
 +    id: cartID,
 +    collection: cartsSlug,
 +    data: { purchasedAt: new Date().toISOString() },
++    depth: 0,
 +    overrideAccess: true,
 +    req,
 +  })
@@ -862,6 +925,7 @@ index 000000000..569962751
 +    id: transactionID,
 +    collection: transactionsSlug,
 +    data: { order: orderID, status: 'succeeded' },
++    depth: 0,
 +    overrideAccess: true,
 +    req,
 +  })
