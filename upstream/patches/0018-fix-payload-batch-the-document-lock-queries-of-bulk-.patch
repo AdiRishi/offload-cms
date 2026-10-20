@@ -1,0 +1,131 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 21:51:42 +1100
+Subject: [PATCH] fix(payload): batch the document lock queries of bulk
+ operations by the adapter's parameter limit
+
+A bulk delete of more than a few documents fails on D1 with "D1_ERROR: too
+many SQL variables". Before it deletes, the operation finds and removes the
+documents' locks with one query on payload-locked-documents each, matching
+document.value against every id. document is a relationship to every
+lockable collection, so the SQL adapters compare each collection's column
+with the whole id list, and the query binds one parameter per document per
+collection, plus one for the join. D1 accepts 100, so a site with 23
+collections can't delete 5 documents at once, and an editor who selects a
+page of media in the admin and deletes it gets an error. The lock check runs
+before any document is deleted, so nothing is deleted.
+
+When the adapter sets limitedBoundParameters, as the D1 adapter does,
+getLockedDocumentIds and deleteDocumentLocks now split the ids into batches
+that keep each query within 100 bound parameters. Other adapters keep one
+query. This patch requires d1-file-lookup-bound-parameters, which adds
+limitedBoundParameters.
+
+Offload-Patch: d1-document-lock-bound-parameters
+Drop-When: the pinned release keeps the bulk document lock queries within D1's limit of 100 bound parameters
+Tests: e2e suite (database.spec.ts bulk delete test)
+---
+ .../src/utilities/checkDocumentLockStatus.ts  | 71 +++++++++++++++----
+ 1 file changed, 57 insertions(+), 14 deletions(-)
+
+diff --git a/packages/payload/src/utilities/checkDocumentLockStatus.ts b/packages/payload/src/utilities/checkDocumentLockStatus.ts
+index 63ff0519b..6e9dd5454 100644
+--- a/packages/payload/src/utilities/checkDocumentLockStatus.ts
++++ b/packages/payload/src/utilities/checkDocumentLockStatus.ts
+@@ -115,6 +115,41 @@ const buildBulkLockedDocumentQuery = (collectionSlug: string, ids: (number | str
+   and: [{ 'document.relationTo': { equals: collectionSlug } }, { 'document.value': { in: ids } }],
+ })
+ 
++const maxBoundParameters = 100
++
++/**
++ * Splits `ids` into batches whose lock queries stay within the adapter's bound parameter limit.
++ * The SQL adapters match `document.value` against the column of every lockable collection, so
++ * each id binds one parameter per collection, and the join on the relationships table binds one
++ * more.
++ */
++const batchLockedDocumentIds = (
++  ids: (number | string)[],
++  req: PayloadRequest,
++): (number | string)[][] => {
++  const { payload } = req
++
++  if (!payload.db.limitedBoundParameters) {
++    return [ids]
++  }
++
++  const documentField = payload.collections[
++    lockedDocumentsCollectionSlug
++  ]!.config.flattenedFields.find((field) => field.name === 'document')
++  const lockableCollections =
++    documentField?.type === 'relationship' && Array.isArray(documentField.relationTo)
++      ? documentField.relationTo.length
++      : 1
++  const batchSize = Math.max(1, Math.floor((maxBoundParameters - 1) / lockableCollections))
++  const batches: (number | string)[][] = []
++
++  for (let offset = 0; offset < ids.length; offset += batchSize) {
++    batches.push(ids.slice(offset, offset + batchSize))
++  }
++
++  return batches
++}
++
+ const isLockingAvailable = (collectionSlug: string, req: PayloadRequest): boolean => {
+   const { payload } = req
+ 
+@@ -149,13 +184,19 @@ export const getLockedDocumentIds = async ({
+   const { payload } = req
+   const lockDocumentsProp = payload.collections?.[collectionSlug]?.config?.lockDocuments
+ 
+-  const lockedDocumentResult: PaginatedDocs<JsonObject & TypeWithID> = await payload.db.find({
+-    collection: lockedDocumentsCollectionSlug,
+-    limit: 0,
+-    pagination: false,
+-    sort: '-updatedAt',
+-    where: buildBulkLockedDocumentQuery(collectionSlug, ids),
+-  })
++  const lockedDocuments: (JsonObject & TypeWithID)[] = []
++
++  for (const batch of batchLockedDocumentIds(ids, req)) {
++    const lockedDocumentResult: PaginatedDocs<JsonObject & TypeWithID> = await payload.db.find({
++      collection: lockedDocumentsCollectionSlug,
++      limit: 0,
++      pagination: false,
++      sort: '-updatedAt',
++      where: buildBulkLockedDocumentQuery(collectionSlug, batch),
++    })
++
++    lockedDocuments.push(...lockedDocumentResult.docs)
++  }
+ 
+   const lockDuration =
+     typeof lockDocumentsProp === 'object' ? lockDocumentsProp.duration : lockDurationDefault
+@@ -165,7 +206,7 @@ export const getLockedDocumentIds = async ({
+   const now = new Date().getTime()
+   const resolved = new Set<string>()
+ 
+-  for (const lockedDoc of lockedDocumentResult?.docs ?? []) {
++  for (const lockedDoc of lockedDocuments) {
+     const documentId = String(lockedDoc.document?.value)
+ 
+     // Sorted by -updatedAt, so the first row seen for an id is its most recent lock
+@@ -203,10 +244,12 @@ export const deleteDocumentLocks = async ({
+     return
+   }
+ 
+-  await payload.db.deleteMany({
+-    collection: lockedDocumentsCollectionSlug,
+-    // Not passing req fails on postgres
+-    req: payload.db.name === 'mongoose' ? undefined : req,
+-    where: buildBulkLockedDocumentQuery(collectionSlug, ids),
+-  })
++  for (const batch of batchLockedDocumentIds(ids, req)) {
++    await payload.db.deleteMany({
++      collection: lockedDocumentsCollectionSlug,
++      // Not passing req fails on postgres
++      req: payload.db.name === 'mongoose' ? undefined : req,
++      where: buildBulkLockedDocumentQuery(collectionSlug, batch),
++    })
++  }
+ }

@@ -1,0 +1,4 @@
+PAYLOAD_SECRET=change-me-to-a-long-random-string
+# The local admin user that pnpm admin:dev creates.
+DEV_ADMIN_EMAIL=admin@example.com
+DEV_ADMIN_PASSWORD=change-me

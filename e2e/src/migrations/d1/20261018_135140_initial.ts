@@ -175,8 +175,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`_parent_id\` integer NOT NULL,
   	\`_path\` text NOT NULL,
   	\`id\` text PRIMARY KEY NOT NULL,
-  	\`label\` text,
-  	\`href\` text,
+  	\`link_type\` text DEFAULT 'reference',
+  	\`link_new_tab\` integer,
+  	\`link_url\` text,
+  	\`link_label\` text,
   	\`block_name\` text,
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
@@ -294,9 +296,13 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`order\` integer,
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
+  	\`pages_id\` integer,
+  	\`posts_id\` integer,
   	\`users_id\` integer,
   	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`pages_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`posts_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
@@ -304,6 +310,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`pages_rels_order_idx\` ON \`pages_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_parent_idx\` ON \`pages_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_path_idx\` ON \`pages_rels\` (\`path\`);`)
+  await db.run(sql`CREATE INDEX \`pages_rels_pages_id_idx\` ON \`pages_rels\` (\`pages_id\`);`)
+  await db.run(sql`CREATE INDEX \`pages_rels_posts_id_idx\` ON \`pages_rels\` (\`posts_id\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_users_id_idx\` ON \`pages_rels\` (\`users_id\`);`)
   await db.run(sql`CREATE INDEX \`pages_rels_customers_id_idx\` ON \`pages_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`_pages_v_blocks_quote\` (
@@ -334,8 +342,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`_parent_id\` integer NOT NULL,
   	\`_path\` text NOT NULL,
   	\`id\` integer PRIMARY KEY NOT NULL,
-  	\`label\` text,
-  	\`href\` text,
+  	\`link_type\` text DEFAULT 'reference',
+  	\`link_new_tab\` integer,
+  	\`link_url\` text,
+  	\`link_label\` text,
   	\`_uuid\` text,
   	\`block_name\` text,
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_pages_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
@@ -470,9 +480,13 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`order\` integer,
   	\`parent_id\` integer NOT NULL,
   	\`path\` text NOT NULL,
+  	\`pages_id\` integer,
+  	\`posts_id\` integer,
   	\`users_id\` integer,
   	\`customers_id\` integer,
   	FOREIGN KEY (\`parent_id\`) REFERENCES \`_pages_v\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`pages_id\`) REFERENCES \`pages\`(\`id\`) ON UPDATE no action ON DELETE cascade,
+  	FOREIGN KEY (\`posts_id\`) REFERENCES \`posts\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`users_id\`) REFERENCES \`users\`(\`id\`) ON UPDATE no action ON DELETE cascade,
   	FOREIGN KEY (\`customers_id\`) REFERENCES \`customers\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
@@ -480,6 +494,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.run(sql`CREATE INDEX \`_pages_v_rels_order_idx\` ON \`_pages_v_rels\` (\`order\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_parent_idx\` ON \`_pages_v_rels\` (\`parent_id\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_path_idx\` ON \`_pages_v_rels\` (\`path\`);`)
+  await db.run(sql`CREATE INDEX \`_pages_v_rels_pages_id_idx\` ON \`_pages_v_rels\` (\`pages_id\`);`)
+  await db.run(sql`CREATE INDEX \`_pages_v_rels_posts_id_idx\` ON \`_pages_v_rels\` (\`posts_id\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_users_id_idx\` ON \`_pages_v_rels\` (\`users_id\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_rels_customers_id_idx\` ON \`_pages_v_rels\` (\`customers_id\`);`)
   await db.run(sql`CREATE TABLE \`posts\` (
@@ -1002,6 +1018,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	\`group_right\` text,
   	\`inside_collapsible\` text,
   	\`rich_text\` text,
+  	\`slug\` text NOT NULL,
   	\`updated_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	\`created_at\` text DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) NOT NULL,
   	FOREIGN KEY (\`relations_relationship_id\`) REFERENCES \`categories\`(\`id\`) ON UPDATE no action ON DELETE set null,
@@ -1010,6 +1027,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`field_types_relations_relations_relationship_idx\` ON \`field_types\` (\`relations_relationship_id\`);`)
   await db.run(sql`CREATE INDEX \`field_types_relations_relations_upload_idx\` ON \`field_types\` (\`relations_upload_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`field_types_slug_idx\` ON \`field_types\` (\`slug\`);`)
   await db.run(sql`CREATE INDEX \`field_types_updated_at_idx\` ON \`field_types\` (\`updated_at\`);`)
   await db.run(sql`CREATE INDEX \`field_types_created_at_idx\` ON \`field_types\` (\`created_at\`);`)
   await db.run(sql`CREATE TABLE \`field_types_locales\` (

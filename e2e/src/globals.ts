@@ -1,5 +1,7 @@
 import type { GlobalConfig } from "payload";
 
+import { rowLabel } from "@adirishi/offload-tanstack/fields";
+
 import { isStaff } from "./access";
 
 export const SiteSettings: GlobalConfig = {
@@ -11,6 +13,7 @@ export const SiteSettings: GlobalConfig = {
     {
       name: "footerLinks",
       type: "array",
+      admin: { components: { RowLabel: rowLabel("label", "Link") } },
       fields: [
         { name: "label", type: "text", required: true },
         { name: "url", type: "text", required: true },

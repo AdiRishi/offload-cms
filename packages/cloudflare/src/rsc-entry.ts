@@ -13,6 +13,7 @@ export const handleGraphQLRequest = (request: Request) => handleGraphQL({ config
 
 export const runScheduledJobs = async (ctx: ExecutionContext, jobs?: JobsRunOptions) => {
   const payload = await getPayload({ config: await config });
+  if (!payload.config.jobs.enabled) return;
   ctx.waitUntil(
     (async () => {
       await payload.jobs.handleSchedules({ allQueues: true });

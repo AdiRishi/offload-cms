@@ -88,7 +88,7 @@ test("a client-side link to a redirected path follows a relative custom URL", as
   const start = unique("relative-start");
   await api.create("pages", {
     _status: "published",
-    layout: [{ blockType: "cta", href: from, label: "Old address" }],
+    layout: [{ blockType: "cta", link: { label: "Old address", type: "custom", url: from } }],
     slug: start,
     title: "Start here",
   });

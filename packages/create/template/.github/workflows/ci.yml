@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@adirishi"
+      # Offload's packages belong to another account, so GITHUB_TOKEN can't read them.
+      # OFFLOAD_PACKAGES_TOKEN is a classic token with the read:packages scope.
+      - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.OFFLOAD_PACKAGES_TOKEN }}
+      - run: pnpm cf-typegen
+      - run: pnpm typecheck
+      - run: pnpm build

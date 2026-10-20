@@ -8,6 +8,8 @@ export default defineMeta({
     "email",
     "images",
     "live-preview",
+    "pages",
+    "admin",
     "forms",
     "customer-accounts",
     "checkout",

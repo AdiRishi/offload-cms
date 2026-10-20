@@ -1,5 +1,7 @@
 import type { CollectionConfig } from "payload";
 
+import { blockDescription, link } from "@adirishi/offload-tanstack/fields";
+
 import { isStaff, publishedOrStaff } from "../access";
 
 export const Pages: CollectionConfig = {
@@ -21,16 +23,14 @@ export const Pages: CollectionConfig = {
         {
           slug: "quote",
           fields: [
+            blockDescription("A quotation, shown large, with its author."),
             { name: "text", type: "textarea", localized: true, required: true },
             { name: "author", type: "text" },
           ],
         },
         {
           slug: "cta",
-          fields: [
-            { name: "label", type: "text", required: true },
-            { name: "href", type: "text", required: true },
-          ],
+          fields: [link({ relationTo: ["pages", "posts"] })],
         },
         { slug: "content", fields: [{ name: "body", type: "richText" }] },
         "pullQuote",

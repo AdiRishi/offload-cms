@@ -4,16 +4,14 @@ import { notFound, redirect } from "@tanstack/react-router";
 import { getRequestHeaders, getRequestUrl } from "@tanstack/react-start/server";
 import { cache } from "react";
 
+import type { Populated } from "./populated.ts";
+
 type RedirectReference = NonNullable<
   NonNullable<DataFromCollectionSlug<"redirects">["to"]>["reference"]
 >;
 
 /** A redirect's target document, populated. */
-export type RedirectDocument = RedirectReference extends infer R
-  ? R extends { value: infer V }
-    ? Omit<R, "value"> & { value: Exclude<V, number | string> }
-    : never
-  : never;
+export type RedirectDocument = Populated<RedirectReference>;
 
 export type PayloadHelpersOptions = {
   /** Loads the site's config, usually `async () => (await import("@payload-config")).default`. */

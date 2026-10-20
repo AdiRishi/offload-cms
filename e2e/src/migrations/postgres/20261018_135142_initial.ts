@@ -4,7 +4,9 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
    CREATE TYPE "public"."_locales" AS ENUM('en', 'fr');
   CREATE TYPE "public"."enum_users_role" AS ENUM('admin', 'customer');
+  CREATE TYPE "public"."enum_pages_blocks_cta_link_type" AS ENUM('reference', 'custom');
   CREATE TYPE "public"."enum_pages_status" AS ENUM('draft', 'published');
+  CREATE TYPE "public"."enum__pages_v_blocks_cta_link_type" AS ENUM('reference', 'custom');
   CREATE TYPE "public"."enum__pages_v_published_locale" AS ENUM('en', 'fr');
   CREATE TYPE "public"."enum__pages_v_version_status" AS ENUM('draft', 'published');
   CREATE TYPE "public"."enum_posts_status" AS ENUM('draft', 'published');
@@ -168,8 +170,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"_parent_id" integer NOT NULL,
   	"_path" text NOT NULL,
   	"id" varchar PRIMARY KEY NOT NULL,
-  	"label" varchar,
-  	"href" varchar,
+  	"link_type" "enum_pages_blocks_cta_link_type" DEFAULT 'reference',
+  	"link_new_tab" boolean,
+  	"link_url" varchar,
+  	"link_label" varchar,
   	"block_name" varchar
   );
   
@@ -245,6 +249,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
+  	"pages_id" integer,
+  	"posts_id" integer,
   	"users_id" integer,
   	"customers_id" integer
   );
@@ -271,8 +277,10 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"_parent_id" integer NOT NULL,
   	"_path" text NOT NULL,
   	"id" serial PRIMARY KEY NOT NULL,
-  	"label" varchar,
-  	"href" varchar,
+  	"link_type" "enum__pages_v_blocks_cta_link_type" DEFAULT 'reference',
+  	"link_new_tab" boolean,
+  	"link_url" varchar,
+  	"link_label" varchar,
   	"_uuid" varchar,
   	"block_name" varchar
   );
@@ -359,6 +367,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"order" integer,
   	"parent_id" integer NOT NULL,
   	"path" varchar NOT NULL,
+  	"pages_id" integer,
+  	"posts_id" integer,
   	"users_id" integer,
   	"customers_id" integer
   );
@@ -733,6 +743,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"group_right" varchar,
   	"inside_collapsible" varchar,
   	"rich_text" jsonb,
+  	"slug" varchar NOT NULL,
   	"updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
   	"created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
   );
@@ -2167,6 +2178,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "pages_locales" ADD CONSTRAINT "pages_locales_meta_image_id_media_id_fk" FOREIGN KEY ("meta_image_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "pages_locales" ADD CONSTRAINT "pages_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_pages_fk" FOREIGN KEY ("pages_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "pages_rels" ADD CONSTRAINT "pages_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_blocks_quote" ADD CONSTRAINT "_pages_v_blocks_quote_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
@@ -2186,6 +2199,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   ALTER TABLE "_pages_v_locales" ADD CONSTRAINT "_pages_v_locales_version_meta_image_id_media_id_fk" FOREIGN KEY ("version_meta_image_id") REFERENCES "public"."media"("id") ON DELETE set null ON UPDATE no action;
   ALTER TABLE "_pages_v_locales" ADD CONSTRAINT "_pages_v_locales_parent_id_fk" FOREIGN KEY ("_parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_parent_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."_pages_v"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_pages_fk" FOREIGN KEY ("pages_id") REFERENCES "public"."pages"("id") ON DELETE cascade ON UPDATE no action;
+  ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_posts_fk" FOREIGN KEY ("posts_id") REFERENCES "public"."posts"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_users_fk" FOREIGN KEY ("users_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "_pages_v_rels" ADD CONSTRAINT "_pages_v_rels_customers_fk" FOREIGN KEY ("customers_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
   ALTER TABLE "posts" ADD CONSTRAINT "posts_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
@@ -2525,6 +2540,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "pages_rels_order_idx" ON "pages_rels" USING btree ("order");
   CREATE INDEX "pages_rels_parent_idx" ON "pages_rels" USING btree ("parent_id");
   CREATE INDEX "pages_rels_path_idx" ON "pages_rels" USING btree ("path");
+  CREATE INDEX "pages_rels_pages_id_idx" ON "pages_rels" USING btree ("pages_id");
+  CREATE INDEX "pages_rels_posts_id_idx" ON "pages_rels" USING btree ("posts_id");
   CREATE INDEX "pages_rels_users_id_idx" ON "pages_rels" USING btree ("users_id");
   CREATE INDEX "pages_rels_customers_id_idx" ON "pages_rels" USING btree ("customers_id");
   CREATE INDEX "_pages_v_blocks_quote_order_idx" ON "_pages_v_blocks_quote" USING btree ("_order");
@@ -2568,6 +2585,8 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "_pages_v_rels_order_idx" ON "_pages_v_rels" USING btree ("order");
   CREATE INDEX "_pages_v_rels_parent_idx" ON "_pages_v_rels" USING btree ("parent_id");
   CREATE INDEX "_pages_v_rels_path_idx" ON "_pages_v_rels" USING btree ("path");
+  CREATE INDEX "_pages_v_rels_pages_id_idx" ON "_pages_v_rels" USING btree ("pages_id");
+  CREATE INDEX "_pages_v_rels_posts_id_idx" ON "_pages_v_rels" USING btree ("posts_id");
   CREATE INDEX "_pages_v_rels_users_id_idx" ON "_pages_v_rels" USING btree ("users_id");
   CREATE INDEX "_pages_v_rels_customers_id_idx" ON "_pages_v_rels" USING btree ("customers_id");
   CREATE UNIQUE INDEX "posts_slug_idx" ON "posts" USING btree ("slug");
@@ -2678,6 +2697,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   CREATE INDEX "field_types_blocks_list_block_path_idx" ON "field_types_blocks_list_block" USING btree ("_path");
   CREATE INDEX "field_types_relations_relations_relationship_idx" ON "field_types" USING btree ("relations_relationship_id");
   CREATE INDEX "field_types_relations_relations_upload_idx" ON "field_types" USING btree ("relations_upload_id");
+  CREATE UNIQUE INDEX "field_types_slug_idx" ON "field_types" USING btree ("slug");
   CREATE INDEX "field_types_updated_at_idx" ON "field_types" USING btree ("updated_at");
   CREATE INDEX "field_types_created_at_idx" ON "field_types" USING btree ("created_at");
   CREATE UNIQUE INDEX "field_types_locales_parent_id_locale_unique" ON "field_types_locales" USING btree ("_parent_id","_locale");
@@ -3355,7 +3375,9 @@ export async function down({ db, payload, req }: MigrateDownArgs): Promise<void>
   DROP TABLE "payload_jobs_stats" CASCADE;
   DROP TYPE "public"."_locales";
   DROP TYPE "public"."enum_users_role";
+  DROP TYPE "public"."enum_pages_blocks_cta_link_type";
   DROP TYPE "public"."enum_pages_status";
+  DROP TYPE "public"."enum__pages_v_blocks_cta_link_type";
   DROP TYPE "public"."enum__pages_v_published_locale";
   DROP TYPE "public"."enum__pages_v_version_status";
   DROP TYPE "public"."enum_posts_status";

@@ -262,6 +262,7 @@ export interface Config {
   };
   locale: 'en' | 'fr';
   widgets: {
+    'quick-actions': QuickActionsWidget;
     welcome: WelcomeWidget;
     collections: CollectionsWidget;
     'collection-query': CollectionQueryWidget;
@@ -689,11 +690,109 @@ export interface Quote {
  * via the `definition` "Cta".
  */
 export interface Cta {
-  label: string;
-  href: string;
+  link: {
+    type?: ('reference' | 'custom') | null;
+    newTab?: boolean | null;
+    reference?:
+      | ({
+          relationTo: 'pages';
+          value: number | Page;
+        } | null)
+      | ({
+          relationTo: 'posts';
+          value: number | Post;
+        } | null);
+    /**
+     * Such as https://example.com, /about, or #contact for a section.
+     */
+    url?: string | null;
+    label: string;
+  };
   id?: string | null;
   blockName?: string | null;
   blockType: 'cta';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  slug?: string | null;
+  excerpt?: string | null;
+  author?: (number | null) | User;
+  categories?: (number | Category)[] | null;
+  heroImage?: (number | null) | Media;
+  content?: LexicalRichText<LexicalNodes_A24C0B56> | null;
+  publishedAt?: string | null;
+  wordCount?: number | null;
+  _h_folders?: (number | null) | Folder;
+  _h_tags?: (number | Tag)[] | null;
+  meta?: {
+    title?: string | null;
+    description?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (number | null) | Media;
+  };
+  createdBy?:
+    | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'customers';
+        value: number | Customer;
+      } | null);
+  updatedBy?:
+    | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'customers';
+        value: number | Customer;
+      } | null);
+  updatedAt: string;
+  createdAt: string;
+  deletedAt?: string | null;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "categories".
+ */
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  posts?: {
+    docs?: (number | Post)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  createdBy?:
+    | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'customers';
+        value: number | Customer;
+      } | null);
+  updatedBy?:
+    | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
+        relationTo: 'customers';
+        value: number | Customer;
+      } | null);
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -901,88 +1000,6 @@ export interface NewsletterBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "posts".
- */
-export interface Post {
-  id: number;
-  title: string;
-  slug?: string | null;
-  excerpt?: string | null;
-  author?: (number | null) | User;
-  categories?: (number | Category)[] | null;
-  heroImage?: (number | null) | Media;
-  content?: LexicalRichText<LexicalNodes_A24C0B56> | null;
-  publishedAt?: string | null;
-  wordCount?: number | null;
-  _h_folders?: (number | null) | Folder;
-  _h_tags?: (number | Tag)[] | null;
-  meta?: {
-    title?: string | null;
-    description?: string | null;
-    /**
-     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
-     */
-    image?: (number | null) | Media;
-  };
-  createdBy?:
-    | ({
-        relationTo: 'users';
-        value: number | User;
-      } | null)
-    | ({
-        relationTo: 'customers';
-        value: number | Customer;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'users';
-        value: number | User;
-      } | null)
-    | ({
-        relationTo: 'customers';
-        value: number | Customer;
-      } | null);
-  updatedAt: string;
-  createdAt: string;
-  deletedAt?: string | null;
-  _status?: ('draft' | 'published') | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories".
- */
-export interface Category {
-  id: number;
-  name: string;
-  slug: string;
-  posts?: {
-    docs?: (number | Post)[];
-    hasNextPage?: boolean;
-    totalDocs?: number;
-  };
-  createdBy?:
-    | ({
-        relationTo: 'users';
-        value: number | User;
-      } | null)
-    | ({
-        relationTo: 'customers';
-        value: number | Customer;
-      } | null);
-  updatedBy?:
-    | ({
-        relationTo: 'users';
-        value: number | User;
-      } | null)
-    | ({
-        relationTo: 'customers';
-        value: number | Customer;
-      } | null);
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "field-types".
  */
 export interface FieldType {
@@ -1049,6 +1066,7 @@ export interface FieldType {
     | null;
   blocks?: (TextBlock | ListBlock)[] | null;
   richText?: LexicalRichText<LexicalNodes_6E4586CE> | null;
+  slug: string;
   createdBy?:
     | ({
         relationTo: 'users';
@@ -1904,8 +1922,15 @@ export interface PagesSelect<T extends boolean = true> {
         cta?:
           | T
           | {
-              label?: T;
-              href?: T;
+              link?:
+                | T
+                | {
+                    type?: T;
+                    newTab?: T;
+                    reference?: T;
+                    url?: T;
+                    label?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -2204,6 +2229,7 @@ export interface FieldTypesSelect<T extends boolean = true> {
             };
       };
   richText?: T;
+  slug?: T;
   createdBy?: T;
   updatedBy?: T;
   updatedAt?: T;
@@ -2879,6 +2905,16 @@ export interface PayloadJobsStatsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "quick-actions_widget".
+ */
+export interface QuickActionsWidget {
+  data?: {
+    [k: string]: unknown;
+  };
+  width: 'medium' | 'large' | 'x-large' | 'full';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

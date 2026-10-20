@@ -1,9 +1,19 @@
 ---
 title: "@adirishi/offload-tanstack"
-description: Reference for the helpers that read Payload content per request, the redirect lookup, the server function middleware, and the Live Preview listener.
+description: Reference for the helpers that read Payload content per request, render blocks, images, links and SEO tags, and help editors and seed scripts.
 ---
 
-`@adirishi/offload-tanstack/server` imports Payload, so only server functions and server components call it. The main entry point, with `hideServerErrors` and `LivePreviewListener`, doesn't import Payload, so client code can import it. The package depends on the Offload build of `@payloadcms/live-preview-react`, so a site doesn't install that package. [Preview drafts and Live Preview](/live-preview) uses every export on this page.
+The package has five entry points:
+
+| Entry point                                             | Runs in                                                | Exports                                                                                                                             |
+| ------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `@adirishi/offload-tanstack`                            | The browser and the server. It doesn't import Payload. | `hideServerErrors`, `LivePreviewListener`, `RenderBlocks`, `seoMeta`, `seoHead`, `toImageSource`, `Media`, `resolveLink`, `CMSLink` |
+| `@adirishi/offload-tanstack/server`                     | Server functions and server components                 | `createPayloadHelpers`                                                                                                              |
+| `@adirishi/offload-tanstack/fields`                     | The Payload config                                     | `link`, `rowLabel`, `blockDescription`, `quickActionsWidget`, `seoGenerators`                                                       |
+| `@adirishi/offload-tanstack/admin/client`, `/admin/rsc` | The admin, through the import map                      | The components that the field helpers name                                                                                          |
+| `@adirishi/offload-tanstack/seed`                       | `payload run`                                          | `resetCollections`, `uploadMedia`, `markdownToLexical`                                                                              |
+
+The package depends on the Offload build of `@payloadcms/live-preview-react`, so a site doesn't install that package. `seoGenerators` needs `@payloadcms/plugin-seo`, and the seed helpers need `@payloadcms/richtext-lexical`. [Preview drafts and Live Preview](/live-preview) and [Build pages from blocks](/pages) use the exports on this page.
 
 ## createPayloadHelpers()
 
@@ -70,3 +80,68 @@ Keep the CSRF middleware. TanStack Start applies its own CSRF middleware to serv
 ## LivePreviewListener
 
 It calls `router.invalidate()` when an editor saves in the admin's Live Preview, so the route's loaders run again. Render it only while the request is a draft, as [Preview drafts and Live Preview](/live-preview) shows.
+
+## RenderBlocks
+
+Renders a blocks field's rows in order. `components` has a component for each `blockType` in the rows' type, and each component receives its row's fields as props:
+
+```tsx
+<RenderBlocks blocks={page.layout} components={blockComponents} />
+```
+
+Type `components` as `BlockComponents<NonNullable<Page["layout"]>[number]>`. A block type without a component then fails the type check. Render `RenderBlocks` inside `renderServerComponent()` in a server function, so the components run on the server and can read Payload with `getRequestPayload()`. A row's `id` is its React key.
+
+## seoMeta() and seoHead()
+
+`seoMeta()` returns a document's title, description, absolute URL, and sharing image. Each comes from the SEO plugin's `meta` field when an editor filled it, and otherwise from the `SeoDefaults` that the site passes:
+
+| Option          | What it is                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| `doc`           | The document, read with `depth: 1` or more, so uploads are populated.                       |
+| `defaults`      | `title(doc, siteName)`, and optionally `description(doc)` and `image(doc)`.                 |
+| `path`          | The document's path, such as `/about`.                                                      |
+| `siteName`      | The site's name, for `og:site_name` and the default title.                                  |
+| `siteUrl`       | The site's origin. The canonical URL and the image's URL start with it.                     |
+| `fallbackImage` | The site's sharing image, used when the document and its default have none.                 |
+| `imageVariant`  | The variant sized for sharing, `og` by default. Without that variant, the original is used. |
+
+The result is plain data, so the server function returns it and the route's `head()` passes it to `seoHead()`. `seoHead()` returns the title, the `description` meta tag, Open Graph and Twitter tags, and a `canonical` link. With an image, the Twitter card is `summary_large_image`.
+
+## seoGenerators()
+
+Returns the SEO plugin's `generateTitle`, `generateDescription`, `generateImage`, and `generateURL` from the same `SeoDefaults`. `siteName(req)` gives the name that `title` receives, and `path({ doc, collectionSlug })` gives the path that the URL starts from the request's origin with. `fallbackImage(req)` gives the image that `generateImage` falls back to. The plugin passes the form's unsaved data, in which an upload is an ID, so `generateImage` stores the upload's ID either way.
+
+## toImageSource() and Media
+
+`toImageSource()` takes an upload field's value and returns `undefined` when the field is empty or holds an ID. Otherwise it returns the original's URL, alt text, and size, the focal point, and the candidates for `srcset`: the original and each variant that has a URL and keeps the original's aspect ratio, narrowest first.
+
+`Media` renders the result as an `<img>` with `width` and `height`, lazy loading, and the focal point as `object-position`. `sizes` is required. `priority` loads the image eagerly with high fetch priority, and `cover` is the aspect ratio of a box that the image covers, which scales `sizes` for a wider image. Other props, such as `className`, go to the `<img>`. [Process images](/images#render-variants) explains why a variant can be missing.
+
+## link(), resolveLink() and CMSLink
+
+`link({ relationTo })` returns a group field, named `link` unless `name` says otherwise, with these fields:
+
+| Field        | What it holds                                                                      |
+| ------------ | ---------------------------------------------------------------------------------- |
+| `type`       | `reference` for a document, or `custom` for an address.                            |
+| `reference`  | A document in one of the `relationTo` collections.                                 |
+| `url`        | An address that starts with `https://`, `http://`, `mailto:`, `tel:`, `/`, or `#`. |
+| `label`      | The link's text.                                                                   |
+| `newTab`     | Whether the link opens in a new tab.                                               |
+| `appearance` | One of `appearances`, when the option is set.                                      |
+
+`resolveLink(link, documentPath)` returns `{ href, label, newTab }`, or `undefined` when the link has no text or no address. A reference has an address only when the query populated it, so a link to a document that the request can't read, such as a draft, resolves to nothing. `documentPath` has the shape of `createPayloadHelpers()`'s option.
+
+`CMSLink` renders a path on the site, one that starts with a single `/`, with TanStack Router's `Link` and `preload="intent"`. It renders any other address, and a link with `newTab`, as an anchor. A link with `newTab` gets `rel="noopener noreferrer"`.
+
+## Admin helpers
+
+- `rowLabel(path, fallback)` is an array field's `admin.components.RowLabel`. It shows the string at `path` in the row, or `<fallback> <row number>`.
+- `blockDescription(text)` is a `ui` field named `blockDescription` that shows `text` as a field description.
+- `quickActionsWidget({ title, description, actions })` is a dashboard widget, `quick-actions` unless `slug` says otherwise. An action opens a collection's list, its create view with `create: true`, the first document that matches `where`, a global, or a `url`. The widget shows only the actions that the editor's permissions allow.
+
+[Help editors in the admin](/admin) shows each one in a config. After adding one, run `pnpm payload generate:importmap`.
+
+## Seed helpers
+
+`resetCollections(payload, collections)` deletes every document in each collection, trashed ones included, in order, with access control off. `uploadMedia(payload, { directory, alt, collection })` uploads each file named in `alt` to `collection`, `media` unless set, and returns a function from a file name to its document ID. `markdownToLexical(payload, editor?)` returns a function that converts Markdown to Lexical rich text for `editor`, or for the config's `editor`, and throws when that isn't Lexical. [Seed content](/seed#make-the-seed-repeatable) uses all three.

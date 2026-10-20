@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 21:51:42 +1100
+Subject: [PATCH] fix(tanstack-start): pre-bundle the Azure SDK's events
+ dependency through the Azure adapter
+
+vite dev warns "Cannot optimize dependency: @azure/storage-blob > events,
+present in client 'optimizeDeps.include'" in every site without the Azure
+storage adapter. withPayload lists that entry in its default
+optimizeDeps.include, because it excludes @azure/storage-blob from the
+client optimizer. Vite resolves each package of a nested entry from the
+one before it, starting at the project root, so the entry also fails in a
+pnpm site that installs @payloadcms/storage-azure: pnpm installs the SDK
+inside the adapter, not at the root, and events is never pre-bundled.
+
+The entry is now @payloadcms/storage-azure > @azure/storage-blob > events,
+which resolves wherever the adapter is installed, Payload's own test
+project included, and withPayload adds it only when the adapter resolves
+from the project root.
+
+Offload-Patch: tanstack-optional-azure-optimize-deps
+Drop-When: the pinned release's withPayload pre-bundles the Azure SDK's events dependency only for sites with the Azure adapter, through an entry that resolves under pnpm
+Tests: start vite dev in e2e after pnpm release e2e, load /admin, and check that the log has no "Cannot optimize dependency" line
+---
+ .../src/withPayload/config/optimizeDeps.ts    | 21 +++++++++++++++++--
+ .../tanstack-start/src/withPayload/index.ts   |  8 +++++--
+ 2 files changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/packages/tanstack-start/src/withPayload/config/optimizeDeps.ts b/packages/tanstack-start/src/withPayload/config/optimizeDeps.ts
+index b7cdb9494..6c10ab7b6 100644
+--- a/packages/tanstack-start/src/withPayload/config/optimizeDeps.ts
++++ b/packages/tanstack-start/src/withPayload/config/optimizeDeps.ts
+@@ -1,3 +1,6 @@
++import { createRequire } from 'node:module'
++import path from 'node:path'
++
+ /**
+  * Client dep-optimizer config used by `withPayload`. Kept separate from the
+  * SSR/RSC externalization config (`./external.ts`) so each concern stays small.
+@@ -158,6 +161,20 @@ export const optimizeDepsIncludeDefaults: string[] = [
+   'payload > ipaddr.js',
+   'payload > range-parser',
+   'payload > sanitize-filename',
+-  // `@azure/storage-blob` is excluded, so pre-bundle its CommonJS browser dependency explicitly.
+-  '@azure/storage-blob > events',
+ ]
++
++/**
++ * `@azure/storage-blob` is excluded, so its CommonJS browser dependency is pre-bundled explicitly.
++ * Vite resolves each package of a `parent > child` entry from the one before it, starting at the
++ * project root, and warns about an entry it can't resolve. The SDK is a dependency of
++ * `@payloadcms/storage-azure`, which pnpm installs inside the adapter rather than at the root, so
++ * the entry starts from the adapter and is added only when the project installs it.
++ */
++export const optionalOptimizeDepsInclude = (root: string): string[] => {
++  try {
++    createRequire(path.join(root, 'package.json')).resolve('@payloadcms/storage-azure')
++    return ['@payloadcms/storage-azure > @azure/storage-blob > events']
++  } catch {
++    return []
++  }
++}
+diff --git a/packages/tanstack-start/src/withPayload/index.ts b/packages/tanstack-start/src/withPayload/index.ts
+index a4dc644d1..5cfa3aaa5 100644
+--- a/packages/tanstack-start/src/withPayload/index.ts
++++ b/packages/tanstack-start/src/withPayload/index.ts
+@@ -13,7 +13,11 @@ import {
+   payloadNoExternalPatterns,
+   ssrExternalPackages,
+ } from './config/external.js'
+-import { optimizeDepsExcludeDefaults, optimizeDepsIncludeDefaults } from './config/optimizeDeps.js'
++import {
++  optimizeDepsExcludeDefaults,
++  optimizeDepsIncludeDefaults,
++  optionalOptimizeDepsInclude,
++} from './config/optimizeDeps.js'
+ import { payloadScssImporters } from './config/scss.js'
+ import { payloadDevConfigReload } from './devConfigReload.js'
+ import {
+@@ -222,7 +226,7 @@ export function withPayload(
+       } as any,
+       optimizeDeps: {
+         exclude: optimizeDepsExcludeDefaults,
+-        include: optimizeDepsIncludeDefaults,
++        include: [...optimizeDepsIncludeDefaults, ...optionalOptimizeDepsInclude(process.cwd())],
+       },
+       // Payload's internal workaround plugins only. The RSC, TanStack Start, and
+       // React plugins are appended below (default form) or by the consumer's

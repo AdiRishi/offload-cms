@@ -10,6 +10,7 @@ import { repoRoot, run } from "./exec.ts";
 import { withOffloadVersion } from "./manifest.ts";
 import { readManifest, writeManifest } from "./packages.ts";
 import { pack, publish } from "./publish.ts";
+import { checkTemplateSite, createTemplateSite } from "./template.ts";
 
 const e2eDir = path.join(repoRoot, "e2e");
 /** The port e2e/.npmrc installs @adirishi packages from. */
@@ -50,11 +51,13 @@ const startRegistry = async () => {
  * throwaway registry, installs e2e/ from it, then type-checks and lints e2e/, checks
  * its migrations against its schema, and runs the Playwright suite on D1, or on
  * Postgres through Hyperdrive. The D1 run
- * also checks the Worker's compressed size against its budget.
+ * also checks the Worker's compressed size against its budget, and creates, builds and serves a
+ * site from `pnpm create @adirishi/offload`.
  */
 export const e2e = async ({ postgres }: { postgres: boolean }) => {
   await pack(workingTreeVersion);
   const registry = await startRegistry();
+  let templateSite: string | undefined;
   try {
     await publish({ registry: registry.url, token: "local-registry" });
     writeManifest(e2eDir, withOffloadVersion(readManifest(e2eDir), workingTreeVersion));
@@ -65,6 +68,7 @@ export const e2e = async ({ postgres }: { postgres: boolean }) => {
     rmSync(path.join(e2eDir, "node_modules"), { force: true, recursive: true });
     await run("pnpm", ["cache", "delete", "@adirishi/*"], { cwd: e2eDir });
     await run("pnpm", ["install"], { cwd: e2eDir });
+    if (!postgres) templateSite = await createTemplateSite(registry.url);
   } finally {
     await registry.close();
   }
@@ -78,4 +82,5 @@ export const e2e = async ({ postgres }: { postgres: boolean }) => {
   await run("pnpm", ["migrations:check"], { cwd: e2eDir });
   await run("pnpm", ["test"], { cwd: e2eDir, env: postgres ? { CLOUDFLARE_ENV: "postgres" } : {} });
   if (!postgres) await run("pnpm", ["size"], { cwd: e2eDir });
+  if (templateSite) await checkTemplateSite(templateSite);
 };

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './app/__root'
 import { Route as FrontendRouteImport } from './app/_frontend'
 import { Route as PayloadRouteImport } from './app/_payload'
 import { Route as FrontendIndexRouteImport } from './app/_frontend/index'
+import { Route as FrontendSplatRouteImport } from './app/_frontend/$'
 import { Route as FrontendSlugRouteImport } from './app/_frontend/$slug'
 import { Route as FrontendAccountRouteImport } from './app/_frontend/_account'
 import { Route as FrontendShopRouteImport } from './app/_frontend/_shop'
@@ -43,6 +44,11 @@ const PayloadRoute = PayloadRouteImport.update({
 const FrontendIndexRoute = FrontendIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => FrontendRoute,
+} as any)
+const FrontendSplatRoute = FrontendSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => FrontendRoute,
 } as any)
 const FrontendSlugRoute = FrontendSlugRouteImport.update({
@@ -147,6 +153,7 @@ const FrontendShopProductsProductIDRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof FrontendIndexRoute
+  '/$': typeof FrontendSplatRoute
   '/$slug': typeof FrontendSlugRoute
   '/forgot-password': typeof FrontendForgotPasswordRoute
   '/login': typeof FrontendLoginRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof FrontendIndexRoute
+  '/$': typeof FrontendSplatRoute
   '/$slug': typeof FrontendSlugRoute
   '/forgot-password': typeof FrontendForgotPasswordRoute
   '/login': typeof FrontendLoginRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_frontend': typeof FrontendRouteWithChildren
   '/_payload': typeof PayloadRouteWithChildren
+  '/_frontend/$': typeof FrontendSplatRoute
   '/_frontend/$slug': typeof FrontendSlugRoute
   '/_frontend/_account': typeof FrontendAccountRouteWithChildren
   '/_frontend/_shop': typeof FrontendShopRouteWithChildren
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
     | '/$slug'
     | '/forgot-password'
     | '/login'
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
     | '/$slug'
     | '/forgot-password'
     | '/login'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_frontend'
     | '/_payload'
+    | '/_frontend/$'
     | '/_frontend/$slug'
     | '/_frontend/_account'
     | '/_frontend/_shop'
@@ -303,6 +315,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof FrontendIndexRouteImport
+      parentRoute: typeof FrontendRoute
+    }
+    '/_frontend/$': {
+      id: '/_frontend/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof FrontendSplatRouteImport
       parentRoute: typeof FrontendRoute
     }
     '/_frontend/$slug': {
@@ -474,6 +493,7 @@ const FrontendShopRouteWithChildren = FrontendShopRoute._addFileChildren(
 )
 
 interface FrontendRouteChildren {
+  FrontendSplatRoute: typeof FrontendSplatRoute
   FrontendSlugRoute: typeof FrontendSlugRoute
   FrontendAccountRoute: typeof FrontendAccountRouteWithChildren
   FrontendShopRoute: typeof FrontendShopRouteWithChildren
@@ -487,6 +507,7 @@ interface FrontendRouteChildren {
 }
 
 const FrontendRouteChildren: FrontendRouteChildren = {
+  FrontendSplatRoute: FrontendSplatRoute,
   FrontendSlugRoute: FrontendSlugRoute,
   FrontendAccountRoute: FrontendAccountRouteWithChildren,
   FrontendShopRoute: FrontendShopRouteWithChildren,

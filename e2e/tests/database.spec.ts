@@ -30,3 +30,15 @@ test("a duplicate unique value is a validation error on create and update", asyn
   expect(renamed.status()).toBe(400);
   expect(await renamed.json()).toMatchObject(uniqueSlugError);
 });
+
+test("a bulk delete removes a full page of documents", async ({ api }) => {
+  const name = unique("bulk-delete");
+  await Promise.all(Array.from({ length: 50 }, () => api.create("tags", { name })));
+
+  const deleted = await api.request.delete(`/api/tags?where[name][equals]=${name}`, {
+    headers: { Authorization: `JWT ${api.token}` },
+  });
+  expect(deleted.status()).toBe(200);
+  expect(await deleted.json()).toMatchObject({ docs: expect.any(Array), errors: [] });
+  expect((await api.find("tags", `?where[name][equals]=${name}`)).totalDocs).toBe(0);
+});

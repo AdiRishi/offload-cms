@@ -4,6 +4,7 @@ import { cloudflareEmailAdapter } from "@adirishi/offload-email-cloudflare";
 import { INR, MUR } from "@adirishi/offload-payments";
 import { mipsAdapter } from "@adirishi/offload-payments/mips";
 import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
+import { quickActionsWidget, seoGenerators } from "@adirishi/offload-tanstack/fields";
 import { sqliteD1Adapter } from "@payloadcms/db-d1-sqlite";
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
@@ -34,6 +35,7 @@ import { Tags } from "./collections/Tags";
 import { Users } from "./collections/Users";
 import { Header, SiteSettings } from "./globals";
 import { createJobs, listJobsEndpoint, queueJobEndpoint, schedulePublishEndpoint } from "./jobs";
+import { documentPath, seoDefaults } from "./seo";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const env = await getBindings();
@@ -84,6 +86,28 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
+    dashboard: {
+      widgets: [
+        quickActionsWidget({
+          title: "Welcome to the e2e admin",
+          description: "Shortcuts to the things editors change most.",
+          actions: [
+            { label: "Write a post", collection: "posts", create: true },
+            {
+              label: "Edit the about page",
+              collection: "pages",
+              where: { slug: { equals: "about" } },
+            },
+            { label: "Change the site settings", global: "site-settings" },
+            { label: "View the site", url: "/", newTab: true },
+          ],
+        }),
+      ],
+      defaultLayout: [
+        { widgetSlug: "quick-actions", width: "full" },
+        { widgetSlug: "collections", width: "full" },
+      ],
+    },
   },
   blocks: [PullQuote],
   collections: [
@@ -120,7 +144,12 @@ export default buildConfig({
   plugins: [
     seoPlugin({
       collections: ["pages", "posts"],
-      generateTitle: ({ doc }) => `${String(doc.title)} | Offload`,
+      ...seoGenerators({
+        defaults: seoDefaults,
+        siteName: async (req) =>
+          (await req.payload.findGlobal({ slug: "site-settings", req })).siteName,
+        path: ({ doc, collectionSlug }) => documentPath(collectionSlug ?? "pages", doc.slug),
+      }),
       uploadsCollection: "media",
     }),
     nestedDocsPlugin({

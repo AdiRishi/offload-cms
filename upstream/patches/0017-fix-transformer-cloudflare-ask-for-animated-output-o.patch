@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 21:42:43 +1100
+Subject: [PATCH] fix(transformer-cloudflare): ask for animated output only in
+ GIF and WebP
+
+Every upload to a deployed Worker fails when the output is PNG, JPEG or
+AVIF. resolveOutput() sets anim: true unless the format options turn it
+off, whatever the output format, and deployed Cloudflare Images rejects
+that with "IMAGES_TRANSFORM_ERROR 9401: Could not resize the image:
+Animated output is only supported for GIF or WebP". The local binding
+ignores anim, so vite dev and vite preview don't show the failure. The
+transformer's README already says animation is kept only where the output
+format supports it.
+
+anim now defaults to true for GIF and WebP output and to false otherwise,
+for uploads and for dynamic resizing. An explicit anim still wins. The
+spec's stand-in for the Images binding rejects animated output in other
+formats, as Cloudflare does.
+
+Offload-Patch: transformer-cloudflare-animated-formats
+Drop-When: the pinned release's transformer-cloudflare asks for animated output only in formats that support it
+Tests: pnpm --filter @payloadcms/transformer-cloudflare exec vitest run
+---
+ .../src/cloudflareTransformer.spec.ts                      | 7 ++++++-
+ packages/transformer-cloudflare/src/transformation.ts      | 2 +-
+ packages/transformer-cloudflare/src/types.ts               | 5 ++++-
+ 3 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts b/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts
+index eb9c85788..590ecd28d 100644
+--- a/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts
++++ b/packages/transformer-cloudflare/src/cloudflareTransformer.spec.ts
+@@ -33,7 +33,12 @@ function createImages() {
+         transformOptions.push(options)
+         return handle
+       },
+-      output: async (options: { format: string; quality?: number }) => {
++      output: async (options: { anim?: boolean; format: string; quality?: number }) => {
++        if (options.anim && !['image/gif', 'image/webp'].includes(options.format)) {
++          throw new Error(
++            'IMAGES_TRANSFORM_ERROR 9401: Could not resize the image: Animated output is only supported for GIF or WebP',
++          )
++        }
+         let bytes = Buffer.from(await new Response(stream).arrayBuffer())
+ 
+         for (const transform of transforms) {
+diff --git a/packages/transformer-cloudflare/src/transformation.ts b/packages/transformer-cloudflare/src/transformation.ts
+index 6fa778d4e..b179a83df 100644
+--- a/packages/transformer-cloudflare/src/transformation.ts
++++ b/packages/transformer-cloudflare/src/transformation.ts
+@@ -20,7 +20,7 @@ export function resolveOutput({
+   }
+ 
+   return {
+-    anim: formatOptions?.anim ?? true,
++    anim: formatOptions?.anim ?? (format === 'gif' || format === 'webp'),
+     format: `image/${format}`,
+     quality: formatOptions?.quality,
+   }
+diff --git a/packages/transformer-cloudflare/src/types.ts b/packages/transformer-cloudflare/src/types.ts
+index 921a86f8d..847322987 100644
+--- a/packages/transformer-cloudflare/src/types.ts
++++ b/packages/transformer-cloudflare/src/types.ts
+@@ -39,7 +39,10 @@ export type CloudflareTransformation = {
+ }
+ 
+ export type CloudflareOutputOptions = {
+-  /** Preserve animated GIF/WebP/AVIF frames. @default true */
++  /**
++   * Preserve animated frames. Cloudflare Images rejects animated output in other formats.
++   * @default true for GIF and WebP output, false otherwise
++   */
+   anim?: boolean
+   format: `image/${CloudflareFormat}`
+   quality?: number
