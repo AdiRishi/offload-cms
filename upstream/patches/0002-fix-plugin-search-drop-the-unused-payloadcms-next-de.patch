@@ -18,10 +18,10 @@ Tests: pnpm --filter @payloadcms/plugin-search build; e2e suite (search test) pa
  2 files changed, 4 deletions(-)
 
 diff --git a/packages/plugin-search/package.json b/packages/plugin-search/package.json
-index 2af357435..d2f377ce7 100644
+index 12e1378d8..5d4db84bd 100644
 --- a/packages/plugin-search/package.json
 +++ b/packages/plugin-search/package.json
-@@ -60,7 +60,6 @@
+@@ -82,7 +82,6 @@
      "test": "echo \"Error: no tests specified\""
    },
    "dependencies": {
@@ -30,7 +30,7 @@ index 2af357435..d2f377ce7 100644
    },
    "devDependencies": {
 diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
-index 960487dfc..b9cf12fce 100644
+index 6ceaa6d40..76db731cf 100644
 --- a/pnpm-lock.yaml
 +++ b/pnpm-lock.yaml
 @@ -1296,9 +1296,6 @@ importers:

@@ -59,7 +59,7 @@ index 6578b3629..3109fe0a9 100644
 +  })
  })
 diff --git a/packages/payload/src/config/sanitize.ts b/packages/payload/src/config/sanitize.ts
-index a82360ab6..1a141f5a7 100644
+index 043f8d0c8..2f9364c5e 100644
 --- a/packages/payload/src/config/sanitize.ts
 +++ b/packages/payload/src/config/sanitize.ts
 @@ -423,7 +423,10 @@ export const sanitizeConfig = (incomingConfig: Config): SanitizedConfig => {

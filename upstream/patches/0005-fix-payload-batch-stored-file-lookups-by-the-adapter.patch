@@ -29,10 +29,10 @@ Tests: e2e suite (media update and delete test)
  4 files changed, 15 insertions(+), 3 deletions(-)
 
 diff --git a/packages/drizzle/src/types.ts b/packages/drizzle/src/types.ts
-index bd084ffa7..b166fd5bd 100644
+index 61c5f831e..242091a53 100644
 --- a/packages/drizzle/src/types.ts
 +++ b/packages/drizzle/src/types.ts
-@@ -471,7 +471,6 @@ export interface DrizzleAdapter extends BaseDatabaseAdapter {
+@@ -470,7 +470,6 @@ export interface DrizzleAdapter extends BaseDatabaseAdapter {
     * primary to guarantee read-after-write consistency.
     */
    lastWriteTimestamp?: number
@@ -53,7 +53,7 @@ index b501d128e..19b4198c1 100644
      | 'migrateDown'
      | 'migrateFresh'
 diff --git a/packages/payload/src/database/types.ts b/packages/payload/src/database/types.ts
-index d762feb65..9c0b869bb 100644
+index 01e42b594..32a8b09d6 100644
 --- a/packages/payload/src/database/types.ts
 +++ b/packages/payload/src/database/types.ts
 @@ -97,6 +97,12 @@ export interface BaseDatabaseAdapter {
