@@ -17,9 +17,11 @@ import {
   flagPayment,
   gatewayFields,
   gatewayGroup,
+  orderConfirmation,
   PaymentRefused,
   reopenForLatePayment,
   settleOnServer,
+  type SettledOrder,
   settlePaidTransaction,
   transactionSchema,
   writeGatewayFields,
@@ -33,10 +35,17 @@ import {
   type RazorpayPayment,
   takesDecimals,
 } from "./api.ts";
-import { parseWebhookEvent } from "./events.ts";
+import { parseWebhookEvent, type RazorpayWebhookBody, readWebhookBody } from "./events.ts";
 import { verifyPaymentSignature, verifyWebhookSignature } from "./signature.ts";
 
-export type RazorpayAdapterOptions = {
+/** A site's handler for a verified Razorpay webhook event, as the Stripe adapter's `webhooks`. */
+export type RazorpayWebhookHandler = (args: {
+  /** The event as Razorpay sent it, such as `{ event: "refund.processed", payload: { ... } }`. */
+  event: RazorpayWebhookBody;
+  req: PayloadRequest;
+}) => Promise<void> | void;
+
+export type RazorpayAdapterArgs = {
   /** The key ID from the Razorpay Dashboard. The browser receives it from `initiate`. */
   keyID: string;
   keySecret: string;
@@ -44,9 +53,13 @@ export type RazorpayAdapterOptions = {
   webhookSecret: string;
   /** The API's origin. Defaults to `https://api.razorpay.com`. */
   apiURL?: string;
-  label?: string;
-  groupOverrides?: PaymentAdapterArgs["groupOverrides"];
-};
+  /**
+   * Handlers for webhook events by name, such as `refund.processed`. Each runs after the
+   * signature check and before the adapter's own handling. A handler that throws makes the
+   * endpoint answer 500, so Razorpay sends the event again.
+   */
+  webhooks?: Record<string, RazorpayWebhookHandler>;
+} & PaymentAdapterArgs;
 
 const name = "razorpay";
 
@@ -71,11 +84,7 @@ const confirmData = z.object({
   razorpay_signature: z.string(),
 });
 
-const settledOrder = z.object({ id: documentID });
-
-type Outcome =
-  | { kind: "settled"; orderID: z.infer<typeof documentID> }
-  | { kind: "unsettled"; error?: string };
+type Outcome = { kind: "settled"; order: SettledOrder } | { kind: "unsettled"; error?: string };
 
 const findByOrderID = (req: PayloadRequest, orderID: string) =>
   findTransaction(req, { "razorpay.orderID": { equals: orderID } }, razorpayTransaction);
@@ -99,8 +108,9 @@ export const razorpayAdapter = ({
   keyID,
   keySecret,
   label = "Razorpay",
+  webhooks,
   webhookSecret,
-}: RazorpayAdapterOptions): OffloadPaymentAdapter => {
+}: RazorpayAdapterArgs): OffloadPaymentAdapter => {
   const api = razorpayAPI({ apiURL, keyID, keySecret });
 
   const capture = async (payment: RazorpayPayment, transaction: RazorpayTransaction) => {
@@ -164,7 +174,7 @@ export const razorpayAdapter = ({
         shippingAddress: transaction.razorpay?.shippingAddress,
         transaction: open,
       });
-      return { kind: "settled", orderID: settledOrder.parse(order).id };
+      return { kind: "settled", order };
     } catch (error) {
       if (!(error instanceof PaymentRefused)) throw error;
       await flagPayment(req, transaction, name, error.message);
@@ -260,11 +270,7 @@ export const razorpayAdapter = ({
           outcome.error ?? `Payment ${payment.id} is ${payment.status}, not captured.`,
         );
       }
-      return {
-        message: "Order confirmed",
-        orderID: outcome.orderID,
-        transactionID: transaction.id,
-      };
+      return orderConfirmation(outcome.order, transaction.id);
     },
 
     endpoints: [
@@ -285,14 +291,16 @@ export const razorpayAdapter = ({
           const eventID = req.headers.get("x-razorpay-event-id");
           // Razorpay retries any other answer for 24 hours, then disables the webhook, and a retry
           // can't make an event readable.
-          const event = parseWebhookEvent(body);
-          if (!event) {
+          const raw = readWebhookBody(body);
+          const event = raw && parseWebhookEvent(raw);
+          if (!raw || !event) {
             req.payload.logger.error(`Razorpay event ${eventID} is signed but unreadable.`);
             return Response.json({ received: true });
           }
-          if (event.kind === "ignored") return Response.json({ received: true });
-
           try {
+            await webhooks?.[raw.event]?.({ event: raw, req });
+            if (event.kind === "ignored") return Response.json({ received: true });
+
             const transaction = await findByOrderID(req, event.orderID);
             if (
               !transaction ||

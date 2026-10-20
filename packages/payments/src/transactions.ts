@@ -37,9 +37,10 @@ export const transactionSchema = z.object({
   cart: documentID.nullish(),
   customer: documentID.nullish(),
   customerEmail: z.string().nullish(),
-  // A product deleted after the checkout leaves its item without one.
+  // A product deleted after the checkout leaves its item without one. Loose, so the properties a
+  // site's cartItemMatcher adds to cart items reach the order.
   items: z.array(
-    z.object({
+    z.looseObject({
       product: documentID.nullish(),
       quantity: z.number(),
       variant: documentID.nullish(),
@@ -133,10 +134,13 @@ export const createPendingTransaction = async (
       billingAddress,
       cart: cart.id,
       currency: currency.toUpperCase(),
-      items: cart.items.map((item) => ({
-        product: relationID(item.product),
-        quantity: item.quantity,
-        variant: item.variant ? relationID(item.variant) : undefined,
+      // As the Stripe adapter does, items keep the properties a site's cartItemMatcher adds. The
+      // cart's row ID stays behind, because another checkout of the same cart reuses it.
+      items: cart.items.map(({ id: _rowID, product, quantity, variant, ...properties }) => ({
+        ...properties,
+        product: relationID(product),
+        quantity,
+        variant: variant ? relationID(variant) : undefined,
       })),
       paymentMethod: name,
       status: "pending",
@@ -270,6 +274,19 @@ export const reopenForLatePayment = async (
   return { ...transaction, status: "pending" };
 };
 
+const settledOrder = z.object({ id: documentID, accessToken: z.string().optional() });
+
+/** The order a settlement created or found. */
+export type SettledOrder = z.infer<typeof settledOrder>;
+
+/** confirm-order's answer, in the shape of the Stripe adapter's, with a guest order's access token. */
+export const orderConfirmation = (order: SettledOrder, transactionID: DefaultDocumentIDType) => ({
+  message: "Order confirmed",
+  orderID: order.id,
+  transactionID,
+  ...(order.accessToken !== undefined && { accessToken: order.accessToken }),
+});
+
 /**
  * Settles a transaction after the gateway's API confirmed the payment `paid`. Its amount and
  * currency must equal the transaction's, and no other transaction may have bought the cart.
@@ -292,13 +309,13 @@ export const settlePaidTransaction = async ({
   req: PayloadRequest;
   shippingAddress: unknown;
   transaction: Transaction;
-}) => {
+}): Promise<SettledOrder> => {
   assertPaymentMatches(paid, transaction);
   // A settled or settling transaction gets its existing order back from `finalize`. Its cart
   // already counts as bought, by this transaction or one that is settling it right now.
   if (transaction.status === "pending") await assertCartOpen(req, transaction, paid.id);
   try {
-    return await finalize({
+    const order = await finalize({
       transactionID: transaction.id,
       orderData: {
         amount: transaction.amount,
@@ -311,6 +328,7 @@ export const settlePaidTransaction = async ({
         status: "processing",
       },
     });
+    return settledOrder.parse(order);
   } catch (error) {
     if (!(error instanceof CartAlreadyPurchasedError)) throw error;
     // On Postgres in confirm-order, the failed insert has aborted core's database transaction, so
