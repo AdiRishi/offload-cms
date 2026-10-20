@@ -22,7 +22,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Runs `attempt` after each delay until it succeeds. Resolves undefined if it never does. */
 const withRetries = async <T,>(
   attempt: () => Promise<T>,
-  delays = retryDelays,
+  delays: readonly number[] = retryDelays,
 ): Promise<T | undefined> => {
   const [delay, ...later] = delays;
   if (delay === undefined) return undefined;
@@ -34,7 +34,7 @@ const withRetries = async <T,>(
   }
 };
 
-type State = "confirming" | "delayed" | "unknown";
+type State = "confirming" | "delayed";
 
 /**
  * Confirms an mIPS payment on the page that mIPS sends the customer back to, with the
@@ -66,15 +66,13 @@ export function MipsConfirmOrder({
   useEffect(() => {
     if (!hasCart || started.current) return;
     started.current = true;
-    // A guest's email lives in this tab. Without it, only a logged-in customer can confirm, so
-    // a failure means this browser can't, and retrying won't change that.
+    // A guest's email lives in the tab that paid. A logged-in customer confirms without it.
     const customerEmail = sessionStorage.getItem(mipsCustomerEmailKey(reference)) ?? undefined;
-    void withRetries(
-      () => confirmOrder("mips", { additionalData: { customerEmail, reference } }),
-      customerEmail === undefined ? [0] : undefined,
+    void withRetries(() =>
+      confirmOrder("mips", { additionalData: { customerEmail, reference } }),
     ).then((result) => {
       if (result !== undefined) onConfirmed(confirmed.parse(result));
-      else setState(customerEmail === undefined ? "unknown" : "delayed");
+      else setState("delayed");
     });
   }, [hasCart, confirmOrder, onConfirmed, reference]);
 
@@ -83,14 +81,6 @@ export function MipsConfirmOrder({
       <p role="status" className="text-sm">
         We're still confirming your payment. If it went through, we'll email you when your order is
         confirmed. Don't pay again.
-      </p>
-    );
-  }
-  if (state === "unknown") {
-    return (
-      <p role="status" className="text-sm">
-        This browser doesn't have your checkout details, so we can't confirm the order here. If your
-        payment went through, we'll email you when your order is confirmed. Don't pay again.
       </p>
     );
   }
