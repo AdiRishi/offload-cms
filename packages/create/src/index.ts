@@ -17,13 +17,19 @@ if (existsSync(target) && readdirSync(target).length > 0) {
   console.error(`${target} isn't empty.`);
   process.exit(1);
 }
-// The Worker, D1 database and R2 bucket take this name, which allows lowercase letters, digits
-// and hyphens.
+// The Worker, D1 database and R2 bucket take this name. R2 and a workers.dev subdomain both
+// allow 3 to 63 lowercase letters, digits and hyphens, starting and ending with a letter or digit.
 const name = path
   .basename(target)
   .toLowerCase()
   .replace(/[^a-z0-9-]+/g, "-")
   .replace(/^-+|-+$/g, "");
+if (name.length < 3 || name.length > 63) {
+  console.error(
+    `The directory's name becomes the name of the Worker, its D1 database and its R2 bucket, which need 3 to 63 letters, digits or hyphens. "${path.basename(target)}" gives "${name}". Choose another directory name.`,
+  );
+  process.exit(1);
+}
 
 cpSync(path.join(packageDir, "template"), target, { recursive: true });
 // npm drops .gitignore and .npmrc from a package, so the template stores them under other names.
