@@ -1,6 +1,6 @@
 # @adirishi/offload-tanstack
 
-Reads Payload content in a TanStack Start site per request: drafts for logged-in editors, Live Preview, the redirects plugin's redirects, and server errors kept out of the browser. This package is part of [Offload](https://adirishi.github.io/offload-cms/) and works with the Offload builds of Payload.
+Reads Payload content in a TanStack Start site per request: drafts for logged-in editors, Live Preview, the redirects plugin's redirects, and server errors kept out of the browser. It renders blocks, SEO tags, responsive images and links, and has config helpers for the admin and for seed scripts. This package is part of [Offload](https://adirishi.github.io/offload-cms/) and works with the Offload builds of Payload.
 
 ## Install
 
@@ -37,3 +37,5 @@ export const { getPayloadForRequest, getRequestPayload, getVisitorPayload, redir
 ```
 
 In a server function, pass `draft` and `user` from `getPayloadForRequest()` to each query, with `overrideAccess: false`, and render `{draft && <LivePreviewListener />}` in the page. [Preview drafts and Live Preview](https://adirishi.github.io/offload-cms/live-preview) walks through a page.
+
+[Build pages from blocks](https://adirishi.github.io/offload-cms/pages) renders a page builder with `RenderBlocks`, `seoMeta()`, `Media`, and `CMSLink`. [Help editors in the admin](https://adirishi.github.io/offload-cms/admin) covers the helpers in `@adirishi/offload-tanstack/fields`, and [Seed content](https://adirishi.github.io/offload-cms/seed) the ones in `@adirishi/offload-tanstack/seed`.

@@ -1,0 +1,86 @@
+---
+title: Help editors in the admin
+description: Describe blocks, label array rows, add a dashboard of shortcuts, and know which admin behaviours come from Payload.
+---
+
+`@adirishi/offload-tanstack/fields` has config helpers for an admin that people other than developers use. Their components come from the package, so add the helpers to the config, then run `pnpm payload generate:importmap`.
+
+## Describe a block
+
+Payload's blocks take no description. `blockDescription()` is a `ui` field that shows a line of help at the top of a block's fields, and stores nothing. Put it first:
+
+```ts src/blocks/Gallery/config.ts
+import type { Block } from "payload";
+
+import { blockDescription } from "@adirishi/offload-tanstack/fields";
+
+export const Gallery: Block = {
+  slug: "gallery",
+  fields: [
+    blockDescription("A row of photos. Visitors open each one full size."),
+    { name: "images", type: "upload", relationTo: "media", hasMany: true },
+  ],
+};
+```
+
+The description shows when the block is open. The drawer that adds a block shows only its label and image, from `labels` and `admin.images`.
+
+## Label array rows
+
+A collapsed array row shows only a numbered label unless the field has a `RowLabel`. `rowLabel(path, fallback)` labels each row with the value at `path` in the row, or with `fallback` and the row's number while that value is empty:
+
+```ts
+import { rowLabel } from "@adirishi/offload-tanstack/fields";
+
+{
+  name: "steps",
+  type: "array",
+  admin: { initCollapsed: true, components: { RowLabel: rowLabel("title", "Step") } },
+  fields: [{ name: "title", type: "text" }],
+}
+```
+
+`path` can reach into a group, such as `"link.label"` for a row that holds a `link()` field.
+
+## Add quick actions to the dashboard
+
+`quickActionsWidget()` is a dashboard widget with a heading, a line of text, and a button for each action:
+
+```ts src/payload.config.ts
+import { quickActionsWidget } from "@adirishi/offload-tanstack/fields";
+
+admin: {
+  dashboard: {
+    widgets: [
+      quickActionsWidget({
+        title: "Welcome",
+        description: "Pages stay drafts until you publish them.",
+        actions: [
+          { label: "Edit the home page", collection: "pages", where: { slug: { equals: "home" } } },
+          { label: "Add a page", collection: "pages", create: true },
+          { label: "Change the footer", global: "footer" },
+          { label: "View the site", url: "/", newTab: true },
+        ],
+      }),
+    ],
+    defaultLayout: [
+      { widgetSlug: "quick-actions", width: "full" },
+      { widgetSlug: "collections", width: "full" },
+    ],
+  },
+},
+```
+
+An action with `where` opens the first document that matches, as the editor can read it, or the collection's list when none matches. `defaultLayout` places the widget for users who haven't arranged their dashboard.
+
+## Describe a slug
+
+The slug field renders its own `admin.components`, such as a `Description` that shows the page's address as the editor types. Payload's slug field ignores them, and Offload's [slug field patch](/patches/slug-field-custom-components) renders them.
+
+## Payload's behaviour
+
+Some admin behaviour comes from Payload itself, and Offload leaves it as Payload has it:
+
+- The navigation lists collections before globals. A group appears where its first collection or global appears, so a group that holds only globals comes after every collection. Payload has no option to order groups ([payloadcms/payload#18173](https://github.com/payloadcms/payload/discussions/18173)).
+- `admin.meta.titleSuffix` follows the title after a space, as its default `"- Payload"` does. Start the suffix with its separator, such as `"· My site"`, not with a space.
+- Payload v4 keeps versions for every collection and global unless its config sets `versions: false`. On D1, each versioned collection adds `_<slug>_v` tables, and each save adds a version row. Set `versions: false` on collections that don't need history, such as media, and through a plugin's overrides on its collections, such as form submissions.

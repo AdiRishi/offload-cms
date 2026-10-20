@@ -1,0 +1,216 @@
+---
+title: Build pages from blocks
+description: Render a page builder's blocks on the server, with SEO tags, responsive images, links to documents, and redirects for paths that no page has.
+---
+
+This guide renders a `pages` collection whose `layout` is a blocks field. Each page is at `/<slug>`, and the page whose slug is `home` is at `/`. The server function reads the page with the request's user, renders its blocks as a React Server Component, and returns the page's SEO metadata. A catch-all route follows the redirects plugin's redirects for every other path.
+
+It builds on [Preview drafts and Live Preview](/live-preview), which sets up `src/lib/payload.server.ts`, `src/start.ts`, and drafts. The site needs `@adirishi/offload-tanstack`, and the Offload builds of `@payloadcms/plugin-seo` and `@payloadcms/plugin-redirects`.
+
+<Steps>
+  <Step title="Give blocks links">
+    `link()` from `@adirishi/offload-tanstack/fields` is a group field for a link to a document or to an address, with its text and whether it opens in a new tab. `relationTo` lists the collections a link can point to:
+
+    ```ts src/blocks/CallToAction/config.ts
+    import type { Block } from "payload";
+
+    import { blockDescription, link } from "@adirishi/offload-tanstack/fields";
+
+    export const CallToAction: Block = {
+      slug: "callToAction",
+      interfaceName: "CallToActionBlock",
+      fields: [
+        blockDescription("A heading and a button that leads somewhere else."),
+        { name: "heading", type: "text", required: true },
+        link({ relationTo: ["pages"], appearances: [{ label: "Solid", value: "solid" }] }),
+      ],
+    };
+    ```
+
+    `optional: true` makes every field of the link optional, and the frontend hides a link that has no text. `interfaceName` gives the generated type a name, so every link field shares it.
+
+  </Step>
+  <Step title="Share the SEO defaults">
+    A page's SEO fields fall back to defaults that the content gives: the title, a summary from the first block, and the first image. Write the defaults once. The SEO plugin's Auto-generate buttons and the page's `head()` both use them, so a field that an editor leaves empty shows what Auto-generate would fill in.
+
+    ```ts src/lib/seo.ts
+    import type { SeoDefaults } from "@adirishi/offload-tanstack";
+
+    import type { Page } from "@/payload-types";
+
+    export const pagePath = (slug: string | null | undefined) =>
+      slug === "home" ? "/" : `/${slug ?? ""}`;
+
+    export const pageSeo: SeoDefaults<Page> = {
+      title: (page, siteName) => (page.slug === "home" ? siteName : `${page.title} | ${siteName}`),
+      description: (page) => page.layout?.find((block) => block.blockType === "hero")?.text,
+      image: (page) => page.layout?.find((block) => block.blockType === "hero")?.image,
+    };
+    ```
+
+    `seoGenerators()` turns the defaults into the plugin's options. `siteName` and `path` are what the title default and the generated URL need:
+
+    ```ts src/payload.config.ts
+    import { seoGenerators } from "@adirishi/offload-tanstack/fields";
+    import { seoPlugin } from "@payloadcms/plugin-seo";
+
+    import { pagePath, pageSeo } from "./lib/seo";
+
+    seoPlugin({
+      collections: ["pages"],
+      uploadsCollection: "media",
+      ...seoGenerators({
+        defaults: pageSeo,
+        siteName: () => "My site",
+        path: ({ doc }) => pagePath(doc.slug),
+      }),
+    }),
+    ```
+
+    The plugin's generators receive the form's data, in which an upload is an ID. `image` may return an ID or a populated upload, and the generator stores the ID.
+
+  </Step>
+  <Step title="Render the blocks">
+    `RenderBlocks` renders a blocks field's rows in order, each with the component for its `blockType`. Type the components with the generated union of the field's blocks. A block type without a component fails the type check, so a new block can't reach the site unrendered.
+
+    ```tsx src/blocks/components.tsx
+    import { type BlockComponents, CMSLink, Media, resolveLink, toImageSource } from "@adirishi/offload-tanstack";
+
+    import type { Page } from "@/payload-types";
+
+    import { pagePath } from "@/lib/seo";
+
+    export type LayoutBlock = NonNullable<Page["layout"]>[number];
+
+    export const blockComponents: BlockComponents<LayoutBlock> = {
+      hero: ({ text, image }) => {
+        const source = toImageSource(image);
+        return (
+          <header>
+            <h1>{text}</h1>
+            {source && <Media image={source} sizes="100vw" priority />}
+          </header>
+        );
+      },
+      callToAction: ({ heading, link }) => {
+        const target = resolveLink(link, ({ value }) => pagePath(value.slug));
+        return (
+          <section>
+            <h2>{heading}</h2>
+            {target && (
+              <CMSLink href={target.href} newTab={target.newTab}>
+                {target.label}
+              </CMSLink>
+            )}
+          </section>
+        );
+      },
+    };
+    ```
+
+    The components run in a server component, so a block that lists other documents can read them with `getRequestPayload()`. `resolveLink()` returns nothing for a link whose document the request can't read, such as a draft for a visitor. `CMSLink` renders a path on the site with TanStack Router's `Link`, which preloads the route when the visitor points at it, and any other address as an anchor. [Process images](/images#render-variants) explains `Media`.
+
+  </Step>
+  <Step title="Write the page's server function">
+    The server function reads the page as the request's user, so an editor gets the draft. It renders the blocks with `renderServerComponent()`, because Lexical's rich text in a block can't pass the server function's serializability check. A page that doesn't exist follows a redirect or is not found.
+
+    ```tsx src/server/pages.functions.tsx
+    import { getBindings } from "@adirishi/offload-cloudflare";
+    import { RenderBlocks, seoMeta } from "@adirishi/offload-tanstack";
+    import { createServerFn } from "@tanstack/react-start";
+    import { renderServerComponent } from "@tanstack/react-start/rsc";
+
+    import { blockComponents } from "@/blocks/components";
+    import { getPayloadForRequest, redirectOrNotFound } from "@/lib/payload.server";
+    import { pagePath, pageSeo } from "@/lib/seo";
+
+    export const getPage = createServerFn({ method: "GET" })
+      .validator((slug: string) => slug)
+      .handler(async ({ data: slug }) => {
+        const { payload, draft, user } = await getPayloadForRequest();
+        const [{ docs }, env] = await Promise.all([
+          payload.find({
+            collection: "pages",
+            where: { slug: { equals: slug } },
+            depth: 1,
+            limit: 1,
+            draft,
+            user,
+            overrideAccess: false,
+          }),
+          getBindings(),
+        ]);
+        const page = docs[0];
+        if (!page) return redirectOrNotFound(pagePath(slug));
+        return {
+          draft,
+          seo: seoMeta({
+            doc: page,
+            defaults: pageSeo,
+            path: pagePath(slug),
+            siteName: "My site",
+            siteUrl: env.SITE_URL,
+          }),
+          content: await renderServerComponent(
+            <RenderBlocks blocks={page.layout} components={blockComponents} />,
+          ),
+        };
+      });
+
+    export const resolveUnknownPath = createServerFn({ method: "GET" })
+      .validator((path: string) => path)
+      .handler(({ data: path }) => redirectOrNotFound(path));
+    ```
+
+    `seoMeta()` takes each SEO field, or its default when the field is empty. The sharing image is the first populated upload among the page's own, the default's, and `fallbackImage`, at its `og` variant when the upload has one. `SITE_URL` is a var in `wrangler.jsonc`, the site's origin, which the canonical URL and the sharing image's URL start with.
+
+  </Step>
+  <Step title="Add the routes">
+    `$slug.tsx` serves a page, and `index.tsx` serves the page whose slug is `home`. `seoHead()` turns the metadata into the route's title, description, Open Graph and Twitter tags, and canonical link:
+
+    ```tsx src/app/_frontend/$slug.tsx
+    import { LivePreviewListener, seoHead } from "@adirishi/offload-tanstack";
+    import { createFileRoute, redirect } from "@tanstack/react-router";
+
+    import { getPage } from "@/server/pages.functions";
+
+    export const Route = createFileRoute("/_frontend/$slug")({
+      loader: ({ params }) => {
+        if (params.slug === "home") throw redirect({ to: "/", statusCode: 301 });
+        return getPage({ data: params.slug });
+      },
+      head: ({ loaderData }) => (loaderData ? seoHead(loaderData.seo) : {}),
+      component: PageView,
+    });
+
+    function PageView() {
+      const { draft, content } = Route.useLoaderData();
+      return (
+        <main>
+          {draft && <LivePreviewListener />}
+          {content}
+        </main>
+      );
+    }
+    ```
+
+    `index.tsx` is the same route at `/_frontend/` with `loader: () => getPage({ data: "home" })`.
+
+    `redirectOrNotFound()` runs only in a route that matched the path. `$slug` matches one segment, so a redirect from `/old/path` needs a catch-all route:
+
+    ```tsx src/app/_frontend/$.tsx
+    import { createFileRoute } from "@tanstack/react-router";
+
+    import { resolveUnknownPath } from "@/server/pages.functions";
+
+    export const Route = createFileRoute("/_frontend/$")({
+      loader: ({ location }) => resolveUnknownPath({ data: location.pathname }),
+    });
+    ```
+
+    TanStack Router prefers every other route over a splat, so the catch-all doesn't take paths that the admin, the API, or a page serve.
+
+  </Step>
+</Steps>
+
+The [package reference](/tanstack) has the details of each helper.

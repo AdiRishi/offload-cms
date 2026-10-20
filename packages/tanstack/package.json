@@ -1,7 +1,7 @@
 {
   "name": "@adirishi/offload-tanstack",
   "version": "0.0.0",
-  "description": "Payload's Local API per request, drafts, Live Preview, redirects and error hiding for TanStack Start sites on Offload",
+  "description": "Payload content in TanStack Start sites on Offload: the Local API per request, drafts, Live Preview, redirects, blocks, SEO tags, responsive images, links, admin helpers and seed helpers",
   "homepage": "https://github.com/AdiRishi/offload-cms/tree/main/packages/tanstack#readme",
   "bugs": {
     "url": "https://github.com/AdiRishi/offload-cms/issues"
@@ -21,6 +21,22 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./admin/client": {
+      "types": "./dist/admin/client.d.ts",
+      "default": "./dist/admin/client.js"
+    },
+    "./admin/rsc": {
+      "types": "./dist/admin/rsc.d.ts",
+      "default": "./dist/admin/rsc.js"
+    },
+    "./fields": {
+      "types": "./dist/fields.d.ts",
+      "default": "./dist/fields.js"
+    },
+    "./seed": {
+      "types": "./dist/seed.d.ts",
+      "default": "./dist/seed.js"
+    },
     "./server": {
       "types": "./dist/server.d.ts",
       "default": "./dist/server.js"
@@ -34,6 +50,9 @@
     "@payloadcms/live-preview-react": "catalog:"
   },
   "devDependencies": {
+    "@payloadcms/plugin-seo": "catalog:",
+    "@payloadcms/richtext-lexical": "catalog:",
+    "@payloadcms/ui": "catalog:",
     "@repo/tsconfig": "workspace:*",
     "@repo/upstream": "workspace:*",
     "@tanstack/react-router": "catalog:",
@@ -44,9 +63,20 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
+    "@payloadcms/plugin-seo": "4.0.0-beta.3",
+    "@payloadcms/richtext-lexical": "4.0.0-beta.3",
+    "@payloadcms/ui": "4.0.0-beta.3",
     "@tanstack/react-router": "^1.170.0",
     "@tanstack/react-start": "^1.169.1",
     "payload": "4.0.0-beta.3",
     "react": "^19.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@payloadcms/plugin-seo": {
+      "optional": true
+    },
+    "@payloadcms/richtext-lexical": {
+      "optional": true
+    }
   }
 }
