@@ -6,17 +6,12 @@ import path from "node:path";
 import { test } from "node:test";
 import { build } from "vite";
 
-import { importMetaUrlFallback, literalGraphQLImports } from "./workerd-transforms.ts";
+import { importMetaUrlFallback } from "./workerd-transforms.ts";
 
 const sources = {
   "entry.js": [
-    'import { loadGraphQL } from "./routes/graphql/handler.server.js";',
-    "export const fail = () => { const url = import.meta.url; throw new Error(url); };",
-    "export { loadGraphQL };",
-  ].join("\n"),
-  "routes/graphql/handler.server.js": [
-    'const graphqlPackage = "@payloadcms/graphql";',
-    "export const loadGraphQL = async () => { const graphql = await import(/* @vite-ignore */ graphqlPackage); if (!graphql.default) throw new TypeError(graphqlPackage); return graphql.default; };",
+    'const dirname = new URL(".", import.meta.url).pathname;',
+    "export const fail = () => { const url = import.meta.url; throw new Error(url + dirname); };",
   ].join("\n"),
 };
 
@@ -32,14 +27,13 @@ const buildFixture = async () => {
     root,
     configFile: false,
     logLevel: "silent",
-    plugins: [importMetaUrlFallback(), literalGraphQLImports()],
+    plugins: [importMetaUrlFallback()],
     build: {
       minify: false,
       sourcemap: true,
       ssr: "entry.js",
       write: false,
       rolldownOptions: {
-        external: ["@payloadcms/graphql"],
         onLog: (_level, log) => {
           logs.push(`${log.code ?? ""} ${log.message}`);
         },
@@ -75,7 +69,7 @@ const positionIn = (file: keyof typeof sources, token: string) => {
   return { file: path.basename(file), line: before.length - 1, column: before.at(-1)?.length };
 };
 
-test("the workerd transforms keep stack traces on the original lines and columns", async () => {
+test("the import.meta.url fallback keeps stack traces on the original lines and columns", async () => {
   const { chunk, logs } = await buildFixture();
 
   assert.deepEqual(
@@ -83,8 +77,4 @@ test("the workerd transforms keep stack traces on the original lines and columns
     [],
   );
   assert.deepEqual(originOf(chunk, "throw new Error"), positionIn("entry.js", "throw new Error"));
-  assert.deepEqual(
-    originOf(chunk, "throw new TypeError"),
-    positionIn("routes/graphql/handler.server.js", "throw new TypeError"),
-  );
 });

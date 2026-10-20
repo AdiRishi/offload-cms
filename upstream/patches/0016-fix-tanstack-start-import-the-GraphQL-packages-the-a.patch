@@ -1,0 +1,61 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 14:43:57 +1100
+Subject: [PATCH] fix(tanstack-start): import the GraphQL packages the adapter
+ depends on
+
+The GraphQL handler loads @payloadcms/graphql and graphql-http through
+variables with /* @vite-ignore */, so no bundler sees them. That kept the
+packages optional while sites installed them themselves. Since #18593 they
+are dependencies of the adapter, but the hidden imports stayed. A Worker has
+no node_modules to load them from at runtime, so the GraphQL route fails with
+"No such module" unless the build rewrites the imports.
+
+The handler now imports both with literal specifiers, as @payloadcms/next
+does, and the tsconfig references ../graphql like next's.
+
+Offload-Patch: tanstack-graphql-literal-imports
+Drop-When: the pinned release's TanStack Start GraphQL handler imports @payloadcms/graphql and graphql-http with literal specifiers
+Tests: pnpm --filter @payloadcms/tanstack-start build; e2e suite (tests/api.spec.ts GraphQL tests)
+---
+ .../tanstack-start/src/routes/graphql/handler.server.ts     | 6 ++----
+ packages/tanstack-start/tsconfig.json                       | 3 ++-
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/packages/tanstack-start/src/routes/graphql/handler.server.ts b/packages/tanstack-start/src/routes/graphql/handler.server.ts
+index 3ea260163..19864b610 100644
+--- a/packages/tanstack-start/src/routes/graphql/handler.server.ts
++++ b/packages/tanstack-start/src/routes/graphql/handler.server.ts
+@@ -69,8 +69,7 @@ const getGraphql = async (config: Promise<SanitizedConfig> | SanitizedConfig) =>
+ 
+   if (!cached.promise) {
+     const resolvedConfig = await config
+-    const graphqlPackage = '@payloadcms/graphql'
+-    const { configToSchema } = await import(/* @vite-ignore */ graphqlPackage)
++    const { configToSchema } = await import('@payloadcms/graphql')
+     cached.promise = new Promise((resolve) => {
+       const schema = configToSchema(resolvedConfig)
+       resolve(cached.graphql || schema)
+@@ -119,8 +118,7 @@ export const handleGraphQL = async ({
+ 
+   const { schema, validationRules } = await getGraphql(config)
+ 
+-  const graphqlHttpHandlerPath = 'graphql-http/lib/use/fetch'
+-  const { createHandler } = await import(/* @vite-ignore */ graphqlHttpHandlerPath)
++  const { createHandler } = await import('graphql-http/lib/use/fetch')
+ 
+   const headers: Record<string, string> = {}
+   const apiResponse = await createHandler({
+diff --git a/packages/tanstack-start/tsconfig.json b/packages/tanstack-start/tsconfig.json
+index 530299ff5..85bc8c34f 100644
+--- a/packages/tanstack-start/tsconfig.json
++++ b/packages/tanstack-start/tsconfig.json
+@@ -6,6 +6,7 @@
+   "references": [
+     { "path": "../payload" },
+     { "path": "../ui" },
+-    { "path": "../translations" }
++    { "path": "../translations" },
++    { "path": "../graphql" }
+   ]
+ }

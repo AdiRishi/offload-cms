@@ -22,11 +22,7 @@ import {
   upstreamBundleError,
   upstreamPayloadPackage,
 } from "./payload-builds.ts";
-import {
-  importMetaUrlFallback,
-  isServerEnvironment,
-  literalGraphQLImports,
-} from "./workerd-transforms.ts";
+import { importMetaUrlFallback, isServerEnvironment } from "./workerd-transforms.ts";
 
 type CloudflarePluginConfig = NonNullable<Parameters<typeof cloudflare>[0]>;
 
@@ -148,7 +144,6 @@ export const offloadVite =
           offloadBuildsOnly(),
           serverConditions(),
           importMetaUrlFallback(),
-          literalGraphQLImports(),
           singleGraphQLBuild(),
           pgPoolCommonJs(),
           (await import("@cloudflare/vite-plugin")).cloudflare({
