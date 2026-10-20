@@ -3,83 +3,41 @@ title: "@adirishi/offload-tanstack"
 description: Reference for the helpers that read Payload content per request, the redirect lookup, the server function middleware, and the Live Preview listener.
 ---
 
-| Entry point                         | Exports                                                               |
-| ----------------------------------- | --------------------------------------------------------------------- |
-| `@adirishi/offload-tanstack/server` | `createPayloadHelpers()`, `PayloadHelpersOptions`, `RedirectDocument` |
-| `@adirishi/offload-tanstack`        | `hideServerErrors`, `LivePreviewListener`                             |
-
-A site installs the package under its own name, at the version of its other Offload packages:
-
-```json package.json
-"@adirishi/offload-tanstack": "{{version}}"
-```
-
-The package depends on the Offload build of `@payloadcms/live-preview-react`, so a site doesn't install that package. [Preview drafts and Live Preview](/live-preview) uses every export on this page.
+`@adirishi/offload-tanstack/server` imports Payload, so only server functions and server components call it. The main entry point, with `hideServerErrors` and `LivePreviewListener`, doesn't import Payload, so client code can import it. The package depends on the Offload build of `@payloadcms/live-preview-react`, so a site doesn't install that package. [Preview drafts and Live Preview](/live-preview) uses every export on this page.
 
 ## createPayloadHelpers()
 
-```ts
-createPayloadHelpers(options: PayloadHelpersOptions): {
-  getVisitorPayload: () => Promise<Payload>;
-  getPayloadForRequest: () => Promise<{ payload: Payload; user: AuthenticatedUser | null; draft: boolean }>;
-  getRequestPayload: () => Promise<{ payload: Payload; user: AuthenticatedUser | null; draft: boolean }>;
-  redirectOrNotFound: (pathname: string) => Promise<never>;
-}
-```
-
-Returns Payload's Local API for server functions and server components, and the redirect lookup for a path with no page. A site calls it once, in a server-only module:
-
-```ts src/lib/payload.server.ts
-import { createPayloadHelpers } from "@adirishi/offload-tanstack/server";
-
-export const { getPayloadForRequest, getRequestPayload, getVisitorPayload, redirectOrNotFound } =
-  createPayloadHelpers({
-    getConfig: async () => (await import("@payload-config")).default,
-    documentPath: ({ relationTo, value }) =>
-      relationTo === "posts" ? `/posts/${value.slug}` : `/${value.slug}`,
-  });
-```
-
-| Option         | Type                                     | Description                                                                                                                  |
-| -------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `getConfig`    | `() => Promise<SanitizedConfig>`         | Required. Loads the site's config.                                                                                           |
-| `documentPath` | `(document: RedirectDocument) => string` | The public path of a document that a redirect points to. `redirectOrNotFound` throws on a redirect to a document without it. |
+A site calls it once, in a server-only module such as `src/lib/payload.server.ts`.
 
 The package takes the config as a function because it can't import `@payload-config` itself. Under `vite dev`, Vite leaves the package to Node, and Node rejects `@payload-config` with `ERR_INVALID_MODULE_SPECIFIER`.
 
-The helpers import Payload, so call them in server functions and server components, which run in the RSC environment with the Worker's copy of Payload. A server route that calls a helper bundles a second copy. Have the route call a server function instead. [Where Payload runs](/cloudflare#where-payload-runs) explains the two environments.
-
-`RedirectDocument` is `{ relationTo, value }` for each collection that the redirects plugin can point to, where `value` is the populated document from the site's generated types.
+Call the helpers in server functions and server components, which run in the RSC environment with the Worker's copy of Payload. A server route that calls a helper bundles a second copy. Have the route call a server function instead. [Where Payload runs](/cloudflare#where-payload-runs) explains the two environments.
 
 ### getVisitorPayload()
 
-Returns Payload with no user. Payload v4's Local API applies access control unless a query passes `overrideAccess: true`, so a query with no `user` sees what any visitor sees. Its results are safe to cache in a shared cache, such as a sitemap or a list of redirects. The examples on this page pass `overrideAccess: false` anyway, so the intent shows in the query.
+A query with no `user` sees what any visitor sees, so its results are safe to put in a shared cache, such as a sitemap or a list of redirects. The examples in these docs pass `overrideAccess: false` anyway, so the intent shows in the query.
 
 ### getPayloadForRequest()
 
-Authenticates the current request from its headers with `payload.auth()`, and returns Payload, the user, and `draft`. `draft` is `permissions.canAccessAdmin` from the same `payload.auth()` call, so it is `true` only for a user who can open the admin: a user of the admin's auth collection, `admin.user` in the config, that the collection's `access.admin` accepts. Every other logged-in user gets `draft: false` and published content. That includes a user of another auth collection, and a customer in the admin's collection whom `access.admin` turns away, as in Payload's ecommerce template.
+`draft` is `true` only for a user who can open the admin: a user of the admin's auth collection, `admin.user` in the config, that the collection's `access.admin` accepts. Every other logged-in user gets `draft: false` and published content. That includes a user of another auth collection, and a customer in the admin's collection whom `access.admin` turns away, as in Payload's ecommerce template.
 
-Pass `draft`, `user`, and `overrideAccess: false` to each query. The collection's read access then decides what the request sees. For example, this read access gives admin users every document and everyone else published documents:
+`draft` only asks for the latest version. The collection's read access still decides what the request sees, so pass `draft`, `user`, and `overrideAccess: false` to each query, and give the collection read access like this one:
 
 ```ts
 read: ({ req }) => req.user?.collection === "users" || { _status: { equals: "published" } },
 ```
 
-When `users` also holds customers, give drafts to the users that `access.admin` accepts, with the same check.
+When `users` also holds customers, give drafts only to the users that `access.admin` accepts, with the same check.
 
 The result depends on the request's cookies. Don't put it in a shared cache.
 
 ### getRequestPayload()
 
-`getPayloadForRequest()` wrapped in React's `cache()`. Call it in async server components, so the server components of one render share one auth lookup.
+React's `cache()` lasts for one server component render, so this memoised version helps only in async server components. Server functions call `getPayloadForRequest()`.
 
 ### redirectOrNotFound()
 
-```ts
-redirectOrNotFound(pathname: string): Promise<never>
-```
-
-Call it when a route has no page for a path. It looks up `pathname` in the `redirects` collection, with and without a trailing slash, as a visitor. The site needs Payload's redirects plugin, which adds the collection.
+Call it when a route has no page for a path. It looks up the path in the `redirects` collection, with and without a trailing slash, as a visitor. The site needs Payload's redirects plugin, which adds the collection.
 
 | Match                                                                    | Result                                              |
 | ------------------------------------------------------------------------ | --------------------------------------------------- |
@@ -87,27 +45,28 @@ Call it when a route has no page for a path. It looks up `pathname` in the `redi
 | A redirect to a document that a visitor can read                         | Redirects to `documentPath({ relationTo, value })`. |
 | A redirect to a document that a visitor can read, without `documentPath` | Throws an error.                                    |
 | A redirect to a document that a visitor can't read                       | Throws TanStack Router's `notFound()`.              |
-| A redirect whose target equals `pathname`, or no match                   | Throws `notFound()`.                                |
+| A redirect whose target is the path itself, or no match                  | Throws `notFound()`.                                |
 
-A relative custom URL, such as `about`, resolves against `pathname`, as a link on that page would, on a page load and on a client-side navigation. The redirect keeps the query string of a page load. On a client-side navigation, the server function's own query string is its input, so the redirect drops it. The status code is the redirect's `type` field when the plugin's `redirectTypes` option adds that field, and otherwise 301.
+A relative custom URL, such as `about`, resolves against the path, as a link on that page would, on a page load and on a client-side navigation. The redirect keeps the query string of a page load. On a client-side navigation, the server function's own query string is its input, so the redirect drops it. The status code is the redirect's `type` field when the plugin's `redirectTypes` option adds that field, and otherwise 301.
 
 ## hideServerErrors
 
-Server function middleware for `createServerFn().middleware([hideServerErrors])`. TanStack Start sends a thrown error's message to the browser, and the message of a failed Payload query includes its SQL and parameters. The middleware logs the error on the server and throws `"The server could not complete the request."` instead. Redirects and `notFound()` pass through unchanged.
+TanStack Start sends a thrown error's message to the browser, and the message of a failed Payload query includes its SQL and parameters. This middleware logs the error on the server and throws `"The server could not complete the request."` instead. It lets through what Payload's REST API also shows: redirects, `notFound()`, and an `APIError` whose `isPublic` is `true`, such as a 403's message.
+
+Register it once, in `src/start.ts`. It then covers every server function, Payload's admin server function included:
+
+```ts src/start.ts
+import { hideServerErrors } from "@adirishi/offload-tanstack";
+import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
+
+export const startInstance = createStart(() => ({
+  requestMiddleware: [createCsrfMiddleware({ filter: (ctx) => ctx.handlerType === "serverFn" })],
+  functionMiddleware: [hideServerErrors],
+}));
+```
+
+Keep the CSRF middleware. TanStack Start applies its own CSRF middleware to server functions only when the site has no `src/start.ts`. A `src/start.ts` without it leaves every server function open to cross-site requests.
 
 ## LivePreviewListener
 
-```tsx
-<LivePreviewListener />
-```
-
-A client component with no props. It renders `RefreshRouteOnSave` from `@payloadcms/live-preview-react`, which calls `router.invalidate()` when an editor saves in the admin's Live Preview, so the route's loaders run again. The admin and the site are one Worker, so the listener uses the page's own origin as the admin's.
-
-Render it only for draft requests:
-
-```tsx
-<main>
-  {page.draft && <LivePreviewListener />}
-  <h1>{page.title}</h1>
-</main>
-```
+It calls `router.invalidate()` when an editor saves in the admin's Live Preview, so the route's loaders run again. Render it only while the request is a draft, as [Preview drafts and Live Preview](/live-preview) shows.

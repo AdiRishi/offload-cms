@@ -3,171 +3,82 @@ title: "@adirishi/offload-accounts"
 description: Reference for the account collection preset, the access helpers, the server helpers for sign-up, login, and password resets, their input schemas and results, and the registry items.
 ---
 
-| Entry point                         | Exports                                                                                                                                  |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `@adirishi/offload-accounts`        | `logInInput`, `signUpInput`, `forgotPasswordInput`, `resetPasswordInput`, `verifyEmailInput`, and the [input and result types](#results) |
-| `@adirishi/offload-accounts/config` | `accountCollection()`, `isAdminUser`, `adminOrOwner()`, `AccountOptions`, `AccountCollectionConfig`, `AccountEmail`, `RateLimiter`       |
-| `@adirishi/offload-accounts/server` | `createAccountHelpers()`, `AccountHelpersOptions`                                                                                        |
-
-The main entry point runs in the browser and on the server. `/config` belongs in the Payload config and doesn't import TanStack Start. `/server` runs only in server functions. A site installs the package under its own name, at the version of its other Offload packages. `@adirishi/offload-cloudflare`, `@tanstack/react-router`, `@tanstack/react-start`, `payload`, `react`, and `zod` 4 are peer dependencies.
-
-```json package.json
-"@adirishi/offload-accounts": "{{version}}"
-```
-
-The forms aren't in the package. The [registry](#registry) installs them into the site. [Add customer accounts](/customer-accounts) sets up both.
+The main entry point holds the input schemas and result types, and runs in the browser and on the server. `/config` belongs in the Payload config and doesn't import TanStack Start. `/server` reads the request through TanStack Start, so it runs only in server functions and server components. The forms come from the [registry](#registry). [Add customer accounts](/customer-accounts) installs the package and sets up a site.
 
 ## accountCollection()
 
-```ts
-accountCollection(collection: AccountCollectionConfig, options: AccountOptions): CollectionConfig
-```
+`accountCollection(collection, options)` returns an auth collection for the site's visitors, such as customers or members. Its TSDoc lists what it sets.
 
-Returns an auth collection for the site's visitors, such as customers or members. It adds these settings to `collection`:
+The keys of the collection's own `auth`, `access`, and `admin` replace the preset's one key at a time. `auth.cookies` merges over the preset's cookie, so `auth: { cookies: { domain: "example.com" } }` keeps `secure` and `sameSite`. `auth.forgotPassword` merges too, but the email functions always come from `options`.
 
-| Setting                          | Value                                                                                                                                                                                                        |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `auth.tokenExpiration`           | `1209600`, 14 days. `getAccount()` extends an active session.                                                                                                                                                |
-| `auth.maxLoginAttempts`          | `0`, so Payload never locks an account.                                                                                                                                                                      |
-| `auth.depth`                     | `0`                                                                                                                                                                                                          |
-| `auth.cookies`                   | `{ secure: true, sameSite: "Lax" }`                                                                                                                                                                          |
-| `auth.verify`                    | The [verification email](#emails), unless `options.verify` is `false`.                                                                                                                                       |
-| `auth.forgotPassword`            | The [password reset email](#emails).                                                                                                                                                                         |
-| `access.create`, `access.delete` | `isAdminUser`                                                                                                                                                                                                |
-| `access.read`, `access.update`   | `true` for a user of `admin.user`, and the account's own document for an account.                                                                                                                            |
-| `admin.useAsTitle`               | `"email"`                                                                                                                                                                                                    |
-| `endpoints`                      | `POST /first-register` answering 403, before the collection's own endpoints. Payload's own `first-register` would create the first document of an empty collection past access control and mark it verified. |
-| `hooks.beforeOperation`          | The [rate limit](#rate-limit) and the [credentials guard](#email-and-password-changes), before the collection's own `beforeOperation` hooks.                                                                 |
-
-The keys of the collection's own `auth`, `access`, and `admin` replace these one key at a time. `auth.cookies` merges over the default cookie settings, so `auth: { cookies: { domain: "example.com" } }` keeps `secure` and `sameSite`. `AccountCollectionConfig` is `CollectionConfig` without `auth.verify` and without the email functions of `auth.forgotPassword`, which come from `options`.
-
-| Option      | Type                                                               | Description                                                                                                                              |
-| ----------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `siteURL`   | `string`                                                           | Required. The site's public origin, such as `https://example.com`. Email links start with it, never with the request's host.             |
-| `rateLimit` | `() => RateLimiter`                                                | Required. Returns a Workers Rate Limiting binding. A function, because Cloudflare's upload validation loads the config without bindings. |
-| `verify`    | `boolean`                                                          | Whether an account must verify its email before it can log in. Default `true`.                                                           |
-| `paths`     | `{ logIn?: string; resetPassword?: string; verifyEmail?: string }` | The site's pages that emails link to. Defaults `/login`, `/reset-password`, and `/verify-email`.                                         |
-| `emails`    | `{ verifyEmail?: EmailTemplate; resetPassword?: EmailTemplate }`   | Replace the default emails.                                                                                                              |
-
-`RateLimiter` is `{ limit(options: { key: string }): Promise<{ success: boolean }> }`, the method of a Workers Rate Limiting binding.
+`rateLimit` returns the binding instead of taking it, because Cloudflare's upload validation loads the config without bindings. The hooks call it only when a login or a reset request runs.
 
 ### Rate limit
 
-The hook runs for the `login` and `forgotPassword` operations of the collection, whether they come from the server helpers, the Local API, or the REST endpoints `POST /api/<slug>/login` and `POST /api/<slug>/forgot-password`. It calls `limit()` once for each key:
+The hook runs for the collection's `login` and `forgotPassword` operations, whether they come from the server helpers, the Local API, or `POST /api/<slug>/login` and `POST /api/<slug>/forgot-password`. It counts every attempt before Payload checks the password.
 
-| Operation        | Keys                                                                        |
-| ---------------- | --------------------------------------------------------------------------- |
-| `login`          | `<slug>:login:ip:<ip>`                                                      |
-| `forgotPassword` | `<slug>:forgot-password:ip:<ip>` and `<slug>:forgot-password:email:<email>` |
+A login counts once against the key `<slug>:login:ip:<ip>`. A reset request counts against `<slug>:forgot-password:ip:<ip>` and `<slug>:forgot-password:email:<email>`. `<ip>` is the `cf-connecting-ip` header, and `<email>` is the address trimmed and in lowercase. `vite dev` doesn't set the header, so it doesn't limit logins at all.
 
-`<ip>` is the `cf-connecting-ip` header, and `<email>` is the address trimmed and in lowercase. A request without the header, such as one under `vite dev`, gets only the keys that don't need it. Every attempt counts, whether or not the password is right.
+Logins have no key per email. Anyone could spend an email's allowance with a few wrong guesses a minute and keep the customer out, which is the lockout that `maxLoginAttempts: 0` turns off. Reset requests have one, so nobody floods an inbox.
 
-Logins have no key per email, because anyone could spend an email's allowance and keep the customer out, which is the lockout `maxLoginAttempts: 0` turns off. Password reset requests have one, so nobody floods an inbox.
-
-If any key is over its limit, the hook throws an `APIError` with status 429 and the message "Too many attempts. Wait a minute and try again." REST answers 429, and the server helpers return `limited`. The binding counts per Cloudflare location and is eventually consistent.
+Over the limit, the hook throws a public `APIError` with status 429. REST answers 429, and the server helpers return `limited`. The binding counts per Cloudflare location and is eventually consistent, so it slows guessing from one IP but doesn't stop guessing spread over many IPs. Sign-up has no rate limit. Turnstile protects it.
 
 ### Email and password changes
 
-Payload lets a user who may update their own document change its `email` and `password` through REST, with no current password and without verifying the new email. A stolen session could then keep the account. So an `update` that changes `email` or sets `password` fails with an `APIError` with status 403, unless the user is a user of `admin.user` or the call passes `overrideAccess: true`. REST answers 403. Other fields, such as a `name`, stay open to the account.
+Payload lets a user who may update their own document change its `email` and `password` through REST, with no current password and without verifying the new email. A stolen session could then keep the account. So an `update` that changes `email` or sets `password` fails with a public `APIError` with status 403, unless the user is a user of `admin.user` or the call passes `overrideAccess: true`. Other fields, such as a `name`, stay open to the account.
 
-An account changes its password with [`changePassword()`](#changepassword), which checks the current password first. Only the admin's users change an account's email in this version.
+An account changes its password with [`changePassword()`](#changepassword), which checks the current password first. Only the admin's users change an account's email.
+
+### First register
+
+Payload gives every auth collection `POST /api/<slug>/first-register`, which creates the first document of an empty collection past access control and marks it verified. The preset answers it with 403, so the first customer signs up like the rest.
 
 ### Emails
 
-Each email links to a page under `siteURL`, with the token in a `token` search parameter, such as `https://example.com/reset-password?token=<token>`.
+Each email links to a page under `siteURL`, with the token in a `token` search parameter, such as `https://example.com/reset-password?token=<token>`. The default pages are `/login`, `/reset-password`, and `/verify-email`, which the [registry](#registry) forms link to. `paths` changes them.
 
-| Email            | Sent when                                                  | Default subject             |
-| ---------------- | ---------------------------------------------------------- | --------------------------- |
-| Verification     | An account is created, while `verify` is on                | Confirm your email address  |
-| Password reset   | A visitor asks to reset their password                     | Reset your password         |
-| Existing account | Someone signs up with an email that already has an account | You already have an account |
+| Email            | Sent when                                                  |
+| ---------------- | ---------------------------------------------------------- |
+| Verification     | An account is created, while `verify` is on                |
+| Password reset   | A visitor asks to reset their password                     |
+| Existing account | Someone signs up with an email that already has an account |
 
-The existing-account email is a password reset email that also links to `paths.logIn`. A reset link works once, for `auth.forgotPassword.expiration`, which defaults to one hour. Payload sends at most one reset email per account every 15 seconds, through `auth.forgotPassword.minRequestInterval`, and skips the others without an error.
-
-An `EmailTemplate` receives `{ url, user, req }` and returns `{ subject, html }`, the `AccountEmail` type, or a promise of it. `url` is the link to put in the email. `resetPassword` also receives `logInURL` for an existing-account email, and `undefined` for a reset request, so one template can write both.
+The existing-account email goes through `emails.resetPassword` with `logInURL` set, so one template writes both. A reset link works once, for `auth.forgotPassword.expiration`, which defaults to one hour. Payload sends at most one reset email per account every 15 seconds, through `auth.forgotPassword.minRequestInterval`, and skips the others without an error.
 
 ## isAdminUser
 
-```ts
-isAdminUser: Access;
-```
-
-Returns `true` for a user of the collection that `admin.user` names, and `false` for everyone else. Use it in place of rules such as `({ req }) => Boolean(req.user)`, which let in a user of any auth collection. It doesn't run the collection's `access.admin`, so it also returns `true` for a user of that collection whom `access.admin` turns away.
+Use it in place of rules such as `({ req }) => Boolean(req.user)`, which let in a user of any auth collection. It checks only the collection and doesn't run the collection's `access.admin`, so it also returns `true` for a user of that collection whom `access.admin` turns away.
 
 ## adminOrOwner()
 
-```ts
-adminOrOwner(accounts: string, field: string): Access
-```
-
-Access for documents that belong to one account.
-
-| User                    | Result                                 |
-| ----------------------- | -------------------------------------- |
-| A user of `admin.user`  | `true`                                 |
-| A user of `accounts`    | `{ [field]: { equals: req.user.id } }` |
-| Anyone else, or no user | `false`                                |
-
-`field` is a relationship to `accounts`. The rule checks the user's collection, because a user of `admin.user` and an account can have the same ID.
+`adminOrOwner("customers", "customer")` gives the admin's users every document, and a customer the documents whose `customer` relationship points at them. It checks the user's collection as well as the ID, because a user of `admin.user` and an account can have the same ID.
 
 ## createAccountHelpers()
 
-```ts
-createAccountHelpers<TSlug extends AuthCollectionSlug>(options: AccountHelpersOptions<TSlug>): {
-  getAccount: () => Promise<Account<TSlug> | null>;
-  requireAccount: () => Promise<Account<TSlug>>;
-  logIn: (input: LogInInput) => Promise<LogInResult>;
-  logOut: (options?: { everywhere?: boolean }) => Promise<void>;
-  signUp: (input: SignUpInput, options: { turnstileSecret: string; data?: AccountData }) => Promise<SignUpResult>;
-  requestPasswordReset: (input: ForgotPasswordInput, options: { turnstileSecret: string }) => Promise<ForgotPasswordResult>;
-  resetPassword: (input: ResetPasswordInput) => Promise<ResetPasswordResult>;
-  verifyEmail: (input: VerifyEmailInput) => Promise<VerifyEmailResult>;
-  changePassword: (input: ChangePasswordInput) => Promise<ChangePasswordResult>;
-}
-```
-
-Returns the server helpers for one account collection. `Account<TSlug>` is the collection's generated type with the session fields Payload adds to a request's user, and `AccountData` is the collection's required data without `email` and `password`. A site calls it once, in a server-only module, and calls the helpers from its own `createServerFn()` handlers:
-
-```ts src/lib/accounts.server.ts
-import { createAccountHelpers } from "@adirishi/offload-accounts/server";
-
-import { getVisitorPayload } from "@/lib/payload.server";
-
-export const accounts = createAccountHelpers({
-  getPayload: getVisitorPayload,
-  collection: "customers",
-});
-```
-
-| Option        | Type                     | Description                                                                                             |
-| ------------- | ------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `getPayload`  | `() => Promise<Payload>` | Required. The site's Payload without a user, such as `getVisitorPayload` from `createPayloadHelpers()`. |
-| `collection`  | `TSlug`                  | Required. The slug of a collection made with `accountCollection()`.                                     |
-| `loginPath`   | `string`                 | Where `requireAccount()` sends a visitor who isn't logged in. Default `/login`.                         |
-| `accountPath` | `string`                 | Where a visitor goes after logging in without a safe `returnTo`. Default `/account`.                    |
+Returns the server helpers for one account collection. A site calls it once, in a server-only module, and calls the helpers from its own `createServerFn()` handlers.
 
 The helpers pass the request's headers to Payload, so hooks see the visitor's IP and cookies. A helper that takes visitor input returns a result with a `status`, and doesn't throw. It logs an unexpected error and returns `error`.
 
 ### getAccount()
 
-Returns the account of the request, or `null` when the visitor isn't logged in, hasn't verified the email, or is a user of another collection, such as an editor. It runs Payload's auth strategies on the request's headers, without computing permissions. It is wrapped in React's `cache()`, so the server components of one render share one lookup.
+Returns `null` for a visitor who isn't logged in and for a user of another collection, such as an editor. It runs Payload's auth strategies on the request's headers, without computing permissions. It is wrapped in React's `cache()`, so the server components of one render share one lookup.
 
 When it finds an account, it:
 
-- Sets `Cache-Control: private, no-store` on the response.
-- Extends the session when the cookie's token has half of `tokenExpiration` or less left. It runs Payload's refresh, and sets a cookie with a new token for the full `tokenExpiration`. A token from an `Authorization` header doesn't slide.
+- Sets `Cache-Control: private, no-store` on the response, so a shared cache never stores a page that shows the account.
+- Extends the session when the cookie's token has half of `tokenExpiration` or less left. It runs Payload's refresh, and sets a cookie with a new token for the full `tokenExpiration`, 14 days by default. An active customer stays logged in, and one who stays away for 14 days logs in again. A token from an `Authorization` header doesn't slide.
 
-The refresh relies on an [Offload patch](/patches/concurrent-session-refresh) that updates the one session it extends, instead of every session of the account.
+The refresh relies on an [Offload patch](/patches/concurrent-session-refresh) that updates the one session it extends. Without it, a refresh on D1 rewrites every session of the account and can fail during a login on another device.
 
 The account is the whole document, including `sessions`. Return only the fields a page needs from a server function.
 
 ### requireAccount()
 
-Returns `getAccount()`, or throws TanStack Router's `redirect()` to `loginPath` when it is `null`. Call it in each server function that reads private data, and pass the account as `user` with `overrideAccess: false`.
+Throws TanStack Router's `redirect()` to `loginPath` when `getAccount()` returns `null`. The redirect carries no `returnTo`. Call it in each server function that reads private data, and pass the account as `user` with `overrideAccess: false`.
 
 ### logIn()
 
-Logs the visitor in with `email` and `password`, through Payload's login operation and the [rate limit](#rate-limit), and sets the session cookie. `signed-in` carries `returnTo` when it is a path on the site, and `accountPath` otherwise. Payload's `getSafeRedirect()` decides which paths are safe.
+`signed-in` carries `returnTo` when Payload's `getSafeRedirect()` accepts it as a path on the site, and `accountPath` otherwise.
 
 ### logOut()
 
@@ -175,133 +86,51 @@ Ends the session of the request's user, or every session of that user with `{ ev
 
 ### signUp()
 
-Creates an account. The steps:
-
 1. Checks `turnstileToken` with [`verifyTurnstile()`](/cloudflare#verifyturnstile), for the request's hostname and the action `sign-up`. A token that fails returns `unverified`.
 2. If an account has the email, sends it the existing-account email and returns `check-email`. The email goes through the `forgotPassword` operation and its rate limit. Over the limit, it sends nothing and still returns `check-email`.
 3. Creates the account with `email`, `password`, and `data`, with access control bypassed. A field that fails the collection's validation returns `invalid`, with each message in `errors` by field path. A duplicate email from a sign-up that finished first is handled as in step 2.
 4. With verification on, Payload sends the verification email, and the result is `check-email`. With `verify: false`, it logs the visitor in and returns `signed-in`.
 
-`data` holds the site's own fields. Validate them in the server function before you pass them.
+`data` bypasses access control, so validate the site's own fields in the server function before you pass them.
 
 ### requestPasswordReset()
 
-Checks `turnstileToken` for the action `forgot-password`, then runs Payload's `forgotPassword` operation, which sends the reset email to an account with that email. It returns `sent` whether or not the email has an account.
+Checks `turnstileToken` for the action `forgot-password`, then runs Payload's `forgotPassword` operation. It returns `sent` whether or not the email has an account.
 
 ### resetPassword()
 
-Sets a new password with the token from a reset email. Payload ends every session of the account and starts a new one, and the helper sets its cookie. With verification on, it also marks the account as verified, because the email proves the visitor owns the address. `signed-in` carries `accountPath` as `returnTo`.
+Payload ends every session of the account and starts a new one, and the helper sets its cookie. With verification on, it also marks the account as verified, because the email proves the visitor owns the address.
 
 ### verifyEmail()
 
-Verifies the account's email with the token from the verification email. It doesn't log the visitor in. Call it from a POST server function when the visitor presses a button, never from a page's loader, because mail scanners open the links in emails.
+It doesn't log the visitor in. Call it from a POST server function when the visitor presses a button, never from a page's loader, because mail scanners open the links in emails.
 
 ### changePassword()
 
-Sets a new password for the logged-in account. It first checks `currentPassword` with a login, which shares the login [rate limit](#rate-limit). Then Payload keeps the visitor's session and ends the account's other sessions. It returns `signed-out` when the visitor has no account session.
+It checks `currentPassword` with a login, which shares the login [rate limit](#rate-limit). Then Payload keeps the visitor's session and ends the account's other sessions.
 
 ## Input schemas
 
-Zod schemas for the input of the site's server functions. Pass each one to `.validator()`. The forms validate with the same schemas in the browser.
-
-| Schema                | Keys                                              |
-| --------------------- | ------------------------------------------------- |
-| `logInInput`          | `email`, `password`, `returnTo`                   |
-| `signUpInput`         | `email`, `password`, `turnstileToken`, `returnTo` |
-| `forgotPasswordInput` | `email`, `turnstileToken`                         |
-| `resetPasswordInput`  | `token`, `password`                               |
-| `verifyEmailInput`    | `token`                                           |
-| `changePasswordInput` | `currentPassword`, `newPassword`                  |
-
-| Key               | Rule                                                                | Message when the rule fails                     |
-| ----------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
-| `email`           | Trimmed and lowercased. An email address of at most 254 characters. | Enter a valid email address.                    |
-| `password`        | Login: 1 to 128 characters. Sign-up and reset: 8 to 128 characters. | Enter your password. Use at least 8 characters. |
-| `currentPassword` | 1 to 128 characters                                                 | Enter your current password.                    |
-| `newPassword`     | 8 to 128 characters                                                 | Use at least 8 characters.                      |
-| `turnstileToken`  | 1 to 2,048 characters                                               |                                                 |
-| `returnTo`        | Optional, at most 2,048 characters                                  |                                                 |
-| `token`           | 1 to 512 characters                                                 |                                                 |
-
-A password over 128 characters fails with "Use at most 128 characters." To collect more fields at sign-up, extend the schema: `signUpInput.extend({ name: z.string().max(100) })`.
-
-The types `LogInInput`, `SignUpInput`, `ForgotPasswordInput`, `ResetPasswordInput`, `VerifyEmailInput`, and `ChangePasswordInput` are the schemas' output types.
+Pass each schema to the server function's `.validator()`. The registry forms validate with the same schemas in the browser. The `email` schema trims and lowercases the address, so the rate limit and the existing-account check see one form of it. To collect more fields at sign-up, extend the schema: `signUpInput.extend({ name: z.string().max(100) })`.
 
 ## Results
 
-```ts
-type LogInResult =
-  | { status: "signed-in"; returnTo: string }
-  | { status: "invalid" | "email-unverified" | "locked" | "limited" | "error" };
+These statuses mean more than their names say:
 
-type SignUpResult =
-  | { status: "signed-in"; returnTo: string }
-  | { status: "check-email" }
-  | { status: "invalid"; errors: Record<string, string> }
-  | { status: "unverified" | "error" };
-
-type ForgotPasswordResult = { status: "sent" | "unverified" | "limited" | "error" };
-
-type ResetPasswordResult =
-  { status: "signed-in"; returnTo: string } | { status: "invalid" | "error" };
-
-type VerifyEmailResult = { status: "verified" | "invalid" | "error" };
-
-type ChangePasswordResult = {
-  status: "changed" | "invalid" | "limited" | "signed-out" | "error";
-};
-```
-
-| Status             | Returned by                                       | Meaning                                                                                        |
-| ------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `signed-in`        | `logIn`, `signUp`, `resetPassword`                | The session cookie is set. Go to `returnTo`.                                                   |
-| `check-email`      | `signUp`                                          | The visitor must follow the link in an email. A new account and an existing email both get it. |
-| `sent`             | `requestPasswordReset`                            | The request passed its checks. An account with the email gets a reset email.                   |
-| `verified`         | `verifyEmail`                                     | The account can log in.                                                                        |
-| `changed`          | `changePassword`                                  | The new password is set. The visitor stays logged in, and other sessions ended.                |
-| `invalid`          | `changePassword`                                  | The current password is wrong.                                                                 |
-| `signed-out`       | `changePassword`                                  | The visitor has no account session.                                                            |
-| `invalid`          | `logIn`                                           | The email has no account, or the password is wrong. The result doesn't say which.              |
-| `invalid`          | `signUp`                                          | A field failed the collection's validation. `errors` maps field paths to messages.             |
-| `invalid`          | `resetPassword`, `verifyEmail`                    | The link expired, was already used, or never existed.                                          |
-| `email-unverified` | `logIn`                                           | The password is right, but the account hasn't verified its email.                              |
-| `locked`           | `logIn`                                           | Payload locked the account. Only a collection that sets `auth.maxLoginAttempts` returns it.    |
-| `limited`          | `logIn`, `requestPasswordReset`, `changePassword` | The visitor's IP, or for a reset request the email, is over the [rate limit](#rate-limit).     |
-| `unverified`       | `signUp`, `requestPasswordReset`                  | The Turnstile check failed.                                                                    |
-| `error`            | Every helper                                      | Something unexpected failed. The helper logged it.                                             |
+- `check-email` from `signUp` answers a new account and an existing email alike, and `sent` from `requestPasswordReset` answers whether or not the email has an account. Neither shows which emails are registered.
+- `invalid` from `logIn` covers an unknown email and a wrong password, without saying which. `email-unverified` comes only after a correct password.
+- `unverified` means the Turnstile check failed, not the email.
+- `locked` comes only from a collection that sets `auth.maxLoginAttempts`.
+- `limited` from `changePassword` comes from the login rate limit.
 
 ## Registry
 
-Offload's shadcn registry installs the account forms as source files that the site owns and edits. The docs build publishes each item at `https://adirishi.github.io/offload-cms/r/<item>.json`, from [`packages/accounts/registry.json`](https://github.com/AdiRishi/offload-cms/blob/main/packages/accounts/registry.json).
+Offload's shadcn registry installs the account forms as source files that the site owns and edits. The docs build publishes each item at `https://adirishi.github.io/offload-cms/r/<item>.json`, from [`packages/accounts/registry.json`](https://github.com/AdiRishi/offload-cms/blob/main/packages/accounts/registry.json). `form-fields` and `turnstile` come from the [form-builder registry](/form-builder#registry).
 
-| Item                   | Installs                                       | Registry dependencies                        | shadcn components it imports | npm dependencies       |
-| ---------------------- | ---------------------------------------------- | -------------------------------------------- | ---------------------------- | ---------------------- |
-| `login-form`           | `components/accounts/login-form.tsx`           | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
-| `sign-up-form`         | `components/accounts/sign-up-form.tsx`         | `@offload/form-fields`, `@offload/turnstile` | Those of `form-fields`       | `@tanstack/react-form` |
-| `forgot-password-form` | `components/accounts/forgot-password-form.tsx` | `@offload/form-fields`, `@offload/turnstile` | Those of `form-fields`       | `@tanstack/react-form` |
-| `reset-password-form`  | `components/accounts/reset-password-form.tsx`  | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
-| `change-password-form` | `components/accounts/change-password-form.tsx` | `@offload/form-fields`                       | Those of `form-fields`       | `@tanstack/react-form` |
-| `verify-email-form`    | `components/accounts/verify-email-form.tsx`    | None                                         | `button`, `spinner`          | None                   |
-| `account-menu`         | `components/accounts/account-menu.tsx`         | None                                         | `button`, `dropdown-menu`    | None                   |
-
-Registry dependencies name only other `@offload` items. `shadcn add --overwrite` rewrites every file of every registry dependency, so an item that listed `button` would replace the site's own button on every update. Add the shadcn components that an item imports to the site yourself, with `pnpm dlx shadcn@latest add`.
-
-`form-fields` and `turnstile` come from the form-builder registry. [The form-builder reference](/form-builder#registry) describes them.
+Registry dependencies name only other `@offload` items. `shadcn add --overwrite` rewrites every file of every registry dependency, so an item that listed `button` would replace the site's own button on every update. Add the shadcn components that the items import yourself, with `pnpm dlx shadcn@latest add`. The forms import `button`, `checkbox`, `field`, `input`, `spinner`, and `textarea`, the verify-email form only `button` and `spinner`, and the account menu `button` and `dropdown-menu`.
 
 Each item targets one release of `@adirishi/offload-accounts`, and its `meta` names it, such as `"meta": { "@adirishi/offload-accounts": "{{version}}" }`. The registry serves only the items for the latest release. Update the package and add the items again together, with `--overwrite`. The registry doesn't list `@adirishi/offload-accounts`, so the shadcn CLI never changes its version.
 
 The components import their server functions from `@/server/account.functions`, which the site writes. They link to `/login`, `/sign-up`, `/forgot-password`, and `/account` with TanStack Router's typed links, so the site needs those routes, or edited links, to type-check.
 
-| Component            | Props                                                       | Server function        |
-| -------------------- | ----------------------------------------------------------- | ---------------------- |
-| `LoginForm`          | `returnTo?: string`                                         | `logIn`                |
-| `SignUpForm`         | `returnTo?: string`                                         | `signUp`               |
-| `ForgotPasswordForm` | None                                                        | `requestPasswordReset` |
-| `ResetPasswordForm`  | `token: string`                                             | `resetPassword`        |
-| `ChangePasswordForm` | None                                                        | `changePassword`       |
-| `VerifyEmailForm`    | `token: string`                                             | `verifyEmail`          |
-| `AccountMenu`        | `account: { email: string; name?: string \| null } \| null` | `logOut`               |
-
-Each form shows a message for each failed status. After `signed-in`, the form invalidates the router and goes to `returnTo`. `AccountMenu` shows a **Log in** link to a visitor. For an account, it shows a menu with **Account**, **Log out**, and **Log out everywhere**, and after a logout it goes to `/` and invalidates the router.
-
-`SignUpForm` and `ForgotPasswordForm` render the Turnstile widget with the actions `sign-up` and `forgot-password`, when the visitor first focuses or touches the form. The server rejects a token for another action, so keep the actions when you edit the components.
+`SignUpForm` and `ForgotPasswordForm` render the Turnstile widget with the actions `sign-up` and `forgot-password` when the visitor first focuses or touches the form. The server rejects a token for another action, so keep the actions when you edit the components.

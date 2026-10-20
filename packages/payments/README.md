@@ -1,44 +1,26 @@
 # @adirishi/offload-payments
 
-Razorpay and mIPS payment adapters for Payload's ecommerce plugin, for sites on Cloudflare Workers. Each adapter starts a payment from the cart's stored subtotal, and settles an order only after the gateway's API confirms the amount, the currency and the status. A customer who pays and closes the tab still gets the order: Razorpay's webhooks, the mIPS payment notification and a reconciliation job on the Cron Trigger settle it on the server. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
+Razorpay and mIPS payment adapters for Payload's ecommerce plugin. Each charges the cart's stored subtotal and settles an order only after the gateway's API confirms the amount, currency, and status. A customer who pays and closes the tab still gets the order, because Razorpay's webhooks, the mIPS payment notification, and a reconciliation job on the Cron Trigger settle it on the server. This package is part of [Offload](https://adirishi.github.io/offload-cms/) and needs the Offload build of `@payloadcms/plugin-ecommerce`, whose patches add server-side settlement.
 
-| Entry point                           | Exports                                                                       |
-| ------------------------------------- | ----------------------------------------------------------------------------- |
-| `@adirishi/offload-payments`          | `MUR`, `INR`, `reconcilePaymentsTask()`, and the `OffloadPaymentAdapter` type |
-| `@adirishi/offload-payments/razorpay` | `razorpayAdapter()`                                                           |
-| `@adirishi/offload-payments/mips`     | `mipsAdapter()`                                                               |
-| `@adirishi/offload-payments/client`   | `razorpayAdapterClient()`, `mipsAdapterClient()`                              |
-
-The checkout UI is not in this package. Offload's shadcn registry installs editable components into the site: a Razorpay checkout button, the mIPS payment zone, and the mIPS return page.
+The checkout UI isn't in the package. Offload's shadcn registry installs editable components into the site.
 
 ## Install
 
-The package is on GitHub Packages, which needs a token with the `read:packages` scope:
-
-```ini
-# .npmrc
-@adirishi:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Install it at the exact version of the site's other Offload packages, with the Offload build of the ecommerce plugin. Replace `VERSION` with that version, such as `4.0.0-beta.2-offload.9`:
+The package is on GitHub Packages. [Getting started](https://adirishi.github.io/offload-cms/getting-started) sets up the registry and its token. Install both at the version of the site's other Offload packages.
 
 ```bash
-pnpm add --save-exact @adirishi/offload-payments@VERSION \
-  @payloadcms/plugin-ecommerce@npm:@adirishi/offload-plugin-ecommerce@VERSION
+pnpm add --save-exact @adirishi/offload-payments @payloadcms/plugin-ecommerce@npm:@adirishi/offload-plugin-ecommerce
 ```
-
-The adapters need Offload's build of `@payloadcms/plugin-ecommerce`, which exports the server-side settlement they use.
 
 ## Use it
 
 ```ts
 // src/payload.config.ts
 import { getBindings } from "@adirishi/offload-cloudflare";
-import { INR, MUR, reconcilePaymentsTask } from "@adirishi/offload-payments";
-import { mipsAdapter } from "@adirishi/offload-payments/mips";
+import { MUR, reconcilePaymentsTask } from "@adirishi/offload-payments";
 import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
 import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
+import { buildConfig } from "payload";
 
 const env = await getBindings();
 
@@ -47,31 +29,17 @@ const razorpay = razorpayAdapter({
   keySecret: env.RAZORPAY_KEY_SECRET,
   webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
 });
-const mips = mipsAdapter({
-  credentials: {
-    username: env.MIPS_USERNAME,
-    password: env.MIPS_PASSWORD,
-    merchantID: env.MIPS_MERCHANT_ID,
-    entityID: env.MIPS_ENTITY_ID,
-    operatorID: env.MIPS_OPERATOR_ID,
-    operatorPassword: env.MIPS_OPERATOR_PASSWORD,
-    salt: env.MIPS_SALT,
-    cipherKey: env.MIPS_CIPHER_KEY,
-  },
-  returnURL: "/checkout/mips",
-  rateLimit: () => env.PAYMENTS,
-});
 
 export default buildConfig({
-  jobs: { tasks: [reconcilePaymentsTask({ adapters: [razorpay, mips] })] },
+  jobs: { tasks: [reconcilePaymentsTask({ adapters: [razorpay] })] },
   plugins: [
     ecommercePlugin({
-      currencies: { defaultCurrency: "MUR", supportedCurrencies: [MUR, INR] },
-      payments: { paymentMethods: [razorpay, mips] },
+      currencies: { defaultCurrency: "MUR", supportedCurrencies: [MUR] },
+      payments: { paymentMethods: [razorpay] },
       // access, customers, carts
     }),
   ],
 });
 ```
 
-[Take payments at checkout](https://adirishi.github.io/offload-cms/checkout) covers the secrets, the webhook and notification URLs, the registry components, and Content-Security-Policy. The [package reference](https://adirishi.github.io/offload-cms/payments) lists every option and what each endpoint checks.
+[Take payments at checkout](https://adirishi.github.io/offload-cms/checkout) covers the secrets, the webhook and notification URLs, `mipsAdapter()`, the registry components, and Content-Security-Policy.

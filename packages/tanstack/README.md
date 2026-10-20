@@ -1,30 +1,28 @@
 # @adirishi/offload-tanstack
 
-Reads Payload content in a TanStack Start site the way a public site needs it: per request, with drafts for logged-in editors, Live Preview, redirects, and server errors kept out of the browser. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
-
-| Export                                                            | Use it for                                                                                   |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `createPayloadHelpers()` from `@adirishi/offload-tanstack/server` | Payload for a request or a visitor, and the redirect lookup for a path with no page          |
-| `hideServerErrors` from `@adirishi/offload-tanstack`              | Server function middleware that logs errors instead of sending their messages to the browser |
-| `LivePreviewListener` from `@adirishi/offload-tanstack`           | Refreshing a page when an editor saves in the admin's Live Preview                           |
+Reads Payload content in a TanStack Start site per request: drafts for logged-in editors, Live Preview, the redirects plugin's redirects, and server errors kept out of the browser. This package is part of [Offload](https://adirishi.github.io/offload-cms/) and works with the Offload builds of Payload.
 
 ## Install
 
-The package is on GitHub Packages, which needs a token with the `read:packages` scope:
-
-```ini
-# .npmrc
-@adirishi:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Install it at the exact version of the site's other Offload packages. Replace `VERSION` with that version, such as `4.0.0-beta.2-offload.6`:
+The package is on GitHub Packages. [Getting started](https://adirishi.github.io/offload-cms/getting-started) sets up the registry and its token. Install it at the version of the site's other Offload packages.
 
 ```bash
-pnpm add --save-exact @adirishi/offload-tanstack@VERSION
+pnpm add --save-exact @adirishi/offload-tanstack
 ```
 
 ## Use it
+
+```ts
+// src/start.ts
+import { hideServerErrors } from "@adirishi/offload-tanstack";
+import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
+
+export const startInstance = createStart(() => ({
+  // A start instance replaces TanStack Start's default CSRF check, so keep it here.
+  requestMiddleware: [createCsrfMiddleware({ filter: (ctx) => ctx.handlerType === "serverFn" })],
+  functionMiddleware: [hideServerErrors],
+}));
+```
 
 ```ts
 // src/lib/payload.server.ts
@@ -38,23 +36,4 @@ export const { getPayloadForRequest, getRequestPayload, getVisitorPayload, redir
   });
 ```
 
-```ts
-// A server function that serves drafts to editors
-export const getPage = createServerFn({ method: "GET" })
-  .middleware([hideServerErrors])
-  .validator((slug: string) => slug)
-  .handler(async ({ data: slug }) => {
-    const { payload, draft, user } = await getPayloadForRequest();
-    const { docs } = await payload.find({
-      collection: "pages",
-      where: { slug: { equals: slug } },
-      draft,
-      user,
-      overrideAccess: false,
-    });
-    if (!docs[0]) return redirectOrNotFound(`/${slug}`);
-    return { draft, title: docs[0].title };
-  });
-```
-
-Render `{draft && <LivePreviewListener />}` in the page's component. The [package reference](https://adirishi.github.io/offload-cms/tanstack) lists every option, and [Preview drafts and Live Preview](https://adirishi.github.io/offload-cms/live-preview) sets up the admin side.
+In a server function, pass `draft` and `user` from `getPayloadForRequest()` to each query, with `overrideAccess: false`, and render `{draft && <LivePreviewListener />}` in the page. [Preview drafts and Live Preview](https://adirishi.github.io/offload-cms/live-preview) walks through a page.

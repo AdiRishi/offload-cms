@@ -6,7 +6,7 @@ description: What works differently when Payload runs on Cloudflare Workers thro
 ## Runtime
 
 - `vite dev` runs in Node, and a deployed site runs in workerd. A difference between the two runtimes shows up only in `vite preview` or on a deployed Worker.
-- Plan for the Workers Paid plan, which allows a Worker of 10 MB compressed. The free plan allows 3 MB, and the `e2e` site's Worker, with forms, customer accounts and payments, is already 3,110 KiB, over that limit. Each collection, plugin, and dependency adds to it. Customer accounts also need the Paid plan's CPU limit, as [Passwords](#passwords) explains.
+- Plan for the Workers Paid plan, which allows a Worker of 10 MB compressed. The free plan allows 3 MB, and the `e2e` site's Worker, with forms, customer accounts and payments, is already about 3.1 MB, over that limit. Each collection, plugin, and dependency adds to it. Customer accounts also need the Paid plan's CPU limit, as [Passwords](#passwords) explains.
 - The Rate Limiting binding that limits form submissions, logins, and password reset requests counts per Cloudflare location, and its counts are eventually consistent. It slows down abuse, but it isn't exact. Requests that reach several locations can pass the limit.
 - A server route or `src/server.ts` that imports `payload` or `@payload-config` bundles a second copy of Payload, about 1.1 MB compressed. Read content in server functions instead. [Where Payload runs](/cloudflare#where-payload-runs) explains why.
 - The admin is always at `/admin`. Payload's TanStack Start adapter doesn't support `routes.admin`.
@@ -39,13 +39,9 @@ Only one local process at a time can use a local D1 database. Wrangler keeps eac
 
 ## Passwords
 
-A deployed Worker rejects PBKDF2 with more than 100,000 iterations, and Payload uses 600,000. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes with 100,000 iterations on Workers, which is below OWASP's recommendation of 600,000 for PBKDF2-SHA256.
+A deployed Worker rejects PBKDF2 with more than 100,000 iterations, and Payload uses 600,000. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes with 100,000 iterations in every runtime, which is below OWASP's recommendation of 600,000 for PBKDF2-SHA256. A hash that upstream Payload made at 600,000, such as in a database moved from a Node site, still logs in on a Worker. Verifying it costs about half a second of CPU, once, and that login rehashes the password at 100,000.
 
 Hashing one password with 100,000 iterations costs about 10 ms of CPU. A login, a sign-up, a password reset, and a password change each hash once. The Workers Free plan allows 10 ms of CPU per request, so a site whose visitors log in, through [customer accounts](/customer-accounts), needs the Paid plan, which allows 30 seconds by default.
-
-A user created in Node, through `vite dev`, the Payload CLI, or a seed script, gets a 600,000-iteration hash that a deployed Worker can't verify. Create the users of a deployed site through its admin or its API, and customers through sign-up too.
-
-Local workerd doesn't enforce the limit, so `vite preview` logs in a user whose hash a deployed Worker rejects. The limit exists only in Cloudflare's deployed runtime: the open-source workerd that `vite preview` runs has no such check, and Offload has no supported way to add one.
 
 ## TypeScript
 
@@ -61,6 +57,6 @@ Use `appendChild()`, `insertBefore()`, or `replaceChildren()` to add nodes, and 
 The e2e suite doesn't cover these on Workers:
 
 - multi-tenant sites
-- `plugin-ecommerce` and payment providers
+- the plugin-ecommerce Stripe adapter, and Razorpay and mIPS against their live APIs instead of the suite's stubs
 - upload size limits, and multipart uploads of large files to R2
 - admin performance with large collections on D1

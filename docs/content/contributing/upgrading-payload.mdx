@@ -15,8 +15,8 @@ Ask an agent to upgrade Payload to a tag. The [`upgrade-payload` skill](https://
 The skill uses two commands that you can also run yourself:
 
 ```bash
-pnpm upstream status --against v4.0.0-beta.3
-pnpm upstream upgrade v4.0.0-beta.3 --drop <id>
+pnpm upstream status --against <tag>
+pnpm upstream upgrade <tag> --drop <id>
 ```
 
 `upstream status` shows each patch's upstream pull request, and whether the new tag already contains it. `upstream upgrade` cherry-picks the remaining patches onto the tag one at a time, and drops a patch that becomes empty because upstream already has it.

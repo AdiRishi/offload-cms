@@ -45,17 +45,31 @@ This guide uses `@adirishi/offload-tanstack`. The collection needs drafts, throu
     `documentPath` gives the public path of a document that a redirect from the redirects plugin points to.
 
   </Step>
+  <Step title="Hide server errors">
+    TanStack Start sends a thrown error's message to the browser, and a failed Payload query's message includes its SQL. Register [`hideServerErrors`](/tanstack#hideservererrors) for every server function in `src/start.ts`:
+
+    ```ts src/start.ts
+    import { hideServerErrors } from "@adirishi/offload-tanstack";
+    import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
+
+    export const startInstance = createStart(() => ({
+      requestMiddleware: [createCsrfMiddleware({ filter: (ctx) => ctx.handlerType === "serverFn" })],
+      functionMiddleware: [hideServerErrors],
+    }));
+    ```
+
+    TanStack Start drops its default CSRF protection once the site has a `src/start.ts`, so the file adds the CSRF middleware back.
+
+  </Step>
   <Step title="Serve drafts from the page's server function">
     `getPayloadForRequest()` authenticates the request. Pass its `draft` and `user` to the query, with `overrideAccess: false`, so the read access from the previous step decides what the request sees:
 
     ```tsx src/app/_frontend/$slug.tsx
-    import { hideServerErrors } from "@adirishi/offload-tanstack";
     import { createServerFn } from "@tanstack/react-start";
 
     import { getPayloadForRequest, redirectOrNotFound } from "@/lib/payload.server";
 
     const getPage = createServerFn({ method: "GET" })
-      .middleware([hideServerErrors])
       .validator((slug: string) => slug)
       .handler(async ({ data: slug }) => {
         const { payload, draft, user } = await getPayloadForRequest();
@@ -127,4 +141,4 @@ Live Preview refreshes the page after each save. With autosave, through `version
 
 A logged-in editor sees drafts on every page that reads through `getPayloadForRequest()`, in Live Preview and in a normal browser tab. That response depends on the editor's cookies, so don't put it in a shared cache. For output that you cache, such as a sitemap, read with `getVisitorPayload()` and `overrideAccess: false`.
 
-The [package reference](/tanstack) lists every option of the helpers.
+The [package reference](/tanstack) explains who gets drafts and how `redirectOrNotFound()` resolves a redirect.

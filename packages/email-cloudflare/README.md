@@ -1,17 +1,10 @@
 # @adirishi/offload-email-cloudflare
 
-A Payload v4 email adapter that sends through Cloudflare Email Service, with a Worker's `send_email` binding and no API key. This package is part of [Offload](https://adirishi.github.io/offload-cms/), and it works with the Offload builds of Payload.
+A Payload v4 email adapter that sends through Cloudflare Email Service with a Worker's `send_email` binding, so the site needs no API key. This package is part of [Offload](https://adirishi.github.io/offload-cms/) and works with the Offload builds of Payload.
 
 ## Install
 
-The package is on GitHub Packages, which needs a token with the `read:packages` scope:
-
-```ini
-# .npmrc
-@adirishi:registry=https://npm.pkg.github.com
-```
-
-pnpm 11.5.3 and later ignore `${...}` in a project `.npmrc`'s credentials, so give pnpm the token outside the repository, for example with `pnpm config set "//npm.pkg.github.com/:_authToken" <token>`. [Getting started](https://adirishi.github.io/offload-cms/getting-started) shows the other ways, including GitHub Actions.
+The package is on GitHub Packages. [Getting started](https://adirishi.github.io/offload-cms/getting-started) sets up the registry and its token.
 
 ```bash
 pnpm add --save-exact @adirishi/offload-email-cloudflare
@@ -19,12 +12,7 @@ pnpm add --save-exact @adirishi/offload-email-cloudflare
 
 ## Use it
 
-Onboard the sending domain with `pnpm wrangler email sending enable example.com`, then bind Email Service:
-
-```jsonc
-// wrangler.jsonc
-"send_email": [{ "name": "EMAIL" }]
-```
+Onboard the sending domain with `pnpm wrangler email sending enable example.com`, and bind Email Service in `wrangler.jsonc` with `"send_email": [{ "name": "EMAIL" }]`.
 
 ```ts
 // src/payload.config.ts
@@ -44,4 +32,4 @@ export default buildConfig({
 });
 ```
 
-[Send email with Cloudflare Email Service](https://adirishi.github.io/offload-cms/email) covers local development and which Nodemailer options the adapter accepts.
+[Send email with Cloudflare Email Service](https://adirishi.github.io/offload-cms/email) covers local development and the Nodemailer options the adapter can't send.

@@ -3,11 +3,11 @@ title: Make a change
 description: Decide whether a change belongs in a package or a patch, then add the package or write the patch.
 ---
 
-Put a change in a package in `packages/` when Payload's config or plugin API can express it. Write a patch to Payload only for behaviour that has no extension point. [How Offload works](/how-it-works#most-of-the-workers-support-is-not-a-patch) explains why patches are the last choice.
+Put a change in a package in `packages/` when Payload's config or plugin API can express it. Write a patch to Payload only for behaviour that has no extension point. [How Offload works](/how-it-works#where-a-change-goes) explains why patches are the last choice.
 
 ## Add a package
 
-1. Create the package in `packages/`. Extend `@repo/tsconfig/library.json` and take dependency versions from the catalog, as `packages/cloudflare` does.
+1. Create the package in `packages/`, as `packages/cloudflare` does: extend `@repo/tsconfig/library.json`, take dependency versions from the catalog, and add `@repo/upstream` as a `workspace:*` dev dependency with a `turbo.json` whose `typecheck` depends on `^build`, so the package type-checks against the patched Payload build.
 2. Add the package to `release/package.json` as a `workspace:*` dependency. The release builds and publishes only the packages listed there.
 3. Write its `README.md`, which is its page on GitHub Packages.
 

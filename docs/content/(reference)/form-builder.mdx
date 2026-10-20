@@ -3,16 +3,7 @@ title: "@adirishi/offload-form-builder"
 description: Reference for the form schema, the submission handler, and the shadcn registry items that render form-builder forms.
 ---
 
-| Entry point                             | Exports                                                                                                                      |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `@adirishi/offload-form-builder`        | `formSchema()`, `defaultValues()`, `submissionData()`, `isInputField()`, `submissionInput`, `countries`, and the types below |
-| `@adirishi/offload-form-builder/server` | `saveFormSubmission()`, `SaveFormSubmissionOptions`                                                                          |
-
-The main entry point runs in the browser and on the server. `/server` runs only on the server. A site installs the package under its own name, at the version of its other Offload packages. `@adirishi/offload-cloudflare`, `payload`, and `zod` 4 are peer dependencies. The Turnstile check, [`verifyTurnstile()`](/cloudflare#verifyturnstile), is in `@adirishi/offload-cloudflare`.
-
-```json package.json
-"@adirishi/offload-form-builder": "{{version}}"
-```
+The main entry point runs in the browser and on the server. `@adirishi/offload-form-builder/server` imports Payload and the Turnstile check, and runs only on the server.
 
 The form's UI isn't in the package. The [registry](#registry) installs it into the site. [Take form submissions](/forms) sets up both.
 
@@ -24,103 +15,38 @@ Validation messages are in English and can't be changed.
 
 ## formSchema()
 
-```ts
-formSchema(fields: readonly InputField[]): z.ZodObject
-```
+The browser validates with this schema as the visitor types, and `saveFormSubmission()` validates again against the stored form, so the two always apply the same rules:
 
-Returns the Zod schema that a form's values must match, with one key per field `name`. The browser validates with it as the visitor types, and `saveFormSubmission()` validates again against the stored form.
-
-| Block      | Value     | Rule                                       | Message when the rule fails       |
-| ---------- | --------- | ------------------------------------------ | --------------------------------- |
-| `checkbox` | `boolean` | If `required`, must be `true`              | This field is required.           |
-| `country`  | `string`  | The `value` of one of `countries`          | Choose a country from the list.   |
-| `email`    | `string`  | An email address of at most 254 characters | Enter a valid email address.      |
-| `number`   | `string`  | Digits, with an optional sign and decimals | Enter a number.                   |
-| `select`   | `string`  | One of the field's option values           | Choose one of the options.        |
-| `state`    | `string`  | At most 100 characters                     | Keep this under 100 characters.   |
-| `text`     | `string`  | At most 500 characters                     | Keep this under 500 characters.   |
-| `textarea` | `string`  | At most 5,000 characters                   | Keep this under 5,000 characters. |
+| Block      | Rule                                        | Message when the rule fails       |
+| ---------- | ------------------------------------------- | --------------------------------- |
+| `checkbox` | If `required`, must be `true`               | This field is required.           |
+| `country`  | The `value` of one of `countries`           | Choose a country from the list.   |
+| `email`    | An email address of at most 254 characters  | Enter a valid email address.      |
+| `number`   | Digits, with an optional minus and decimals | Enter a number.                   |
+| `select`   | One of the field's option values            | Choose one of the options.        |
+| `state`    | At most 100 characters                      | Keep this under 100 characters.   |
+| `text`     | At most 500 characters                      | Keep this under 500 characters.   |
+| `textarea` | At most 5,000 characters                    | Keep this under 5,000 characters. |
 
 The schema trims string values. A required field fails on an empty or missing value with "This field is required." An optional field accepts an empty value, or no key at all, so a component can send only some of a form's fields.
 
 ## defaultValues()
 
-```ts
-defaultValues(fields: readonly InputField[]): FormValues
-```
-
-Returns each field's `defaultValue`, or an empty value, as the values a form starts with. A checkbox without a default starts as `false`. A number's default becomes a string.
+A checkbox without a default starts as `false`. A number's default becomes a string, because a number field's value is the text the visitor typed.
 
 ## submissionData()
 
-```ts
-submissionData(fields: readonly InputField[], values: FormValues): { field: string; value: string }[]
-```
-
-Turns validated values into the rows of a submission's `submissionData` field. The admin and the form builder's emails show each row's value as it is, so the rows are for people to read:
-
-- An optional field left empty or left out has no row.
-- A checkbox answers `"Yes"` or `"No"`.
-- A country answers with its name and its ISO 3166-1 alpha-2 code, such as `"Mauritius (MU)"`. The name makes an email readable, and the code identifies the country after its English name changes.
+The admin and the form builder's emails show each row's value as it is, so the rows are for people to read. A country answers with its name and its ISO 3166-1 alpha-2 code, such as `"Mauritius (MU)"`. The name makes an email readable, and the code identifies the country after its English name changes. Payload's website template submits the code too, but saves it alone.
 
 ## isInputField()
 
-```ts
-isInputField<F extends { blockType: string }>(field: F): field is Extract<F, { blockType: InputField["blockType"] }>
-```
-
-Returns `true` for the supported blocks that take an answer, and `false` for `message` and for blocks the package doesn't support. It narrows the site's generated field type, so it works on `form.fields` before the fields reach `formSchema()`.
+It narrows the site's generated field type, so filter `form.fields` with it before the fields reach `formSchema()`.
 
 ## submissionInput
 
-The Zod schema for the input of the site's submission server function. Pass it to `.validator()`.
-
-| Key              | Type               | Rule                                       |
-| ---------------- | ------------------ | ------------------------------------------ |
-| `form`           | `number \| string` | A positive integer, or 1 to 100 characters |
-| `values`         | `FormValues`       | The visitor's answers by field name        |
-| `turnstileToken` | `string`           | 1 to 2,048 characters                      |
-
-To send more, such as the page that a form is on, extend it: `submissionInput.extend({ page: z.number() })`.
-
-## countries
-
-A readonly array of `{ value, label }` for every ISO 3166-1 country, sorted by `label`. `value` is the alpha-2 code, such as `"MU"`, and `label` is the English short name, such as `"Mauritius"`. A `country` field submits the code, and `submissionData()` saves `"Mauritius (MU)"`. Payload's website template submits the code too, but saves it alone.
-
-## Types
-
-| Type               | Description                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `InputField`       | A field that takes an answer. A site's generated field type fits it when the form builder has only the supported blocks. |
-| `FormField`        | An `InputField`, or a `message` block.                                                                                   |
-| `FormValues`       | `Partial<Record<string, string \| boolean>>`. A checkbox answers with a boolean, and every other field with a string.    |
-| `SubmissionInput`  | The type of `submissionInput`.                                                                                           |
-| `SubmissionResult` | What a submission server function returns to the form.                                                                   |
-
-```ts
-type SubmissionResult =
-  | { status: "sent" }
-  | { status: "invalid"; errors: Record<string, string> }
-  | { status: "limited" | "refused" | "unverified" | "error" };
-```
+To send more, such as the page that a form is on, extend it, such as `submissionInput.extend({ page: z.number() })`, and save the extra value through the `data` option of `saveFormSubmission()`.
 
 ## saveFormSubmission()
-
-```ts
-saveFormSubmission(options: SaveFormSubmissionOptions): Promise<SubmissionResult>
-```
-
-Saves a submission to a form-builder form from a public page.
-
-| Option            | Type                                                                 | Description                                                                                                                                                                 |
-| ----------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `submission`      | `SubmissionInput`                                                    | Required. The validated input of the server function.                                                                                                                       |
-| `payload`         | `Payload`                                                            | Required.                                                                                                                                                                   |
-| `request`         | `Request`                                                            | Required. The request that called the server function, from `getRequest()`.                                                                                                 |
-| `turnstileSecret` | `string`                                                             | Required. The Turnstile widget's secret key.                                                                                                                                |
-| `rateLimit`       | `{ limit(options: { key: string }): Promise<{ success: boolean }> }` | Required. A Workers Rate Limiting binding.                                                                                                                                  |
-| `isOffered`       | `(form: Form) => boolean \| Promise<boolean>`                        | Required. Whether the site offers the stored form to visitors. `Form` is the site's generated `forms` type. Pass `() => true` to accept every form that a visitor can read. |
-| `data`            | `Partial<RequiredDataFromCollectionSlug<"form-submissions">>`        | More fields to save on the submission, such as a relationship to the page that the form is on.                                                                              |
 
 It runs these checks in order and returns at the first one that fails:
 
@@ -129,46 +55,42 @@ It runs these checks in order and returns at the first one that fails:
 3. The form. A visitor must be able to read it, through a query with `overrideAccess: false`, and `isOffered` must accept the stored document. Otherwise it returns `refused`.
 4. The answers, validated with `formSchema()` against the stored form. Invalid answers return `invalid`, with the first message for each field in `errors`.
 
-Then it creates the submission in `form-submissions` with `overrideAccess: true`, merges `data` into it, and returns `sent`. Because the save bypasses access control, `form-submissions` can stay closed to public creates. The form builder plugin allows public creates by default, and [Take form submissions](/forms) closes them. If anything throws, it logs the error and returns `error`.
+Then it creates the submission in `form-submissions` with `overrideAccess: true` and returns `sent`. Because the save bypasses access control, `form-submissions` can stay closed to public creates. The form builder plugin allows public creates by default, and [Take form submissions](/forms) closes them. The submission's `form` and `submissionData` replace the same keys in `data`. If anything throws, it logs the error and returns `error`, so the visitor never sees the cause.
+
+`isOffered` is required because the form builder lets anyone read every form, including drafts, tests, and forms that no page shows any more. Without it, a visitor could submit to any of them. [Choose which forms take submissions](/forms#choose-which-forms-take-submissions) shows a rule.
 
 ## Registry
 
 Offload's shadcn registry installs the form's UI as source files that the site owns and edits. The docs build publishes each item at `https://adirishi.github.io/offload-cms/r/<item>.json`, from [`packages/form-builder/registry.json`](https://github.com/AdiRishi/offload-cms/blob/main/packages/form-builder/registry.json).
 
-| Item                | Installs                                                 | Registry dependencies                           | shadcn components it imports                                  | npm dependencies       |
-| ------------------- | -------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
-| `turnstile`         | `components/form-builder/turnstile.tsx`                  | None                                            | None                                                          | None                   |
-| `form-fields`       | `components/form-fields.tsx`                             | None                                            | `button`, `checkbox`, `field`, `input`, `spinner`, `textarea` | `@tanstack/react-form` |
-| `form-builder-form` | `components/form-builder/form.tsx` and `form-client.tsx` | `@offload/form-fields` and `@offload/turnstile` | Those of `form-fields`                                        | `@tanstack/react-form` |
-| `newsletter-signup` | `components/form-builder/newsletter-signup.tsx`          | `@offload/turnstile`                            | `button`, `field`, `input-group`, `spinner`                   | `@tanstack/react-form` |
+| Item                | Installs                                                                                     | shadcn components the site adds                               |
+| ------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `turnstile`         | `components/form-builder/turnstile.tsx`                                                      | None                                                          |
+| `form-fields`       | `components/form-fields.tsx`                                                                 | `button`, `checkbox`, `field`, `input`, `spinner`, `textarea` |
+| `form-builder-form` | `components/form-builder/form.tsx` and `form-client.tsx`, with `form-fields` and `turnstile` | Those of `form-fields`                                        |
+| `newsletter-signup` | `components/form-builder/newsletter-signup.tsx`, with `turnstile`                            | `button`, `field`, `input-group`, `spinner`                   |
 
 Registry dependencies name only other `@offload` items. `shadcn add --overwrite` rewrites every file of every registry dependency, so an item that listed `button` would replace the site's own button on every update. Add the shadcn components that an item imports to the site yourself, with `pnpm dlx shadcn@latest add`.
 
-`form-fields` holds TanStack Form's `useAppForm` with shadcn fields for text, textarea, select, and checkbox inputs, a submit button with a spinner, and a form error. The form-builder form and the [account forms](/accounts#registry) build on it.
+The [account forms](/accounts#registry) build on `form-fields` too.
 
 Each item targets one release of `@adirishi/offload-form-builder`, and its `meta` names it, such as `"meta": { "@adirishi/offload-form-builder": "{{version}}" }`. The registry serves only the items for the latest release. Update the package and add the items again together.
 
 `turnstile` also adds `VITE_TURNSTILE_SITE_KEY` with Cloudflare's testing site key to `.env.local`. The registry doesn't list `@adirishi/offload-form-builder`, so the shadcn CLI never changes its version.
 
-The components import `submitForm` from `@/server/forms.functions`, which the site writes and imports once in its `_frontend` layout route, so that the production build registers it. They use only the shadcn components whose props Radix and Base UI share, so they install into a project on either library. Select and country fields render a native `<select>`, styled in `form-fields.tsx`.
+The components import `submitForm` from `@/server/forms.functions`, which the site writes and imports once in its `_frontend` layout route. Only server components render the forms, and TanStack Start's production build doesn't register a server function that it reaches only through server components. Without the layout import, every submission on a production build fails, as [Take form submissions](/forms) explains.
+
+The components use only the shadcn components whose props Radix and Base UI share, so they install into a project on either library. Select and country fields render a native `<select>`, styled in `form-fields.tsx`.
 
 ### FormBuilderForm
 
-```tsx
-<FormBuilderForm form={form} />
-```
+A server component from `components/form-builder/form.tsx`. It takes a populated form document. It renders the rich text of `message` blocks and of the confirmation message on the server, and passes React nodes to the client form in `form-client.tsx`.
 
-A server component from `components/form-builder/form.tsx`. `form` is a populated form document, typed `DataFromCollectionSlug<"forms">`. It renders the rich text of `message` blocks and of the confirmation message on the server, and passes the fields to the client form in `form-client.tsx`. The submit button shows the form's `submitButtonLabel`, or "Send".
-
-After a successful submission, the client form shows the confirmation message, or goes to the form's redirect URL.
+After a successful submission, the client form shows the confirmation message, or goes to the form's redirect URL. A URL that starts with `/` navigates on the client, and any other URL loads as a new page.
 
 ### NewsletterSignup
 
-```tsx
-<NewsletterSignup form={form} />
-```
-
-A client component from `components/form-builder/newsletter-signup.tsx`. `form` needs `id` and `fields`. It renders one email input and a subscribe button, and submits the answer as the form's first `email` field. It validates the address with `formSchema()`, as required, and sends no other field, so the form's other fields must be optional.
+A client component from `components/form-builder/newsletter-signup.tsx`. It renders one email input and submits it as the form's first `email` field. It always validates the address as a required email, whatever the field's own `required` setting, and sends no other field, so the form's other fields must be optional. A form without an `email` field fails every sign-up with the generic error.
 
 ### Turnstile
 

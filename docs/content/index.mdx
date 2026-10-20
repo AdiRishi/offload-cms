@@ -5,7 +5,7 @@ description: Run a Payload CMS site as one Cloudflare Worker, on D1 and R2 or on
 
 Offload runs a Payload v4 site built with TanStack Start as one Cloudflare Worker. The Worker serves your frontend, the admin panel, and Payload's REST and GraphQL APIs. It also runs Payload's scheduled jobs on a Cron Trigger.
 
-Offload is upstream Payload with a few patches, plus a package for the Workers setup. A site installs it under Payload's own package names, so code imports `payload` and `@payloadcms/*`, and [Payload's documentation](https://payloadcms.com/docs) applies:
+Offload is upstream Payload with a series of patches for Workers, plus packages: one for the Workers setup and extensions for site features such as forms, visitor accounts, and checkout. A site installs Payload under its own package names, so code imports `payload` and `@payloadcms/*`, and [Payload's documentation](https://payloadcms.com/docs) applies:
 
 ```json package.json
 "payload": "npm:@adirishi/offload-payload@{{version}}",

@@ -7,7 +7,7 @@ Releases are automatic. Push to `main`, and once its checks pass, the CI run pub
 
 ## Versions
 
-Every package in a release has the same version, `<Payload version>-offload.<n>`, such as `4.0.0-beta.2-offload.4`. `<n>` counts Offload's releases on that Payload tag. The first release after an upgrade to a new Payload tag is `-offload.0`.
+Every package in a release has the same version, `<Payload version>-offload.<n>`, such as `4.0.0-beta.3-offload.0`. `<n>` counts Offload's releases on that Payload tag. The first release after an upgrade to a new Payload tag is `-offload.0`.
 
 Each release has a git tag, `v<version>`, on the commit it was published from. The newest tag for the pinned Payload tag is the latest release.
 
@@ -38,9 +38,7 @@ To try a change without releasing it, run `pnpm release e2e`. It packs the worki
 
 npm's `--provenance` works only on the public npm registry. Instead, the Publish job signs each tarball with [`actions/attest`](https://github.com/actions/attest) before it publishes any of them. The attestation is SLSA build provenance, recorded through Sigstore, and names the commit, workflow, and run that produced the file. `publish` uploads the attested files, not a new pack of the packages, so the registry serves the bytes the attestation covers. [Update Offload](/update#verify-a-package) shows how a site checks a package.
 
-### A release without an attestation
-
-The job published releases up to `4.0.0-beta.2-offload.10` before it attested them. The attestation of `offload.10` failed when Sigstore's transparency log timed out, so that release has none. A re-run can't add one, because the release tag on its commit makes `pack` pack nothing. Leave such a release in place. The next release has an attestation, so a site that verifies its packages should move to it.
+Releases up to `4.0.0-beta.2-offload.10` have no attestation: the job attested only from `offload.11`, after Sigstore timed out on `offload.10`. A re-run can't add one, because the release tag on the commit makes `pack` pack nothing.
 
 ## Continuous integration
 
