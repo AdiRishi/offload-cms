@@ -18,11 +18,12 @@ The Payload CLI runs in Node and reaches D1 through Wrangler. To run migrations 
 
   </Step>
   <Step title="Add a production environment">
-    Add a `production` environment to `wrangler.jsonc` with the database ID and `"remote": true` on each binding:
+    Add a `production` environment to `wrangler.jsonc`, with the database ID and `"remote": true` on each binding:
 
     ```jsonc wrangler.jsonc
     "env": {
       "production": {
+        "name": "my-site",
         "d1_databases": [
           {
             "binding": "D1",
@@ -31,16 +32,41 @@ The Payload CLI runs in Node and reaches D1 through Wrangler. To run migrations 
             "remote": true
           }
         ],
-        "r2_buckets": [{ "binding": "R2", "bucket_name": "my-site", "remote": true }]
+        "r2_buckets": [{ "binding": "R2", "bucket_name": "my-site", "remote": true }],
+        "images": { "binding": "IMAGES", "remote": true },
+        "vars": { "SITE_URL": "https://my-site.example.com" }
       }
     }
     ```
 
+    Set `"name"` in the environment. Without it, Wrangler deploys the environment as a second Worker, `my-site-production`.
+
+    An environment inherits the Worker's entry, compatibility settings, and Cron Triggers, but not its bindings or vars. List every binding the top level has, such as `images`, `ratelimits`, `send_email`, and `vars`, in the environment too. A binding that is missing from the environment is `undefined` in the deployed Worker, and the Payload CLI in that environment doesn't see it either.
+
   </Step>
-  <Step title="Set the secret">
-    ```bash
-    pnpm wrangler secret put PAYLOAD_SECRET --env production
+  <Step title="Set the secrets">
+    Two programs need production's secrets. The deployed Worker reads them from Wrangler. The Payload CLI runs in Node, so with `CLOUDFLARE_ENV=production` it reads `.dev.vars.production` instead. When that file is missing, Wrangler falls back to `.dev.vars` without a warning, and a migration or a seed runs against production with the local `PAYLOAD_SECRET`.
+
+    Write the production secrets in `.dev.vars.production`:
+
+    ```ini .dev.vars.production
+    PAYLOAD_SECRET=a-long-random-string-for-production
     ```
+
+    Then give the Worker the same values. `wrangler secret bulk` reads a `.dev.vars` file:
+
+    ```bash
+    pnpm wrangler secret bulk .dev.vars.production --env production
+    ```
+
+    Keep every secret file out of git:
+
+    ```text .gitignore
+    .dev.vars
+    .dev.vars.*
+    !.dev.vars.example
+    ```
+
   </Step>
   <Step title="Migrate, build, and deploy">
     `CLOUDFLARE_ENV` selects the environment for the Payload CLI and for the build. `wrangler deploy` then deploys the environment that the build selected.
@@ -58,4 +84,14 @@ The Payload CLI runs in Node and reaches D1 through Wrangler. To run migrations 
   </Step>
 </Steps>
 
-To deploy a change, run the commands from the fourth step again. `payload migrate` skips migrations that are already applied.
+To deploy a change, run the commands from the fourth step again. `payload migrate` skips migrations that are already applied. A site made with `pnpm create @adirishi/offload` runs all three with `pnpm deploy`.
+
+## Change the schema after the first deploy
+
+Before the first deploy, a site can keep one `initial` migration and regenerate it after each schema change. After it, Payload skips a migration whose name the production database has recorded, so a regenerated `initial` never runs there. Add a migration for each change instead:
+
+```bash
+pnpm payload migrate:create add-page-summary
+```
+
+`migrate:create` compares the schema with the newest `.json` snapshot in the migrations directory, so commit the snapshots with the migrations. The next deploy applies the new migration.
