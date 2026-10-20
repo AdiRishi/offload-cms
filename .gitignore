@@ -6,9 +6,10 @@ dist
 .turbo
 .tanstack
 
-# Payload checkout (pnpm upstream checkout), and the declarations map its build writes
+# Payload checkout (pnpm upstream checkout), and the declarations map and Turborepo config its build writes
 /upstream/payload/
 /upstream/tsconfig.payload.json
+/upstream/turbo.payload.json
 
 # Cloudflare local state, secrets and generated types
 .wrangler
@@ -19,6 +20,7 @@ worker-configuration.d.ts
 .env
 .env.*
 !.env.example
+!.env.turbo.example
 
 # Logs and OS files
 *.log

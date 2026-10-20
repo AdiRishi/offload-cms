@@ -12,19 +12,22 @@
   },
   "type": "module",
   "scripts": {
-    "build": "turbo run build",
-    "check": "turbo run lint format typecheck test",
+    "build": "dotenv -e .env.turbo.local -- turbo run build",
+    "check": "dotenv -e .env.turbo.local -- turbo run lint format typecheck test",
     "docs:dev": "pnpm --filter @repo/docs dev",
     "format": "oxfmt --check",
     "format:fix": "oxfmt",
     "lint": "oxlint --disable-nested-config",
     "lint:fix": "oxlint --disable-nested-config --fix",
-    "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "release": "dotenv -e .env.turbo.local -- release",
+    "test": "dotenv -e .env.turbo.local -- turbo run test",
+    "typecheck": "dotenv -e .env.turbo.local -- turbo run typecheck",
+    "upstream": "dotenv -e .env.turbo.local -- upstream"
   },
   "devDependencies": {
     "@repo/release": "workspace:*",
     "@repo/upstream": "workspace:*",
+    "dotenv-cli": "catalog:",
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",

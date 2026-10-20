@@ -12,6 +12,12 @@ on:
 permissions:
   contents: read
 
+# Credentials for the Turborepo remote cache that turbo.json configures. The Payload build reaches
+# the same cache through upstream/turbo.payload.json.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
 # Runs on main queue instead of cancelling, so a publish or a Pages deploy never stops
 # halfway.
 concurrency:

@@ -8,6 +8,7 @@ Offload republishes Payload CMS v4 as `@adirishi/offload-*`. It has two parts: p
 - Releases need no version edit. Once CI passes on `main`, a commit that changes what the packages ship publishes as the next `-offload.<n>` release, with a git tag.
 - The e2e site has one `initial` migration per database. A schema change rewrites it in place with `pnpm migrations:regenerate` in `e2e` and never adds a migration, so `pnpm deploy:staging` empties the staging D1 database before it migrates. `pnpm release e2e` fails when a migration doesn't match the schema. `e2e/AGENTS.md` has the details.
 - Finish with `pnpm check`. `pnpm format:fix` and `pnpm lint:fix` fix most of what it reports. It builds `upstream/payload` first, because the packages type-check against the patched build through `upstream/tsconfig.payload.json`, which that build writes. It skips the lint and type checks in `e2e`, whose dependencies exist only after `pnpm release e2e` installs them, so `pnpm release e2e` runs those checks.
+- Turborepo caches task results remotely, so a task's hash must cover everything the task reads. A task that reads gitignored files or files in other packages covers them through `dependsOn` or `inputs`. `docs/content/contributing/index.mdx` explains the setup.
 - The contributor docs in `docs/content/contributing/` cover the layout, testing, and releases.
 
 <!-- BEGIN:turborepo-agent-rules -->
