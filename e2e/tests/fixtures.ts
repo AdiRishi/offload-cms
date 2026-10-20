@@ -149,26 +149,37 @@ export const login = async (
 };
 
 /**
- * Calls a server function the way TanStack Start's client does, so a test can send input that the
- * site's components never send. A production build names each server function by the SHA-256 of
- * its file and handler, and reads the input and writes the result with Seroval. The result is
- * `{ result }`, or `{ error }` when the function throws.
+ * Posts to a server function the way TanStack Start's client does. A production build names each
+ * server function by the SHA-256 of its file and handler, and reads the input with Seroval.
+ * `fetchSite` is the `Sec-Fetch-Site` that the browser would send.
  */
-export const callServerFn = async (
+export const postServerFn = async (
   request: APIRequestContext,
   { file, name }: { file: string; name: string },
   data: unknown,
-): Promise<unknown> => {
+  fetchSite = "same-origin",
+) => {
   const id = createHash("sha256").update(`${file}--${name}_createServerFn_handler`).digest("hex");
-  const response = await request.post(`/_serverFn/${id}`, {
+  return request.post(`/_serverFn/${id}`, {
     data: JSON.stringify(await toJSONAsync({ data })),
     headers: {
       "content-type": "application/json",
-      // TanStack Start refuses a server function call from another site.
-      "sec-fetch-site": "same-origin",
+      "sec-fetch-site": fetchSite,
       "x-tsr-serverFn": "true",
     },
   });
+};
+
+/**
+ * Calls a server function from the site's own origin, so a test can send input that the site's
+ * components never send. The result is `{ result }`, or `{ error }` when the function throws.
+ */
+export const callServerFn = async (
+  request: APIRequestContext,
+  serverFn: { file: string; name: string },
+  data: unknown,
+): Promise<unknown> => {
+  const response = await postServerFn(request, serverFn, data);
   expect(response.status(), await response.text()).toBe(200);
   return fromCrossJSON(await response.json(), { plugins: defaultSerovalPlugins, refs: new Map() });
 };

@@ -4,7 +4,7 @@
 import type { Page } from "@playwright/test";
 
 import { lexical } from "./data";
-import { callServerFn, expect, type PayloadApi, test, unique } from "./fixtures";
+import { callServerFn, expect, type PayloadApi, postServerFn, test, unique } from "./fixtures";
 
 const visit = async (page: Page, path: string) => {
   await page.goto(path);
@@ -269,6 +269,25 @@ test.describe("submitForm called directly", () => {
     });
 
     expect(outcome).toEqual({ result: { status: "refused" } });
+    expect(await submissionsOf(api, form.id)).toEqual([]);
+  });
+
+  test("refuses a submission that another site's page sends", async ({ anonymous, api }) => {
+    const form = await api.create("forms", {
+      confirmationMessage: lexical(["Thanks."]),
+      confirmationType: "message",
+      fields: [{ blockType: "email", label: "Email", name: "email", required: true }],
+      title: unique("Cross-site"),
+    });
+
+    const response = await postServerFn(
+      anonymous.request,
+      submitForm,
+      { form: form.id, turnstileToken, values: { email: "ada@example.com" } },
+      "cross-site",
+    );
+
+    expect(response.status()).toBe(403);
     expect(await submissionsOf(api, form.id)).toEqual([]);
   });
 
