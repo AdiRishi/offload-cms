@@ -10,6 +10,7 @@
       "dependsOn": ["^typecheck"]
     },
     "//#lint": {
+      "dependsOn": ["@repo/upstream#build"],
       "cache": false
     },
     "//#format": {
