@@ -71,7 +71,7 @@ admin: {
 },
 ```
 
-An action with `where` opens the first document that matches, as the editor can read it, or the collection's list when none matches. `defaultLayout` places the widget for users who haven't arranged their dashboard.
+An action with `where` opens the first document that matches, as the editor can read it, or the collection's list when none matches. The widget leaves out an action that the editor's permissions don't allow, as the navigation leaves out a collection they can't read: a list, a lookup, or a global needs read access, and `create: true` needs create access. `defaultLayout` places the widget for users who haven't arranged their dashboard.
 
 ## Describe a slug
 

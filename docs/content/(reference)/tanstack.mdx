@@ -138,7 +138,7 @@ Returns the SEO plugin's `generateTitle`, `generateDescription`, `generateImage`
 
 - `rowLabel(path, fallback)` is an array field's `admin.components.RowLabel`. It shows the string at `path` in the row, or `<fallback> <row number>`.
 - `blockDescription(text)` is a `ui` field named `blockDescription` that shows `text` as a field description.
-- `quickActionsWidget({ title, description, actions })` is a dashboard widget, `quick-actions` unless `slug` says otherwise. An action opens a collection's list, its create view with `create: true`, the first document that matches `where`, a global, or a `url`.
+- `quickActionsWidget({ title, description, actions })` is a dashboard widget, `quick-actions` unless `slug` says otherwise. An action opens a collection's list, its create view with `create: true`, the first document that matches `where`, a global, or a `url`. The widget shows only the actions that the editor's permissions allow.
 
 [Help editors in the admin](/admin) shows each one in a config. After adding one, run `pnpm payload generate:importmap`.
 

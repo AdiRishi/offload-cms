@@ -21,12 +21,29 @@ type QuickActionsProps = WidgetServerProps & {
 };
 
 /** The widget that `quickActionsWidget()` configures. */
-export const QuickActions = async ({ req, title, description, actions }: QuickActionsProps) => {
+export const QuickActions = async ({
+  req,
+  permissions,
+  title,
+  description,
+  actions,
+}: QuickActionsProps) => {
   const adminRoute = req.payload.config.routes.admin;
   const adminURL = (path: `/${string}`) => formatAdminURL({ adminRoute, path });
 
+  // An editor sees only the actions their permissions allow, as the admin's navigation does. The
+  // where lookup also needs read access, because Payload throws Forbidden without it.
+  const allowed = actions.filter((action) => {
+    if ("url" in action) return true;
+    if ("global" in action) return permissions.globals?.[action.global]?.read === true;
+    const collection = permissions.collections?.[action.collection];
+    return "create" in action && action.create
+      ? collection?.create === true
+      : collection?.read === true;
+  });
+
   const buttons = await Promise.all(
-    actions.map(async (action) => {
+    allowed.map(async (action) => {
       if ("url" in action) {
         return { label: action.label, url: action.url, newTab: action.newTab ?? false };
       }
