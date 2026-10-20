@@ -112,3 +112,53 @@ test("a document with every field type opens and saves unchanged", async ({ api,
   expect(afterNumber).toBe(8);
   expect(after).toEqual(unchanged);
 });
+
+test("the dashboard's quick actions open their views", async ({ api, page }) => {
+  const widget = page.locator("section", { hasText: "Welcome to the e2e admin" });
+  const editAbout = widget.getByRole("link", { name: "Edit the about page" });
+  await page.goto("/admin");
+  await expect(widget.getByRole("link", { name: "Write a post" })).toHaveAttribute(
+    "href",
+    "/admin/collections/posts/create",
+  );
+  await expect(widget.getByRole("link", { name: "Change the site settings" })).toHaveAttribute(
+    "href",
+    "/admin/globals/site-settings",
+  );
+  await expect(widget.getByRole("link", { name: "View the site" })).toHaveAttribute("href", "/");
+  // Without a matching document, the action opens the list.
+  await expect(editAbout).toHaveAttribute("href", "/admin/collections/pages");
+
+  const about = await api.create("pages", { slug: "about", title: "About" });
+  await page.goto("/admin");
+  await expect(editAbout).toHaveAttribute("href", `/admin/collections/pages/${about.id}`);
+});
+
+test("the edit view shows a block's description, array row labels and a slug field's own description", async ({
+  api,
+  page,
+}) => {
+  const pageDoc = await api.create("pages", {
+    layout: [{ blockType: "quote", text: "Described" }],
+    slug: unique("described"),
+    title: "Described block",
+  });
+  await page.goto(`/admin/collections/pages/${pageDoc.id}`);
+  await expect(page.getByText("A quotation, shown large, with its author.")).toBeVisible();
+
+  const settings = await api.request.post("/api/globals/site-settings", {
+    data: { footerLinks: [{ label: "Privacy", url: "/privacy" }] },
+    headers: { Authorization: `JWT ${api.token}` },
+  });
+  expect(settings.status()).toBe(200);
+  await page.goto("/admin/globals/site-settings");
+  await waitForAdminForm(page);
+  await expect(page.locator(".array-field").getByText("Privacy", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Add Footer Link" }).click();
+  await expect(page.locator(".array-field").getByText("Link 2", { exact: true })).toBeVisible();
+
+  const slug = unique("described");
+  const doc = await api.create("field-types", { slug, text: "Described" });
+  await page.goto(`/admin/collections/field-types/${doc.id}`);
+  await expect(page.getByTestId("slug-address")).toHaveText(`Address: /field-types/${slug}`);
+});

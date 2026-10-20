@@ -112,6 +112,12 @@ export const FieldTypes: CollectionConfig = {
         },
       ],
     },
+    {
+      name: "slug",
+      type: "slug",
+      useAsSlug: "text",
+      admin: { components: { Description: "/components/slug-address#SlugAddress" } },
+    },
   ],
   versions: false,
 };

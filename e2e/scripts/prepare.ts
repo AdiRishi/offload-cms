@@ -56,7 +56,7 @@ run("pnpm", [
     {
       data: {
         _status: "published",
-        layout: [{ blockType: "cta", href: "/", label: "Home" }],
+        layout: [{ blockType: "cta", link: { type: "custom", url: "/", label: "Home" } }],
         slug: "reset",
         title: "Reset",
       },
