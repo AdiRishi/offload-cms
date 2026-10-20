@@ -27,13 +27,14 @@ export const pageBlocks: BlockComponents<NonNullable<Page["layout"]>[number]> = 
     </figure>
   ),
   form: ({ form }) =>
-    typeof form === "object" ? (
+    // A deleted form leaves the relationship null.
+    typeof form === "object" && form !== null ? (
       <section>
         <FormBuilderForm form={form} />
       </section>
     ) : null,
   newsletter: ({ signupForm }) =>
-    typeof signupForm === "object" ? (
+    typeof signupForm === "object" && signupForm !== null ? (
       <section>
         <NewsletterSignup form={signupForm} />
       </section>
