@@ -66,7 +66,7 @@ await payload.create({
 process.exit(0);
 ```
 
-- `resetCollections()` deletes every document in each collection, in the order given, and the stored files of uploads. List a collection before the collections its documents refer to.
+- `resetCollections()` deletes every document in each collection, trashed ones included, in the order given, and the stored files of uploads. List a collection before the collections its documents refer to.
 - `uploadMedia()` uploads each file in `alt` from `directory`, with its alt text, through the collection's transformers, and returns a function that gives a file's document ID. It throws for a file it didn't upload, so a typo fails the seed.
 - `markdownToLexical()` returns a function that converts Markdown to rich text. Pass it the field's editor, such as `markdownToLexical(payload, editor)`, when the field doesn't use the config's default editor, so the result has only the nodes that the field supports.
 

@@ -144,4 +144,4 @@ Returns the SEO plugin's `generateTitle`, `generateDescription`, `generateImage`
 
 ## Seed helpers
 
-`resetCollections(payload, collections)` deletes every document in each collection, in order, with access control off. `uploadMedia(payload, { directory, alt, collection })` uploads each file named in `alt` to `collection`, `media` unless set, and returns a function from a file name to its document ID. `markdownToLexical(payload, editor?)` returns a function that converts Markdown to Lexical rich text. [Seed content](/seed#make-the-seed-repeatable) uses all three.
+`resetCollections(payload, collections)` deletes every document in each collection, trashed ones included, in order, with access control off. `uploadMedia(payload, { directory, alt, collection })` uploads each file named in `alt` to `collection`, `media` unless set, and returns a function from a file name to its document ID. `markdownToLexical(payload, editor?)` returns a function that converts Markdown to Lexical rich text. [Seed content](/seed#make-the-seed-repeatable) uses all three.

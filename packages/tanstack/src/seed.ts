@@ -8,7 +8,8 @@ import {
 import path from "node:path";
 
 /**
- * Deletes every document in each collection, in the order given, so a seed can run again.
+ * Deletes every document in each collection, trashed ones included, in the order given, so a seed
+ * can run again.
  * List a collection before the collections its documents refer to. Uploads lose their stored
  * files too.
  */
@@ -19,6 +20,7 @@ export const resetCollections = async (payload: Payload, collections: Collection
       collection,
       where: { id: { exists: true } },
       overrideAccess: true,
+      trash: true,
     });
     if (errors.length > 0) {
       throw new Error(`Deleting ${collection} failed: ${errors.map((e) => e.message).join("; ")}`);
