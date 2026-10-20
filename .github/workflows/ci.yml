@@ -99,7 +99,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
-      - run: pnpm turbo run build --filter=@repo/docs
+      - run: pnpm docs:build
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/dist

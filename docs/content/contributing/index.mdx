@@ -40,11 +40,11 @@ pnpm check
 
 The pnpm workspace holds `docs`, `packages/*`, `upstream`, and `release`. Every dependency version comes from the catalog in `pnpm-workspace.yaml`. Node runs the `upstream` and `release` CLIs straight from TypeScript. `e2e` is a separate pnpm project, because it installs Offload from a registry the way a site does.
 
-The docs build runs `docs/registry.ts`, which runs `shadcn build` on the `registry.json` of each package in `packages/` that has one, and serves the registry items from `/r/` on this site. It stamps each item's `meta` with its package and the release that the docs show, so a site can match the items to its package version. `pnpm --filter @repo/docs registry` builds them alone.
+The docs build runs `docs/registry.ts`, which runs `shadcn build` on the `registry.json` of each package in `packages/` that has one, and serves the registry items from `/r/` on this site. It stamps each item's `meta` with its package and the release that the docs show, so a site can match the items to its package version. `pnpm docs:registry` builds them alone.
 
 ## Commands
 
-`pnpm format:fix` and `pnpm lint:fix` fix most of what `pnpm check` reports, and `pnpm docs:dev` serves this site. Run `pnpm upstream` or `pnpm release` with no command to print its commands.
+The root `package.json` has a script for every command the repository runs, and `pnpm run` lists them. The `e2e:*` scripts run the `e2e` site's commands. `pnpm format:fix` and `pnpm lint:fix` fix most of what `pnpm check` reports, and `pnpm docs:dev` serves this site. Run `pnpm upstream` or `pnpm release` with no command to print its commands.
 
 ## Remote cache
 

@@ -43,14 +43,14 @@ Done when the build and every `Tests` command pass.
 
 1. Apply the site-facing breaking changes from step 1 to `packages/` and `e2e`.
 2. Run `pnpm release e2e`. It installs the new release into `e2e`. A schema change can fail this run, and step 3 fixes that.
-3. If the run failed in `pnpm migrations:check`, the schema changed. In `e2e`, run `pnpm migrations:regenerate` to rewrite the `initial` migrations, and commit them with the other `e2e` changes.
+3. If the run failed in `pnpm migrations:check`, the schema changed. Run `pnpm e2e:migrations:regenerate` to rewrite the `initial` migrations, and commit them with the other `e2e` changes.
 4. Run `pnpm release e2e` and `pnpm release e2e --postgres` from the root.
 
 Done when both suites pass.
 
 ## 5. Verify on Cloudflare
 
-Some behaviour exists only on a deployed Worker. The Workers limit on password hashing is the known case, and the suite runs only locally. From `e2e`, run `pnpm deploy:staging`. It empties the staging D1 database, so create the first user in the staging admin with the credentials in `e2e/.staging-admin.json`, log in, and publish a page.
+Some behaviour exists only on a deployed Worker. The Workers limit on password hashing is the known case, and the suite runs only locally. Run `pnpm e2e:deploy:staging`. It empties the staging D1 database, so create the first user in the staging admin with the credentials in `e2e/.staging-admin.json`, log in, and publish a page.
 
 Done when the login and the publish work on staging, or when the report says why staging could not run.
 

@@ -24,28 +24,28 @@ The Postgres run needs Docker. CI runs both on every pull request and every push
 
 ## Worker size budget
 
-The D1 run ends with `pnpm size` in `e2e`. It builds the Worker and reads its compressed size from `wrangler deploy --dry-run`, which needs no Cloudflare account and contacts no Cloudflare API. The check fails when the size passes the budget in `e2e/scripts/worker-size.ts`, so a change that bundles a large dependency or a second copy of Payload fails CI. To check the size after a change, run this from `e2e`:
+The D1 run ends with `pnpm size` in `e2e`. It builds the Worker and reads its compressed size from `wrangler deploy --dry-run`, which needs no Cloudflare account and contacts no Cloudflare API. The check fails when the size passes the budget in `e2e/scripts/worker-size.ts`, so a change that bundles a large dependency or a second copy of Payload fails CI. To check the size after a change, run:
 
 ```bash
-pnpm size
+pnpm e2e:size
 ```
 
 If the growth is intended, raise the budget in the same commit and keep about 5% of headroom.
 
 ## Rerun the suite without publishing
 
-After one `pnpm release e2e`, `e2e` has the release installed. From `e2e`, run `pnpm test`, or `CLOUDFLARE_ENV=postgres pnpm test` for Postgres. `pnpm test:dev` reruns only the `vite dev` check. It signs in with the admin that the main suite created.
+After one `pnpm release e2e`, `e2e` has the release installed. Run `pnpm e2e:test`, or `pnpm e2e:test:postgres` for Postgres. `pnpm e2e:test:dev` reruns only the `vite dev` check. It signs in with the admin that the main suite created.
 
 To read the Worker's logs, start the server yourself:
 
 ```bash
-node scripts/prepare.ts && pnpm preview
+pnpm e2e:serve
 ```
 
 Then run the suite from another terminal. It uses the running server:
 
 ```bash
-E2E_REUSE_SERVER=1 pnpm exec playwright test
+pnpm e2e:test:reuse
 ```
 
 ## What the suite covers
@@ -62,12 +62,12 @@ The `/api/e2e/*` endpoints exist only for the suite. Payload closes its jobs col
 
 ## Change the schema
 
-Each local run of the suite starts from an empty database, so `e2e` keeps exactly one migration per database: `src/migrations/d1/*_initial` and `src/migrations/postgres/*_initial`. A schema change rewrites that migration in place. It never adds a migration file, so a pull request's diff shows only the schema change. Payload skips a migration whose name a database has already recorded, so [`pnpm deploy:staging`](#test-on-cloudflare) resets the staging database instead of migrating it.
+Each local run of the suite starts from an empty database, so `e2e` keeps exactly one migration per database: `src/migrations/d1/*_initial` and `src/migrations/postgres/*_initial`. A schema change rewrites that migration in place. It never adds a migration file, so a pull request's diff shows only the schema change. Payload skips a migration whose name a database has already recorded, so [`pnpm e2e:deploy:staging`](#test-on-cloudflare) resets the staging database instead of migrating it.
 
-After you change a collection, a global, or a plugin's options, run this from `e2e`. It needs the release that `pnpm release e2e` installs:
+After you change a collection, a global, or a plugin's options, run this. It needs the release that `pnpm release e2e` installs:
 
 ```bash
-pnpm migrations:regenerate
+pnpm e2e:migrations:regenerate
 ```
 
 For each database, `scripts/migrations.ts` runs Payload's `createMigration` in an empty temporary directory, as `payload migrate:create initial` does in an empty migrations directory. drizzle-kit generates the whole schema, which keeps the SQL, indexes, foreign keys, and the order of D1's `DROP TABLE` statements correct. The script writes the result over the committed `_initial.ts` and keeps its name. `migrate:create` doesn't connect to the database, so the Postgres run doesn't need Docker.
@@ -78,10 +78,10 @@ The repository keeps no drizzle-kit `.json` snapshots, because nothing reads the
 
 ## Test on Cloudflare
 
-Some behaviour shows up only on a deployed Worker, such as the Workers limit on PBKDF2 iterations, which local workerd doesn't enforce and the [PBKDF2 patch](/patches/workers-pbkdf2-cap) works around. The `staging` environment in `wrangler.jsonc` deploys `e2e` as `offload-e2e-staging`, with its own D1 database and R2 bucket. From `e2e`, run:
+Some behaviour shows up only on a deployed Worker, such as the Workers limit on PBKDF2 iterations, which local workerd doesn't enforce and the [PBKDF2 patch](/patches/workers-pbkdf2-cap) works around. The `staging` environment in `wrangler.jsonc` deploys `e2e` as `offload-e2e-staging`, with its own D1 database and R2 bucket. Run:
 
 ```bash
-pnpm deploy:staging
+pnpm e2e:deploy:staging
 ```
 
 The command runs `payload migrate:fresh --force-accept-warning` on the remote D1 database, which drops every table and applies the migrations to the empty database. Then it builds for staging and deploys. Staging holds only test data, and the reset is what applies a rewritten `initial` migration. The reset also deletes the staging admin, so create it again on the admin's first-user screen with the credentials in `e2e/.staging-admin.json`, which git ignores. `PAYLOAD_SECRET` is a Wrangler secret on the Worker.
