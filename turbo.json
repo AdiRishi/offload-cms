@@ -2,6 +2,9 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
@@ -16,6 +19,8 @@
     "//#format": {
       "cache": false
     },
-    "test": {}
+    "test": {
+      "dependsOn": ["transit"]
+    }
   }
 }
