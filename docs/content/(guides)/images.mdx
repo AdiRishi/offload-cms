@@ -56,10 +56,33 @@ Offload carries this transformer as a [backport](/patches/transformer-cloudflare
 
 `collections` sets what happens at upload: `variants`, `crop`, `focalPoint`, `resizeOptions`, and `formatOptions`. The admin's crop and focal-point controls work as they do with Sharp. `dynamic` turns on resizing at request time, such as `/api/media/file/photo.png?width=400`, for the collections it lists. Payload's [transformer documentation](https://payloadcms.com/docs/upload/transformers) explains how to restrict dynamic resizing on a public collection.
 
+The output keeps the upload's format unless `formatOptions.format` sets another. Animated frames are kept only in GIF and WebP output, because Cloudflare Images rejects animated output in other formats. Set `anim: false` in `formatOptions` to flatten an animated GIF or WebP.
+
+## Render variants
+
+A variant can be `null`. The transformer skips a variant that is larger than the uploaded image in every dimension it sets, unless the variant sets `withoutEnlargement`. A 384-pixel-wide image gets no variant with `width: 480` or wider, so its `variants.thumbnail.url` and the others are `null`. A frontend must fall back to the original file, `url`, when a variant has no URL.
+
+`toImageSource()` and `Media` from `@adirishi/offload-tanstack` do this. `toImageSource()` takes an upload field's value and returns plain data that a server function can return. `Media` renders it as an `<img>`:
+
+```tsx
+import { Media, toImageSource } from "@adirishi/offload-tanstack";
+
+const hero = toImageSource(page.hero); // in the server function
+
+{
+  hero && <Media image={hero} sizes="(min-width: 64rem) 64rem, 100vw" cover={16 / 9} />;
+}
+```
+
+- `srcset` lists the original and each variant that has a URL and keeps the original's aspect ratio. A cropped variant, such as a 1200×630 sharing image, stays out, so the browser never shows a crop in place of the image.
+- `src` is the original, so an image without variants still renders.
+- The focal point that an editor sets in the admin becomes `object-position`, so `object-fit: cover` keeps it in view.
+- `cover` is the width-to-height ratio of a box that the image covers. A wider image overflows the box, so `Media` scales `sizes` by the overflow and the browser picks a larger copy.
+
 ## Limits
 
 - Cloudflare Images reads JPEG, PNG, GIF, WebP, and AVIF. The transformer doesn't process SVG or TIFF.
 - Each input and output image can be at most 20 MiB.
 - Sharp-only options such as `trimOptions`, `withMetadata`, and a custom Sharp build have no equivalent.
 - Cloudflare bills each transformation under [Images pricing](https://developers.cloudflare.com/images/pricing/), and the transformer doesn't cache resized output.
-- `vite dev` and `vite preview` use a local copy of the binding that supports only some of Cloudflare's features. Check crop, focal point, and animated images on a deployed Worker.
+- `vite dev` and `vite preview` use a local copy of the binding that supports only some of Cloudflare's features. It ignores `anim`, so a request that deployed Cloudflare Images rejects for its animation option can work locally. Check crop, focal point, and animated images on a deployed Worker.
