@@ -39,9 +39,10 @@ const get = async (url: string) => {
  * longer matches the one Payload generates for its config.
  */
 export const checkTemplateSite = async (site: string) => {
-  copyFileSync(path.join(site, ".dev.vars.example"), path.join(site, ".dev.vars"));
+  // Types first, without .dev.vars, as the template's CI runs them.
   await run("pnpm", ["cf-typegen"], { cwd: site });
   await run("pnpm", ["typecheck"], { cwd: site });
+  copyFileSync(path.join(site, ".dev.vars.example"), path.join(site, ".dev.vars"));
   await run("pnpm", ["generate:importmap"], { cwd: site });
   await run("pnpm", ["migrate:regenerate"], { cwd: site });
   await run("pnpm", ["admin:dev"], { cwd: site });

@@ -25,5 +25,6 @@ Every command the project runs is a script in `package.json`. Add new ones there
 
 - Until the first deploy, change the schema with `pnpm migrate:regenerate`, which rewrites the one `initial` migration. After it, add a migration with `pnpm payload migrate:create <name>` and commit it with its `.json` snapshot.
 - Stop `pnpm dev` and `pnpm preview` before a `payload` command that writes, such as `migrate` or `admin:dev`. Two processes on one local D1 database break each other's writes.
+- List a new secret in `secrets.required` in `wrangler.jsonc`, at the top level and in each environment that needs it, as well as in `.dev.vars` and `.dev.vars.example`. Wrangler loads only the listed secrets.
 - The Payload CLI in the production environment reads its secrets from `.dev.vars.production`, which git ignores. The Worker's own secrets are set with `pnpm wrangler secret put <NAME> --env production`.
 - Install each Payload package as an npm alias of its Offload build, and change every `@adirishi/offload-*` version together.

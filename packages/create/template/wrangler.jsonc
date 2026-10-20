@@ -9,6 +9,9 @@
   "d1_databases": [{ "binding": "D1", "database_name": "{{name}}", "database_id": "local" }],
   "r2_buckets": [{ "binding": "R2", "bucket_name": "{{name}}" }],
   "images": { "binding": "IMAGES" },
+  // The secrets in .dev.vars. Declaring them lets wrangler types type them where .dev.vars doesn't
+  // exist, such as in CI, and makes wrangler deploy refuse a Worker that lacks one.
+  "secrets": { "required": ["PAYLOAD_SECRET", "DEV_ADMIN_EMAIL", "DEV_ADMIN_PASSWORD"] },
   "env": {
     // The deployed site. CLOUDFLARE_ENV=production selects it for the Payload CLI and the build.
     // Environments don't inherit bindings or vars, so it lists each one again. Without "name",
@@ -25,6 +28,7 @@
       ],
       "r2_buckets": [{ "binding": "R2", "bucket_name": "{{name}}", "remote": true }],
       "images": { "binding": "IMAGES", "remote": true },
+      "secrets": { "required": ["PAYLOAD_SECRET"] },
     },
   },
 }
