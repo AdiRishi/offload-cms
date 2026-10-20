@@ -3,6 +3,7 @@ import type { CollectionSlug, Payload, UploadCollectionSlug } from "payload";
 import {
   convertMarkdownToLexical,
   editorConfigFactory,
+  type LexicalRichTextAdapter,
   type lexicalEditor,
 } from "@payloadcms/richtext-lexical";
 import path from "node:path";
@@ -66,14 +67,28 @@ export const uploadMedia = async <TFile extends string>(
   };
 };
 
+type RootEditor = Payload["config"]["editor"];
+
+const isLexical = (editor: RootEditor): editor is RootEditor & LexicalRichTextAdapter =>
+  typeof editor === "object" && "editorConfig" in editor;
+
+const rootEditorConfig = ({ editor }: Payload["config"]) => {
+  if (!isLexical(editor)) {
+    throw new Error(
+      "The config's editor isn't Lexical. Pass the field's editor to markdownToLexical().",
+    );
+  }
+  return editor.editorConfig;
+};
+
 /**
  * Returns a function that converts Markdown to Lexical rich text for `editor`, or for the
- * config's default editor. Pass the editor of the field the text goes in, so the conversion
- * keeps only the nodes that field supports.
+ * config's `editor`. Pass the editor of the field the text goes in when the field has its own,
+ * so the conversion keeps only the nodes that field supports.
  */
 export const markdownToLexical = (payload: Payload, editor?: ReturnType<typeof lexicalEditor>) => {
   const editorConfig = editor
     ? editorConfigFactory.fromEditor({ config: payload.config, editor })
-    : editorConfigFactory.default({ config: payload.config });
+    : rootEditorConfig(payload.config);
   return (markdown: string) => convertMarkdownToLexical({ editorConfig, markdown });
 };
