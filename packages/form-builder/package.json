@@ -42,7 +42,7 @@
   },
   "peerDependencies": {
     "@adirishi/offload-cloudflare": "workspace:*",
-    "payload": "4.0.0-beta.2",
+    "payload": "4.0.0-beta.3",
     "zod": "^4.0.0"
   }
 }

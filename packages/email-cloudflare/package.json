@@ -36,6 +36,6 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "payload": "4.0.0-beta.2"
+    "payload": "4.0.0-beta.3"
   }
 }

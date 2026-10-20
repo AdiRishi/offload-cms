@@ -51,8 +51,8 @@
   },
   "peerDependencies": {
     "@adirishi/offload-cloudflare": "workspace:*",
-    "@payloadcms/plugin-ecommerce": "4.0.0-beta.2",
-    "payload": "4.0.0-beta.2",
+    "@payloadcms/plugin-ecommerce": "4.0.0-beta.3",
+    "payload": "4.0.0-beta.3",
     "zod": "^4.0.0"
   }
 }
