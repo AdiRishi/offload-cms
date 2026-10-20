@@ -78,7 +78,7 @@ It fails a token that Turnstile issued on another hostname or for another `actio
 
 ## createPayloadWorker()
 
-Returns the Worker's default export. On each Cron Trigger, the Worker queues Payload's scheduled jobs with `payload.jobs.handleSchedules()`, then runs the due jobs with `payload.jobs.run()`. Scheduled publishing runs this way.
+Returns the Worker's default export. On each Cron Trigger, the Worker queues Payload's scheduled jobs with `payload.jobs.handleSchedules()`, then runs the due jobs with `payload.jobs.run()`. Scheduled publishing runs this way. Payload enables jobs only when the config has a task or a workflow, which scheduled publishing adds, so on a site without them the Cron Trigger does nothing.
 
 ## Where Payload runs
 
