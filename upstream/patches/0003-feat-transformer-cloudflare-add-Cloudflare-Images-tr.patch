@@ -2866,10 +2866,10 @@ index 000000000..45209999a
 +  "references": [{ "path": "../payload" }]
 +}
 diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
-index 76db731cf..e285654c7 100644
+index 60df612ef..fa30ed01d 100644
 --- a/pnpm-lock.yaml
 +++ b/pnpm-lock.yaml
-@@ -1720,6 +1720,15 @@ importers:
+@@ -1723,6 +1723,15 @@ importers:
          specifier: '>=8.0.0'
          version: 8.3.0(@types/node@25.9.9)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
  

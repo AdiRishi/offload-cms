@@ -372,7 +372,7 @@ index 6d3bcd324..5a1ddeb39 100644
        returning: false,
      })
 diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
-index 8d8e2664d..fea74d59c 100644
+index b403aa7c1..199105792 100644
 --- a/test/auth/int.spec.ts
 +++ b/test/auth/int.spec.ts
 @@ -3197,6 +3197,141 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {
