@@ -1,0 +1,35 @@
+{
+  "name": "@adirishi/create-offload",
+  "version": "0.0.0",
+  "description": "Creates a Payload site on Cloudflare Workers with Offload: TanStack Start, D1, R2 and Cloudflare Images",
+  "homepage": "https://github.com/AdiRishi/offload-cms/tree/main/packages/create#readme",
+  "bugs": {
+    "url": "https://github.com/AdiRishi/offload-cms/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AdiRishi/offload-cms.git",
+    "directory": "packages/create"
+  },
+  "bin": {
+    "create-offload": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "template"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

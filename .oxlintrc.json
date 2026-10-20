@@ -35,6 +35,7 @@
     "docs/.blume-verify/**",
     "upstream/payload/**",
     "upstream/patches/**",
+    "packages/create/template/**",
     "e2e/**"
   ],
   "overrides": [

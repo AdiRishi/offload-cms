@@ -25,6 +25,8 @@
     "e2e/src/payload-types.ts",
     "e2e/src/routeTree.gen.ts",
     "e2e/src/app/_payload/importMap.js",
-    "e2e/worker-configuration.d.ts"
+    "e2e/worker-configuration.d.ts",
+    "packages/create/template/src/routeTree.gen.ts",
+    "packages/create/template/src/app/_payload/importMap.js"
   ]
 }

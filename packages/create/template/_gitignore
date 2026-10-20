@@ -1,0 +1,16 @@
+node_modules
+dist
+.tanstack
+*.tsbuildinfo
+.DS_Store
+
+# Cloudflare's local state, and the Env type that pnpm cf-typegen writes
+.wrangler
+worker-configuration.d.ts
+
+# Secrets: .dev.vars for local runs, .dev.vars.<environment> for the Payload CLI in an environment
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*

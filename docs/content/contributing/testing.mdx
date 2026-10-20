@@ -21,6 +21,7 @@ The Postgres run needs Docker. CI runs both on every pull request and every push
 5. Serve the build with `vite preview`, create the first admin user through the admin panel, and run the suite.
 6. Start `vite dev`, edit the Payload config and a collection, and check that Payload keeps working after each reload. The check restores the files it edits. `playwright.dev.config.ts` runs this check after the main suite, because two local processes on one D1 database fail.
 7. On D1, check the Worker's compressed size against its budget.
+8. On D1, create a site with `pnpm create @adirishi/offload` from the registry and install it. Run the commands its README lists, build it, and serve the build. The check requests the home page, the admin's login page, and the Cron Trigger. It fails when the template's `importMap.js` differs from the one Payload generates for the template's config. Copy the new file into `packages/create/template` when it does.
 
 ## Worker size budget
 
