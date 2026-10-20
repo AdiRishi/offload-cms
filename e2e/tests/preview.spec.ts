@@ -1,6 +1,6 @@
 // Drafts, Live Preview and redirects on the site, through @adirishi/offload-tanstack.
 
-import { expect, login, test, unique } from "./fixtures";
+import { expect, login, submitAdminForm, test, unique } from "./fixtures";
 
 test("a logged-in editor sees a page's draft, and a visitor sees the published page", async ({
   api,
@@ -51,7 +51,7 @@ test("Live Preview shows a saved draft without a reload", async ({ api, page }) 
   await expect(preview.getByRole("heading", { level: 1 })).toHaveText("Before the edit");
 
   await page.locator("#field-title").fill("After the edit");
-  await page.locator("#action-save-draft").click();
+  await submitAdminForm(page, page.locator("#action-save-draft"), "PATCH", `/api/pages/${doc.id}`);
 
   await expect(preview.getByRole("heading", { level: 1 })).toHaveText("After the edit");
 });

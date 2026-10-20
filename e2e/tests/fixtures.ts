@@ -1,4 +1,10 @@
-import { type APIRequestContext, expect, test as base } from "@playwright/test";
+import {
+  type APIRequestContext,
+  expect,
+  type Locator,
+  type Page,
+  test as base,
+} from "@playwright/test";
 import { defaultSerovalPlugins } from "@tanstack/router-core/ssr/client";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -182,6 +188,40 @@ export const callServerFn = async (
   const response = await postServerFn(request, serverFn, data);
   expect(response.status(), await response.text()).toBe(200);
   return fromCrossJSON(await response.json(), { plugins: defaultSerovalPlugins, refs: new Map() });
+};
+
+/**
+ * Waits until the admin's forms have hydrated and initialized, which Payload marks with
+ * `data-form-ready`. Input that reaches a form before then can be lost without an error.
+ */
+export const waitForAdminForm = async (page: Page) => {
+  await expect(page.locator('form[data-form-ready="true"]').first()).toBeVisible();
+  await expect(page.locator('form[data-form-ready="false"]')).toHaveCount(0);
+};
+
+/**
+ * Clicks an admin form's submit `button` once the form is ready, and fails unless the `method`
+ * request to a path under `path` succeeds. Autosave requests don't count. A submit that Payload's
+ * client-side validation refuses sends no request, so it fails here instead of in a later step.
+ */
+export const submitAdminForm = async (
+  page: Page,
+  button: Locator,
+  method: "PATCH" | "POST",
+  path: string,
+) => {
+  await waitForAdminForm(page);
+  const response = page.waitForResponse((candidate) => {
+    const url = new URL(candidate.url());
+    return (
+      candidate.request().method() === method &&
+      url.pathname.startsWith(path) &&
+      !url.searchParams.has("autosave")
+    );
+  });
+  await button.click();
+  const settled = await response;
+  expect(settled.ok(), await settled.text()).toBe(true);
 };
 
 /** A unique suffix, so tests running in parallel never collide on slugs or emails. */
