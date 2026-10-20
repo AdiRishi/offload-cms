@@ -36,11 +36,6 @@ import { createReference, referenceSchema } from "./reference.ts";
 
 export type { MipsCredentials } from "./api.ts";
 
-/** A Workers Rate Limiting binding, or anything else with its `limit` method. */
-export type MipsRateLimiter = {
-  limit(options: { key: string }): Promise<{ success: boolean }>;
-};
-
 export type MipsAdapterOptions = {
   credentials: MipsCredentials;
   /**
@@ -53,7 +48,7 @@ export type MipsAdapterOptions = {
    * Returns the rate limiter for payment notifications, which the adapter keys by the sender's
    * `cf-connecting-ip`. It is a getter because a Worker reads its bindings inside a request.
    */
-  rateLimit: () => MipsRateLimiter | Promise<MipsRateLimiter>;
+  rateLimit: () => RateLimit;
   /** The mIPS API. Defaults to `https://api.mips.mu/api`. */
   apiURL?: string;
   label?: string;
@@ -201,7 +196,7 @@ const notificationEndpoint = (
   method: "post",
   handler: async (req) => {
     try {
-      const limiter = await rateLimit();
+      const limiter = rateLimit();
       const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
       if (!(await limiter.limit({ key: ip })).success) return reply("fail", 429);
       if (Number(req.headers.get("content-length")) > maxNotificationBytes) {

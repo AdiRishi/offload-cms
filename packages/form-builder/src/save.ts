@@ -21,7 +21,7 @@ export type SaveFormSubmissionOptions = {
   /** The Turnstile widget's secret key. */
   turnstileSecret: string;
   /** A Workers Rate Limiting binding. Each visitor IP gets its own allowance. */
-  rateLimit: { limit: (options: { key: string }) => Promise<{ success: boolean }> };
+  rateLimit: RateLimit;
   /**
    * Whether the site offers the stored form to visitors. Every form is publicly readable, so this
    * keeps a draft, test, or retired form from taking submissions. Pass `() => true` to accept
