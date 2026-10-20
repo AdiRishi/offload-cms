@@ -16,10 +16,14 @@ Vite orders plugins by `enforce` before their order in the array, and Offload's 
 ```ts vite.config.ts
 offloadVite({
   payloadConfigPath: path.resolve(import.meta.dirname, "src/payload.config.ts"),
-  pluginsBefore: [devtools()],
+  pluginsBefore: [devtools({ consolePiping: { enabled: false } })],
   vite: () => ({ plugins: [tailwindcss()] }),
 });
 ```
+
+Turn off the devtools' console piping, as above, until a release of `@tanstack/devtools-vite` includes the fix for [TanStack/devtools#482](https://github.com/TanStack/devtools/issues/482). Up to 0.8.5, the piping prints every server log in the browser and every browser log in the terminal. Vite 8's `server.forwardConsole` also sends browser errors and warnings to the terminal, and Vite turns it on when it runs under a coding agent, such as Claude Code or Cursor. With both on, one browser error passes between the browser and the terminal without end. In one site, the dev log reached 3.4 GB and the dev server stopped. With piping off, `server.forwardConsole` still prints browser errors in the terminal.
+
+The devtools' event bus listens on port 4206. A second `vite dev` on the same machine finds the port taken and moves its bus to a random port without a message. To run two sites at once, give each its own port with `devtools({ eventBusConfig: { port } })`.
 
 ### Payload package check
 
