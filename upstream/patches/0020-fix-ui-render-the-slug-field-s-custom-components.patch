@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Offload <offload@localhost>
+Date: Tue, 20 Oct 2026 22:05:28 +1100
+Subject: [PATCH] fix(ui): render the slug field's custom components
+
+A slug field ignores every custom component it declares. SlugField's admin
+config takes components.Label, Error, Description, beforeInput and
+afterInput, and the server renders them into the field's form state, but
+the client component never reads customComponents and always renders the
+default label, error and description. A function admin.description is lost
+too, because Payload passes it to the client as a rendered Description
+component. A site can't show, for example, the page's address under its
+slug, short of replacing the whole field with admin.components.Field.
+
+SlugField now reads customComponents from useField, as the text field does,
+renders Label, Error and Description through RenderCustomComponent with the
+defaults as fallbacks, and renders beforeInput and afterInput around the
+input.
+
+Offload-Patch: slug-field-custom-components
+Drop-When: the pinned release's SlugField renders customComponents
+Tests: e2e suite (admin.spec.ts custom admin components test)
+---
+ packages/ui/src/fields/Slug/index.tsx | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/packages/ui/src/fields/Slug/index.tsx b/packages/ui/src/fields/Slug/index.tsx
+index 30e8a6404..7c287a943 100644
+--- a/packages/ui/src/fields/Slug/index.tsx
++++ b/packages/ui/src/fields/Slug/index.tsx
+@@ -7,6 +7,7 @@ import React, { useCallback, useState } from 'react'
+ import { toast } from 'sonner'
+ 
+ import { Button } from '../../elements/Button/index.js'
++import { RenderCustomComponent } from '../../elements/RenderCustomComponent/index.js'
+ import { FieldDescription } from '../../fields/FieldDescription/index.js'
+ import { FieldError } from '../../fields/FieldError/index.js'
+ import { FieldLabel } from '../../fields/FieldLabel/index.js'
+@@ -46,6 +47,7 @@ const SlugFieldComponent: React.FC<SlugFieldProps> = ({ field, path }) => {
+   const locale = currentLocale?.code
+ 
+   const {
++    customComponents: { AfterInput, BeforeInput, Description, Error, Label } = {},
+     path: fieldPath,
+     setValue,
+     showError,
+@@ -138,9 +140,16 @@ const SlugFieldComponent: React.FC<SlugFieldProps> = ({ field, path }) => {
+         .filter(Boolean)
+         .join(' ')}
+     >
+-      <FieldLabel htmlFor={`field-${fieldPath}`} label={label} required={required} />
++      <RenderCustomComponent
++        CustomComponent={Label}
++        Fallback={<FieldLabel htmlFor={`field-${fieldPath}`} label={label} required={required} />}
++      />
+       <div className={`${baseClass}__wrap`}>
+-        <FieldError path={fieldPath} showError={showError} />
++        <RenderCustomComponent
++          CustomComponent={Error}
++          Fallback={<FieldError path={fieldPath} showError={showError} />}
++        />
++        {BeforeInput}
+ 
+         <div
+           className={[
+@@ -188,8 +197,11 @@ const SlugFieldComponent: React.FC<SlugFieldProps> = ({ field, path }) => {
+             </div>
+           )}
+         </div>
+-
+-        <FieldDescription description={description} path={fieldPath} />
++        {AfterInput}
++        <RenderCustomComponent
++          CustomComponent={Description}
++          Fallback={<FieldDescription description={description} path={fieldPath} />}
++        />
+       </div>
+     </div>
+   )
