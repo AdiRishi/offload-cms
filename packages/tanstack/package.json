@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@repo/tsconfig": "workspace:*",
+    "@repo/upstream": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@types/react": "catalog:",

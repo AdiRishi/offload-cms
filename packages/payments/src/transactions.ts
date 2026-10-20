@@ -93,25 +93,14 @@ export const gatewayGroup = ({
 const relationID = (value: DefaultDocumentIDType | { id: DefaultDocumentIDType }) =>
   typeof value === "object" ? value.id : value;
 
-// Offload's patch `ecommerce-adapter-customers-slug` passes the plugin's currencies to
-// initiatePayment. The workspace type-checks against Payload's unpatched release, which lacks them.
-const initiateCurrencies = z.object({
-  currenciesConfig: z.object({
-    supportedCurrencies: z.array(z.object({ code: z.string(), decimals: z.number().int().min(0) })),
-  }),
-});
-
 /**
  * The configured `decimals` of the checkout's currency. A transaction's `amount` is in units of
  * `10 ** decimals` of its currency.
  */
-export const currencyDecimals = (args: InitiateArgs) => {
-  const { currency } = args.data;
-  const configured = initiateCurrencies
-    .parse(args)
-    .currenciesConfig.supportedCurrencies.find(
-      ({ code }) => code.toUpperCase() === currency.toUpperCase(),
-    );
+export const currencyDecimals = ({ currenciesConfig, data: { currency } }: InitiateArgs) => {
+  const configured = currenciesConfig.supportedCurrencies.find(
+    ({ code }) => code.toUpperCase() === currency.toUpperCase(),
+  );
   if (!configured) throw new Error(`${currency} is not a configured currency.`);
   return configured.decimals;
 };

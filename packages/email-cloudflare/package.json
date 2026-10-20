@@ -30,6 +30,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@repo/tsconfig": "workspace:*",
+    "@repo/upstream": "workspace:*",
     "@types/node": "catalog:",
     "@types/nodemailer": "catalog:",
     "payload": "catalog:",

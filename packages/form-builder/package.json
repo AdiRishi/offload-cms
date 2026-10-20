@@ -35,6 +35,7 @@
     "@adirishi/offload-cloudflare": "workspace:*",
     "@cloudflare/workers-types": "catalog:",
     "@repo/tsconfig": "workspace:*",
+    "@repo/upstream": "workspace:*",
     "@types/node": "catalog:",
     "payload": "catalog:",
     "typescript": "catalog:",
