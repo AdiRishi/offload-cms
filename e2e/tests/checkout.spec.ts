@@ -8,7 +8,15 @@ import { z } from "zod";
 
 import { createCustomer, restToken, visitorHeaders } from "./accounts";
 import { admin } from "./credentials";
-import { type Doc, expect, type PayloadApi, test, unique } from "./fixtures";
+import {
+  type Doc,
+  expect,
+  type PayloadApi,
+  submitAdminForm,
+  test,
+  unique,
+  waitForAdminForm,
+} from "./fixtures";
 import {
   type Cart,
   confirmOrder,
@@ -251,7 +259,7 @@ test("the admin's price inputs show and save prices in the currency's minor unit
   });
 
   await page.goto(`/admin/collections/products/${product.id}`);
-  await expect(page.locator('form[data-form-ready="true"]')).toBeVisible();
+  await waitForAdminForm(page);
   const mur = page.getByLabel("Price (MUR)");
   await expect(mur).toHaveValue("1250.50");
   await expect(page.getByLabel("Price (INR)")).toBeHidden();
@@ -261,14 +269,7 @@ test("the admin's price inputs show and save prices in the currency's minor unit
   await mur.fill("1999.9");
   await mur.blur();
   await expect(mur).toHaveValue("1999.90");
-  const published = page.waitForResponse(
-    (response) =>
-      response.request().method() === "PATCH" &&
-      new URL(response.url()).pathname === `/api/products/${product.id}` &&
-      !new URL(response.url()).searchParams.has("autosave"),
-  );
-  await page.locator("#action-save").click();
-  expect((await published).ok()).toBe(true);
+  await submitAdminForm(page, page.locator("#action-save"), "PATCH", `/api/products/${product.id}`);
   expect(await anonymous.findByID("products", product.id)).toMatchObject({ priceInMUR: 199990 });
 });
 

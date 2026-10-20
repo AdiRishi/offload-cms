@@ -23,6 +23,7 @@ catalog:
   "@vitejs/plugin-react": 6.0.3
   "@vitejs/plugin-rsc": 0.5.38
   "blume": 2.2.4
+  "dotenv-cli": 11.0.0
   "graphql": 16.11.0
   "magic-string": 1.4.3
   "oxfmt": 0.73.0

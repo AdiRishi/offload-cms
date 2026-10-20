@@ -2,7 +2,7 @@ name: Set up Offload
 description: Node, pnpm and workspace dependencies, and optionally the patched Payload checkout.
 inputs:
   payload:
-    description: Also create upstream/payload and restore its Turborepo cache.
+    description: Also create upstream/payload.
     default: "false"
 runs:
   using: composite
@@ -27,9 +27,3 @@ runs:
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
         key: pnpm-store-payload-${{ runner.os }}-${{ hashFiles('upstream/payload/pnpm-lock.yaml') }}
-    - if: inputs.payload == 'true'
-      uses: actions/cache@v6
-      with:
-        path: upstream/payload/.turbo/cache
-        key: payload-turbo-${{ hashFiles('upstream/payload.json', 'upstream/patches/**') }}
-        restore-keys: payload-turbo-

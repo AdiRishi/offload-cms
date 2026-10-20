@@ -1,7 +1,16 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalDependencies": [".node-version"],
+  "remoteCache": {
+    "apiUrl": "https://turbo-cache.adishwar-rishi.com",
+    "teamId": "team_offload",
+    "signature": true
+  },
   "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
@@ -16,6 +25,8 @@
     "//#format": {
       "cache": false
     },
-    "test": {}
+    "test": {
+      "dependsOn": ["transit"]
+    }
   }
 }

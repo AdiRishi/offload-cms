@@ -11,7 +11,7 @@ pnpm upstream checkout
 pnpm check
 ```
 
-`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests. It builds Payload first, because the packages in `packages/` type-check against the patched build: that build writes `upstream/tsconfig.payload.json`, which maps each Payload entry point to its built declarations, and `@repo/tsconfig/library.json` extends it. Turborepo's cache inside `upstream/payload` makes later builds take seconds.
+`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests. It builds Payload first, because the packages in `packages/` type-check against the patched build: that build writes `upstream/tsconfig.payload.json`, which maps each Payload entry point to its built declarations, and `@repo/tsconfig/library.json` extends it. With the [remote cache](#remote-cache) set up, a build that any checkout or CI job already ran takes seconds.
 
 `pnpm check` skips `e2e`, whose dependencies exist only after `pnpm release e2e` installs them from its registry. `pnpm release e2e` lints and type-checks `e2e` after that install.
 
@@ -40,11 +40,24 @@ pnpm check
 
 The pnpm workspace holds `docs`, `packages/*`, `upstream`, and `release`. Every dependency version comes from the catalog in `pnpm-workspace.yaml`. Node runs the `upstream` and `release` CLIs straight from TypeScript. `e2e` is a separate pnpm project, because it installs Offload from a registry the way a site does.
 
-The docs build runs `docs/registry.ts`, which runs `shadcn build` on the `registry.json` of each package in `packages/` that has one, and serves the registry items from `/r/` on this site. It stamps each item's `meta` with its package and the release that the docs show, so a site can match the items to its package version. `pnpm --filter @repo/docs registry` builds them alone.
+The docs build runs `docs/registry.ts`, which runs `shadcn build` on the `registry.json` of each package in `packages/` that has one, and serves the registry items from `/r/` on this site. It stamps each item's `meta` with its package and the release that the docs show, so a site can match the items to its package version. `pnpm docs:registry` builds them alone.
 
 ## Commands
 
-`pnpm format:fix` and `pnpm lint:fix` fix most of what `pnpm check` reports, and `pnpm docs:dev` serves this site. Run `pnpm upstream` or `pnpm release` with no command to print its commands.
+The root `package.json` has a script for every command the repository runs, and `pnpm run` lists them. The `e2e:*` scripts run the `e2e` site's commands. `pnpm format:fix` and `pnpm lint:fix` fix most of what `pnpm check` reports, and `pnpm docs:dev` serves this site. Run `pnpm upstream` or `pnpm release` with no command to print its commands.
+
+## Remote cache
+
+Turborepo shares task results through the remote cache in the `remoteCache` block of `turbo.json`. Copy `.env.turbo.example` to `.env.turbo.local` and fill in the token and the signing key. The root scripts, `pnpm upstream`, and `pnpm release` load that file. Without it, Turborepo caches on your machine only. Turborepo signs each artifact it uploads and treats one it can't verify as a miss.
+
+The Payload build runs Payload's own Turborepo in `upstream/payload`. `pnpm upstream build` writes `upstream/turbo.payload.json`, which is Payload's `turbo.json` with the same `remoteCache` block, and runs Payload's Turborepo with that file. A file inside the checkout would make it differ from the pin.
+
+A cached result is correct only when the task's hash covers everything the task reads. Turborepo hashes the git-tracked files in a task's package, the package's lockfile entries, and the hashes of the tasks in its `dependsOn`. It doesn't see gitignored files, or files in other packages that no dependency task covers.
+
+- `upstream/payload` and `upstream/tsconfig.payload.json` are gitignored. A task that reads them depends on `@repo/upstream#build`, whose hash covers the pin, the patches, and the build script.
+- `test` depends on `transit`, which depends on `^transit`, so a test reruns when a workspace package it imports changes.
+- A task that reads files in other packages lists them in `inputs`, as `docs/turbo.json` does for the registry.
+- `@repo/docs#build` isn't cached, because it reads the release version from git tags.
 
 ## Editor
 

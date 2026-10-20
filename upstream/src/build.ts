@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import workspaceTurbo from "../../turbo.json" with { type: "json" };
 import { checkoutChanges, gitOutput, run } from "./exec.ts";
 import { patchFiles } from "./patches.ts";
 import { checkoutDir, pin, upstreamDir } from "./pin.ts";
@@ -43,6 +44,23 @@ const writeTypesConfig = () => {
   );
 };
 
+const turboConfigFile = path.join(upstreamDir, "turbo.payload.json");
+
+/**
+ * Payload's Turborepo config with the workspace's remote cache, so every checkout and CI job shares
+ * the Payload build. Payload's turbo enables artifact signing only from a config file, and a file
+ * inside the checkout would make it differ from the pin.
+ */
+const writeTurboConfig = () => {
+  const config: Record<string, unknown> = JSON.parse(
+    readFileSync(path.join(checkoutDir, "turbo.json"), "utf8"),
+  );
+  writeFileSync(
+    turboConfigFile,
+    `${JSON.stringify({ ...config, remoteCache: workspaceTurbo.remoteCache }, null, 2)}\n`,
+  );
+};
+
 /** Builds every Payload package in the checkout, after checking that it is the pin plus the patches. */
 export const build = () => {
   if (
@@ -58,6 +76,10 @@ export const build = () => {
   // Building needs no install scripts. Skipping them avoids compiling better-sqlite3 and
   // downloading MongoDB for Payload's test suite.
   run("pnpm", ["install", "--frozen-lockfile", "--ignore-scripts"], { cwd: checkoutDir });
-  run("pnpm", ["build:all"], { cwd: checkoutDir });
+  writeTurboConfig();
+  run("pnpm", ["build:all"], {
+    cwd: checkoutDir,
+    env: { ...process.env, TURBO_ROOT_TURBO_JSON: turboConfigFile },
+  });
   writeTypesConfig();
 };

@@ -4,18 +4,10 @@
 import type { Page } from "@playwright/test";
 
 import { lexical, png } from "./data";
-import { expect, test, unique } from "./fixtures";
+import { expect, submitAdminForm, test, unique, waitForAdminForm } from "./fixtures";
 
-/** Clicks a save button and waits for the admin's save request to succeed. */
-const save = async (page: Page, button: string, method: "PATCH" | "POST", collection: string) => {
-  const response = page.waitForResponse(
-    (candidate) =>
-      candidate.request().method() === method &&
-      new URL(candidate.url()).pathname.startsWith(`/api/${collection}`),
-  );
-  await page.locator(button).click();
-  expect((await response).ok()).toBe(true);
-};
+const save = (page: Page, button: string, method: "PATCH" | "POST", collection: string) =>
+  submitAdminForm(page, page.locator(button), method, `/api/${collection}`);
 
 test("an editor drafts, publishes and translates a page", async ({ anonymous, page }) => {
   const slug = unique("admin-page");
@@ -49,7 +41,7 @@ test("an editor uploads an image to R2", async ({ api, page }) => {
   await page.goto("/admin/collections/media/create");
   // Unlike fill and click, setInputFiles doesn't wait for the admin to hydrate. A file set on the
   // server-rendered input never reaches the form, which then saves without it.
-  await expect(page.locator('form[data-form-ready="true"]')).toBeVisible();
+  await waitForAdminForm(page);
   await page
     .locator('input[type="file"]')
     .setInputFiles({ buffer: image, mimeType: "image/png", name: `${alt}.png` });
