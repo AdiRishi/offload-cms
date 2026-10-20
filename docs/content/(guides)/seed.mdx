@@ -31,8 +31,6 @@ process.exit(0);
 
 Payload v4's Local API applies access control unless you pass `overrideAccess: true` or a `user`.
 
-Don't create users in a seed script. Node hashes passwords with more PBKDF2 iterations than a deployed Worker can verify, so those users can't log in to the deployed site. Create users through the deployed admin or the Worker's API. [Known limits](/limits#passwords) explains why.
-
 ## Seed the local environment
 
 Stop `vite dev` and `vite preview` first if they use the same Wrangler environment. Two processes that open one local D1 database at the same time break each other's writes. [Known limits](/limits#d1) has the details.

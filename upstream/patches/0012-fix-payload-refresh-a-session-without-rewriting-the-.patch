@@ -380,7 +380,7 @@ index 7451edf64..28df8f7a5 100644
  
      user = await req.payload.db.findOne({
 diff --git a/test/auth/int.spec.ts b/test/auth/int.spec.ts
-index fea74d59c..2170ee60b 100644
+index 199105792..5ae90eef0 100644
 --- a/test/auth/int.spec.ts
 +++ b/test/auth/int.spec.ts
 @@ -3332,6 +3332,136 @@ test.suite('Auth', { config: './config.ts', resetBetweenTests: false }, () => {

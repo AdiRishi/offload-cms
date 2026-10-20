@@ -1,7 +1,6 @@
 import { getBindings } from "@adirishi/offload-cloudflare";
 import { submissionInput } from "@adirishi/offload-form-builder";
 import { saveFormSubmission } from "@adirishi/offload-form-builder/server";
-import { hideServerErrors } from "@adirishi/offload-tanstack";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 
@@ -12,7 +11,6 @@ import { getVisitorPayload } from "@/lib/payload.server";
  * block, so only a form in a block of a page the visitor can read takes submissions.
  */
 export const submitForm = createServerFn({ method: "POST" })
-  .middleware([hideServerErrors])
   .validator(submissionInput)
   .handler(async ({ data }) => {
     const [env, payload] = await Promise.all([getBindings(), getVisitorPayload()]);

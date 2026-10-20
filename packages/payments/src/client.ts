@@ -1,7 +1,10 @@
-import type { PaymentAdapterClient } from "@payloadcms/plugin-ecommerce/types";
+import type {
+  PaymentAdapterClient,
+  PaymentAdapterClientArgs,
+} from "@payloadcms/plugin-ecommerce/types";
 
 /** The Razorpay payment method for `EcommerceProvider`'s `paymentMethods`. */
-export const razorpayAdapterClient = ({ label = "Razorpay" }: { label?: string } = {}) =>
+export const razorpayAdapterClient = ({ label = "Razorpay" }: PaymentAdapterClientArgs = {}) =>
   ({
     name: "razorpay",
     label,
@@ -10,7 +13,7 @@ export const razorpayAdapterClient = ({ label = "Razorpay" }: { label?: string }
   }) satisfies PaymentAdapterClient;
 
 /** The mIPS payment method for `EcommerceProvider`'s `paymentMethods`. */
-export const mipsAdapterClient = ({ label = "Card (mIPS)" }: { label?: string } = {}) =>
+export const mipsAdapterClient = ({ label = "Card (mIPS)" }: PaymentAdapterClientArgs = {}) =>
   ({
     name: "mips",
     label,

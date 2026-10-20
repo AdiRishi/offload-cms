@@ -189,8 +189,6 @@ You need Node 24 and pnpm. To deploy, you also need a Cloudflare account on the 
 
     Open `/admin` on the address that Vite prints. Payload asks you to create the first user. After you create it, you see the dashboard with the **Users** and **Media** collections.
 
-    This user is for local work only. `vite dev` runs in Node, which hashes the password with 600,000 PBKDF2 iterations, and a deployed Worker can verify at most 100,000. Create the users of the deployed site on the deployed Worker, as [Deploy to Cloudflare](/deploy) shows.
-
   </Step>
   <Step title="Run the Worker build">
     `vite dev` runs in Node. To run the bundle that Cloudflare runs, build it and serve it in local workerd:

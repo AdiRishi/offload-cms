@@ -1,4 +1,3 @@
-import { hideServerErrors } from "@adirishi/offload-tanstack";
 import { useCart, useCurrency } from "@payloadcms/plugin-ecommerce/client/react";
 import { createFileRoute, Link, notFound, useHydrated } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
@@ -8,7 +7,6 @@ import { getVisitorPayload } from "@/lib/payload.server";
 
 /** A published product and its published variants, priced in MUR. */
 const getProduct = createServerFn({ method: "GET" })
-  .middleware([hideServerErrors])
   .validator((input: { id: string }) => input)
   .handler(async ({ data }) => {
     const payload = await getVisitorPayload();

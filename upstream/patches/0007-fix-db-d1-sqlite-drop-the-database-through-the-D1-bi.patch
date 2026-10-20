@@ -255,7 +255,7 @@ index f28297463..1f0a84c5d 100644
  
  const filename = fileURLToPath(import.meta.url)
 diff --git a/packages/db-d1-sqlite/src/types.ts b/packages/db-d1-sqlite/src/types.ts
-index 6a3ba0d39..bf14b1f3b 100644
+index a41a37052..727fbaa54 100644
 --- a/packages/db-d1-sqlite/src/types.ts
 +++ b/packages/db-d1-sqlite/src/types.ts
 @@ -108,6 +108,7 @@ export type SQLiteD1Adapter = {

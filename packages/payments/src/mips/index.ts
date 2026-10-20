@@ -1,5 +1,5 @@
 import type { PaymentAdapterArgs } from "@payloadcms/plugin-ecommerce/types";
-import type { DefaultDocumentIDType, Endpoint, PayloadRequest } from "payload";
+import type { Endpoint, PayloadRequest } from "payload";
 
 import { waitUntil } from "@adirishi/offload-cloudflare";
 import { z } from "zod";
@@ -16,9 +16,11 @@ import {
   flagPayment,
   gatewayFields,
   gatewayGroup,
+  orderConfirmation,
   PaymentRefused,
   reopenForLatePayment,
   settleOnServer,
+  type SettledOrder,
   settlePaidTransaction,
   transactionSchema,
   writeGatewayFields,
@@ -36,12 +38,7 @@ import { createReference, referenceSchema } from "./reference.ts";
 
 export type { MipsCredentials } from "./api.ts";
 
-/** A Workers Rate Limiting binding, or anything else with its `limit` method. */
-export type MipsRateLimiter = {
-  limit(options: { key: string }): Promise<{ success: boolean }>;
-};
-
-export type MipsAdapterOptions = {
+export type MipsAdapterArgs = {
   credentials: MipsCredentials;
   /**
    * The page mIPS sends the customer to after a successful payment. It is absolute, or relative to
@@ -53,12 +50,10 @@ export type MipsAdapterOptions = {
    * Returns the rate limiter for payment notifications, which the adapter keys by the sender's
    * `cf-connecting-ip`. It is a getter because a Worker reads its bindings inside a request.
    */
-  rateLimit: () => MipsRateLimiter | Promise<MipsRateLimiter>;
+  rateLimit: () => RateLimit;
   /** The mIPS API. Defaults to `https://api.mips.mu/api`. */
   apiURL?: string;
-  label?: string;
-  groupOverrides?: PaymentAdapterArgs["groupOverrides"];
-};
+} & PaymentAdapterArgs;
 
 const name = "mips";
 
@@ -79,11 +74,9 @@ type MipsTransaction = z.infer<typeof mipsTransaction>;
 
 const confirmData = z.object({ cartID: documentID, reference: referenceSchema });
 
-const createdOrder = z.object({ id: documentID });
-
 /** The result of acting on mIPS's record of an order. */
 type Outcome =
-  | { result: "settled"; orderID: DefaultDocumentIDType }
+  | { result: "settled"; order: SettledOrder }
   | { result: "refused"; reason: string }
   | Extract<OrderCheck, { result: "unpaid" | "unanswered" }>;
 
@@ -143,7 +136,7 @@ const resolve = async (
       shippingAddress: transaction.mips.shippingAddress,
       transaction: await reopenForLatePayment(req, transaction, paymentID),
     });
-    return { result: "settled", orderID: createdOrder.parse(order).id };
+    return { result: "settled", order };
   } catch (error) {
     if (!(error instanceof PaymentRefused)) throw error;
     await record(req, transaction, error.message, "error");
@@ -193,15 +186,12 @@ const settleNotified = async (
  * carries no signature, and a captured one replays cleanly, so it only prompts a lookup of the
  * order. The answer waits for the settlement, so `success` means the transaction is settled.
  */
-const notificationEndpoint = (
-  api: MipsAPI,
-  rateLimit: MipsAdapterOptions["rateLimit"],
-): Endpoint => ({
+const notificationEndpoint = (api: MipsAPI, rateLimit: MipsAdapterArgs["rateLimit"]): Endpoint => ({
   path: "/imn",
   method: "post",
   handler: async (req) => {
     try {
-      const limiter = await rateLimit();
+      const limiter = rateLimit();
       const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
       if (!(await limiter.limit({ key: ip })).success) return reply("fail", 429);
       if (Number(req.headers.get("content-length")) > maxNotificationBytes) {
@@ -263,7 +253,7 @@ export const mipsAdapter = ({
   label = "Card (mIPS)",
   rateLimit,
   returnURL,
-}: MipsAdapterOptions): OffloadPaymentAdapter => {
+}: MipsAdapterArgs): OffloadPaymentAdapter => {
   const api = mipsAPI({ apiURL, credentials });
 
   return {
@@ -328,11 +318,7 @@ export const mipsAdapter = ({
       const check = await lookUp(api, req, transaction);
       const outcome = await resolve(req, transaction, check, finalizeOrder);
       if (outcome.result === "settled") {
-        return {
-          message: "Payment confirmed.",
-          orderID: outcome.orderID,
-          transactionID: transaction.id,
-        };
+        return orderConfirmation(outcome.order, transaction.id);
       }
       if (outcome.result === "refused") throw new PaymentRefused(outcome.reason);
       throw new Error(

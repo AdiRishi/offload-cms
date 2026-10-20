@@ -5,7 +5,7 @@ description: Use when working in a Payload site that installs Offload (`@adirish
 
 # Offload
 
-Offload is Payload v4 with a few patches, built to run a TanStack Start site as one Cloudflare Worker. A site installs each Payload package under its upstream name as an npm alias of the Offload build:
+Offload is Payload v4 with a series of patches, built to run a TanStack Start site as one Cloudflare Worker. A site installs each Payload package under its upstream name as an npm alias of the Offload build:
 
 ```json
 "payload": "npm:@adirishi/offload-payload@<version>"
@@ -67,7 +67,7 @@ const getPost = createServerFn({ method: "GET" })
 
 **Keep one migration until the first deploy.** Before a site deploys, regenerate a single `initial` migration per database after each schema change: delete every file in the migrations directory, including `index.ts`, run `pnpm payload migrate:create initial`, and reset the local database. Once a deployed database has applied migrations, add a new migration for each change.
 
-**Seed with `payload run`.** `pnpm payload run src/seed.ts` runs a script in Node against the Wrangler environment that `CLOUDFLARE_ENV` selects, through `getBindings()`. Pass `overrideAccess: true` to the Local API, don't create users, and stop any dev server or preview on the same environment first. To seed a deployed environment, give it `"remote": true` on D1, R2, and the Images binding.
+**Seed with `payload run`.** `pnpm payload run src/seed.ts` runs a script in Node against the Wrangler environment that `CLOUDFLARE_ENV` selects, through `getBindings()`. Pass `overrideAccess: true` to the Local API, and stop any dev server or preview on the same environment first. To seed a deployed environment, give it `"remote": true` on D1, R2, and the Images binding.
 
 **Cron Triggers run jobs.** The Worker entry is `createPayloadWorker({ handler })` from `@adirishi/offload-cloudflare/worker`. Each Cron Trigger in `wrangler.jsonc` queues scheduled jobs and runs the due ones. Scheduled publishing depends on it.
 
@@ -79,7 +79,6 @@ const getPost = createServerFn({ method: "GET" })
 
 **Workers runtime limits:**
 
-- Create users through the Worker, with the admin, the API, or the site's sign-up. A user created in Node, through the Payload CLI or a seed script, gets a password hash that a deployed Worker can't verify.
 - Each password hash costs about 10 ms of CPU, the Workers Free plan's whole per-request limit. A site with logins needs the Workers Paid plan.
 - Process images with the Cloudflare Images transformer above. `sharp` can't run, so `@payloadcms/transformer-sharp` fails on Workers.
 - Send email with the Email Service adapter above, or another adapter that uses `fetch`, such as `@payloadcms/email-resend`. Nodemailer can't open sockets.
@@ -102,7 +101,7 @@ Third-party plugins that list `payload` as a peer dependency install normally. C
 - `getVisitorPayload()`, with `overrideAccess: false`, for output that is the same for everyone and may be cached, such as a sitemap.
 - `return redirectOrNotFound(pathname)` when a route finds no document. It follows the redirects plugin's redirects, and otherwise throws `notFound()`.
 
-**Add `.middleware([hideServerErrors])` to every site server function.** `hideServerErrors` comes from `@adirishi/offload-tanstack`. TanStack Start sends a thrown error's message to the browser, and a failed Payload query's message contains its SQL.
+**Register `hideServerErrors` in `src/start.ts`.** TanStack Start sends a thrown error's message to the browser, and a failed Payload query's message contains its SQL. `createStart(() => ({ requestMiddleware: [createCsrfMiddleware({ filter: (ctx) => ctx.handlerType === "serverFn" })], functionMiddleware: [hideServerErrors] }))`, exported as `startInstance`, covers every server function, Payload's admin included. Keep the CSRF middleware: a start instance replaces TanStack Start's default request middleware, which is its CSRF check, and production builds don't warn when it's missing. `hideServerErrors` passes redirects, `notFound()`, and Payload's public `APIError`s through.
 
 **Live Preview** needs a path in `admin.livePreview.url`, such as `` ({ data }) => `/${data.slug}` ``, and `{draft && <LivePreviewListener />}` from `@adirishi/offload-tanstack` in the page's component. The admin and the site share one origin.
 
@@ -117,7 +116,7 @@ Third-party plugins that list `payload` as a peer dependency install normally. C
 
 - Make the collection with `accountCollection({ slug: "customers", fields }, { siteURL: env.SITE_URL, rateLimit: () => env.ACCOUNTS })` from `@adirishi/offload-accounts/config`. `ACCOUNTS` is a `ratelimits` binding, and it limits logins and password reset requests, REST included. The collection has 14-day sessions that `getAccount()` extends, email verification, emails that link to the site's own pages, and no lockout. Set `admin.user` to the admin's collection, or Payload makes the first auth collection the admin's.
 - Once a second auth collection exists, `req.user` can be a customer. Check editors with `isAdminUser` or `req.user?.collection === "users"`, never `Boolean(req.user)`. Give an account its own documents with `adminOrOwner("customers", "<relationship field>")`.
-- Write `src/server/account.functions.ts`: `getAccount`, `logIn`, `logOut`, `signUp`, `requestPasswordReset`, `resetPassword`, `verifyEmail`, and `changePassword`. Each is a `createServerFn` with `hideServerErrors` and an input schema from `@adirishi/offload-accounts`, and calls the helper of the same name from `createAccountHelpers({ getPayload: getVisitorPayload, collection: "customers" })` in `@adirishi/offload-accounts/server`. `getAccount` returns only the fields the pages show, because the account document holds its sessions.
+- Write `src/server/account.functions.ts`: `getAccount`, `logIn`, `logOut`, `signUp`, `requestPasswordReset`, `resetPassword`, `verifyEmail`, and `changePassword`. Each is a `createServerFn` with an input schema from `@adirishi/offload-accounts`, and calls the helper of the same name from `createAccountHelpers({ getPayload: getVisitorPayload, collection: "customers" })` in `@adirishi/offload-accounts/server`. `getAccount` returns only the fields the pages show, because the account document holds its sessions.
 - Install the forms with `pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/change-password-form @offload/verify-email-form @offload/account-menu`. They import those server functions.
 - Load the account in the `_frontend` layout's `beforeLoad`. Put account pages under a pathless `_account` route that redirects to `/login` with `returnTo`, and call `requireAccount()` again in each server function that reads private data, passing the account as `user` with `overrideAccess: false`.
 - An account can't change its own `email` or `password` through REST, because a stolen session could keep the account. Change a password with `changePassword()`, which checks the current one. Only the admin's users change an email.

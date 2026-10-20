@@ -1,13 +1,13 @@
 # Offload
 
-Offload republishes Payload CMS v4 as `@adirishi/offload-*`, with a short patch series and packages that run Payload sites on Cloudflare Workers.
+Offload republishes Payload CMS v4 as `@adirishi/offload-*`. It has two parts: patches that make Payload work on Cloudflare Workers, and packages in `packages/` that extend Payload sites, for the Workers setup and for site features built on TanStack Start.
 
 - This is a pnpm workspace. Each external dependency names `catalog:`, and its version lives in `pnpm-workspace.yaml`. Peer ranges keep their own versions.
 - Put new behaviour in a package in `packages/` when Payload's config or plugin API can express it. Patch Payload only when no extension point exists. `upstream/AGENTS.md` explains how a patch is made.
 - Test a change to `packages/` or to a patch with `pnpm release e2e` and `pnpm release e2e --postgres`. Both publish the working tree to a throwaway registry and run the suite in `e2e/`.
 - Releases need no version edit. Once CI passes on `main`, a commit that changes what the packages ship publishes as the next `-offload.<n>` release, with a git tag.
 - The e2e site has one `initial` migration per database. A schema change rewrites it in place with `pnpm migrations:regenerate` in `e2e` and never adds a migration, so `pnpm deploy:staging` empties the staging D1 database before it migrates. `pnpm release e2e` fails when a migration doesn't match the schema. `e2e/AGENTS.md` has the details.
-- Finish with `pnpm check`. `pnpm format:fix` and `pnpm lint:fix` fix most of what it reports. `pnpm check` skips the lint and type checks in `e2e`, whose dependencies exist only after `pnpm release e2e` installs them, so `pnpm release e2e` runs those checks.
+- Finish with `pnpm check`. `pnpm format:fix` and `pnpm lint:fix` fix most of what it reports. It builds `upstream/payload` first, because the packages type-check against the patched build through `upstream/tsconfig.payload.json`, which that build writes. It skips the lint and type checks in `e2e`, whose dependencies exist only after `pnpm release e2e` installs them, so `pnpm release e2e` runs those checks.
 - The contributor docs in `docs/content/contributing/` cover the layout, testing, and releases.
 
 <!-- BEGIN:turborepo-agent-rules -->

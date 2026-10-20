@@ -30,12 +30,13 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@repo/tsconfig": "workspace:*",
+    "@repo/upstream": "workspace:*",
     "@types/node": "catalog:",
     "@types/nodemailer": "catalog:",
     "payload": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "payload": "4.0.0-beta.2"
+    "payload": "4.0.0-beta.3"
   }
 }

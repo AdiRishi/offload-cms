@@ -1,4 +1,4 @@
-import { hideServerErrors, LivePreviewListener } from "@adirishi/offload-tanstack";
+import { LivePreviewListener } from "@adirishi/offload-tanstack";
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { renderServerComponent } from "@tanstack/react-start/rsc";
@@ -14,7 +14,6 @@ type PageInput = { locale?: string; slug: string };
  * one matches, and otherwise is not found.
  */
 const getPage = createServerFn({ method: "GET" })
-  .middleware([hideServerErrors])
   .validator((input: PageInput) => input)
   .handler(async ({ data }) => {
     const { payload, draft, user } = await getPayloadForRequest();

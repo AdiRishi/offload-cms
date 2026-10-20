@@ -33,7 +33,7 @@ The site needs:
     ]
     ```
 
-    The limit applies to each key on its own. This binding allows ten login attempts a minute from one IP, and ten password reset requests a minute from one IP or for one email. Visitors behind one shared address, such as an office network or a mobile carrier's NAT, share an IP's allowance, so don't set it much lower. `period` must be `10` or `60`. The links in account emails start with `SITE_URL`, so give each environment its own, such as `http://localhost:4173` for `vite preview`.
+    The limit applies to each [rate limit key](/accounts#rate-limit) on its own. This binding allows ten login attempts a minute from one IP, and ten password reset requests a minute from one IP or for one email. Visitors behind one shared address, such as an office network or a mobile carrier's NAT, share an IP's allowance, so don't set it much lower. `period` must be `10` or `60`. The links in account emails start with `SITE_URL`, so give each environment its own, such as `http://localhost:4173` for `vite preview`.
 
     Put the Turnstile secret key in `.dev.vars`. For local runs, use Cloudflare's testing secret, which passes every token:
 
@@ -62,8 +62,6 @@ The site needs:
     );
     ```
 
-    Pass `rateLimit` as a function. Cloudflare's upload validation loads the config without bindings, and the function reads the binding only when a login runs.
-
     Add the collection to the config, and name the admin's collection in `admin.user`. Without `admin.user`, Payload makes the first auth collection in `collections` the admin's:
 
     ```ts src/payload.config.ts
@@ -76,7 +74,7 @@ The site needs:
 
     Run `pnpm payload migrate:create`, then `pnpm payload generate:types`.
 
-    [The package reference](/accounts#accountcollection) lists what `accountCollection()` sets and how to change it.
+    [The package reference](/accounts#accountcollection) explains how the collection's own settings combine with the preset's.
 
   </Step>
   <Step title="Check the collection in every access rule">
@@ -158,31 +156,25 @@ The site needs:
       verifyEmailInput,
     } from "@adirishi/offload-accounts";
     import { getBindings } from "@adirishi/offload-cloudflare";
-    import { hideServerErrors } from "@adirishi/offload-tanstack";
     import { createServerFn } from "@tanstack/react-start";
     import { z } from "zod";
 
     import { accounts } from "@/lib/accounts.server";
 
-    export const getAccount = createServerFn({ method: "GET" })
-      .middleware([hideServerErrors])
-      .handler(async () => {
-        const account = await accounts.getAccount();
-        return account && { id: account.id, email: account.email, name: account.name };
-      });
+    export const getAccount = createServerFn({ method: "GET" }).handler(async () => {
+      const account = await accounts.getAccount();
+      return account && { id: account.id, email: account.email, name: account.name };
+    });
 
     export const logIn = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(logInInput)
       .handler(({ data }) => accounts.logIn(data));
 
     export const logOut = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(z.object({ everywhere: z.boolean().optional() }))
       .handler(({ data }) => accounts.logOut(data));
 
     export const signUp = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(signUpInput)
       .handler(async ({ data }) => {
         const env = await getBindings();
@@ -190,7 +182,6 @@ The site needs:
       });
 
     export const requestPasswordReset = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(forgotPasswordInput)
       .handler(async ({ data }) => {
         const env = await getBindings();
@@ -198,20 +189,19 @@ The site needs:
       });
 
     export const resetPassword = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(resetPasswordInput)
       .handler(({ data }) => accounts.resetPassword(data));
 
     export const verifyEmail = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(verifyEmailInput)
       .handler(({ data }) => accounts.verifyEmail(data));
 
     export const changePassword = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(changePasswordInput)
       .handler(({ data }) => accounts.changePassword(data));
     ```
+
+    The site registers [`hideServerErrors`](/tanstack#hideservererrors) once, in `src/start.ts`, so it covers these functions. Create that file as the reference shows if the site doesn't have it. The middleware hides unexpected errors from the browser and lets Payload's public errors through, an `APIError` whose `isPublic` is true, such as the 403 of the [credentials guard](/accounts#email-and-password-changes).
 
     `getAccount` returns only the fields that the pages show. The account document also holds its `sessions`, so never return the whole document to the browser.
 
@@ -225,7 +215,7 @@ The site needs:
     pnpm dlx shadcn@latest add @offload/login-form @offload/sign-up-form @offload/forgot-password-form @offload/reset-password-form @offload/change-password-form @offload/verify-email-form @offload/account-menu
     ```
 
-    The CLI copies the components into `src/components/accounts/`, with the shared form fields in `src/components/form-fields.tsx` and the Turnstile widget. [The registry reference](/accounts#registry) lists what each item installs.
+    The CLI copies the components into `src/components/accounts/`, with the shared form fields in `src/components/form-fields.tsx` and the Turnstile widget. [The registry reference](/accounts#registry) explains which shadcn components the items need and why they don't install them.
 
     To update the components with the package, commit your work, and add the items again with `--overwrite`. The CLI replaces only Offload's files, in `src/components/accounts/`, `src/components/form-builder/turnstile.tsx`, and `src/components/form-fields.tsx`, and never the site's `src/components/ui`. Review the changes with `git diff`, and merge your own edits back in. `--dry-run`, or `--diff <file>` for one file, previews the changes.
 
@@ -257,7 +247,7 @@ The site needs:
     }
     ```
 
-    `getAccount()` returns `null` for a visitor and for a logged-in editor. When it finds an account, it marks the response `Cache-Control: private, no-store`, so a shared cache never stores a page that shows the account, and it extends the session.
+    `getAccount()` returns `null` for a logged-in editor too, so the menu shows **Log in** to editors. [`getAccount()`](/accounts#getaccount) describes how it marks the response private and extends the session.
 
   </Step>
   <Step title="Guard the account pages">
@@ -298,25 +288,22 @@ The site needs:
     The guard only decides where the browser goes. A server function that reads private data checks the account again with `requireAccount()`, and passes it as `user` with `overrideAccess: false`, so the collection's access decides what it returns:
 
     ```tsx src/app/_frontend/_account/account.bookings.tsx
-    import { hideServerErrors } from "@adirishi/offload-tanstack";
     import { createFileRoute } from "@tanstack/react-router";
     import { createServerFn } from "@tanstack/react-start";
 
     import { accounts } from "@/lib/accounts.server";
     import { getVisitorPayload } from "@/lib/payload.server";
 
-    const getBookings = createServerFn({ method: "GET" })
-      .middleware([hideServerErrors])
-      .handler(async () => {
-        const [account, payload] = await Promise.all([accounts.requireAccount(), getVisitorPayload()]);
-        const { docs } = await payload.find({
-          collection: "bookings",
-          depth: 0,
-          overrideAccess: false,
-          user: account,
-        });
-        return docs.map(({ id, title }) => ({ id, title }));
+    const getBookings = createServerFn({ method: "GET" }).handler(async () => {
+      const [account, payload] = await Promise.all([accounts.requireAccount(), getVisitorPayload()]);
+      const { docs } = await payload.find({
+        collection: "bookings",
+        depth: 0,
+        overrideAccess: false,
+        user: account,
       });
+      return docs.map(({ id, title }) => ({ id, title }));
+    });
 
     export const Route = createFileRoute("/_frontend/_account/account/bookings")({
       loader: () => getBookings(),
@@ -490,7 +477,7 @@ The site needs:
 4. Log in. The header shows the account menu.
 5. Choose **Log out** in the account menu, then open `/account`. The site sends you to the login page, and after you log in, back to `/account`.
 
-Run the checks on a production build. `vite dev` runs in Node, where some Workers behaviour doesn't show.
+Run the checks on a production build. Only `vite preview` keeps the emails in the local explorer, and `vite dev` doesn't rate limit logins, because it doesn't set the `cf-connecting-ip` header.
 
 Before you deploy, set `SITE_URL` for the deployed environment, and [use real Turnstile keys](/forms#use-real-turnstile-keys). One widget serves the sign-up form, the forgot-password form, and the site's other forms. Each form sends its own action, `sign-up` or `forgot-password`, and the server rejects a token for another action.
 
@@ -500,54 +487,21 @@ Payload names its auth cookie `<cookiePrefix>-token`, `payload-token` by default
 
 To test the site as a customer while you edit content, use a second browser or a private window.
 
-## Rate limits replace lockout
-
-Payload locks an account after five failed logins by default. Anyone who knows a customer's email could then keep that customer locked out, so `accountCollection()` turns lockout off with `maxLoginAttempts: 0`.
-
-The `ACCOUNTS` binding limits these instead:
-
-- Logins, per visitor IP. A limit per email would lock a customer out the same way lockout does, because anyone can spend an email's allowance with a few wrong guesses a minute. Wrong passwords use up only the allowance of the IP that sends them.
-- Password reset requests, per visitor IP and per email. The email limit stops anyone from flooding one inbox with reset emails. Payload also sends one account at most one reset email every 15 seconds.
-
-The limit runs as a `beforeOperation` hook, so it also covers Payload's REST endpoints, `POST /api/customers/login` and `POST /api/customers/forgot-password`, which answer 429 over the limit. The server functions return `limited`. `changePassword()` checks the current password with a login, so it shares the login limit.
-
-The binding counts per Cloudflare location, and its counts are eventually consistent. It slows down password guessing from one IP, but it isn't an exact limit, and it doesn't stop guessing spread over many IPs. Sign-up has no rate limit. Turnstile protects it.
-
 ## Sign-up doesn't reveal which emails have accounts
 
-Sign-up answers `check-email` both for a new email and for an email that already has an account. The existing account gets a password reset email that says someone tried to sign up with the address. The forgot-password form answers `sent` whether or not the email has an account.
+Sign-up answers `check-email` both for a new email and for an email that already has an account, and the forgot-password form answers `sent` either way. With email verification on, which is the default, nothing that the site shows tells a visitor which emails are registered.
 
-With email verification on, which is the default, nothing that the site shows tells a visitor which emails are registered. To turn verification off, pass `verify: false` to `accountCollection()`. A new account then logs in at once, while an existing email still gets `check-email`, so sign-up shows which emails are new.
+To turn verification off, pass `verify: false` to `accountCollection()`. A new account then logs in at once, while an existing email still gets `check-email`, so sign-up shows which emails are new.
 
 Response times can still show which emails are registered. Payload's login hashes the password only for an email that has an account, and answers at once for an unknown email, so a failed login for a registered email takes about 10 ms longer. Sign-up and password reset requests also do different work for the two cases. The login rate limit per IP slows down anyone who probes many emails this way, but hiding the difference needs a change in Payload's login.
 
-## Sessions last 14 days and slide
-
-A login lasts 14 days. When the session has used half of that, `getAccount()` replaces the cookie with a new 14-day one, so an active customer stays logged in, and a customer who stays away for 14 days logs in again. To change the lifetime, set `auth.tokenExpiration` in seconds on the collection.
-
-The refresh relies on an [Offload patch](/patches/concurrent-session-refresh) that makes Payload's refresh update the one session it extends. Without it, a refresh on D1 rewrites every session of the account and can fail during a login on another device.
-
-**Log out everywhere** in the account menu ends every session of the account. A password reset ends every session except the one that it starts.
-
 ## Accounts need the Workers Paid plan
 
-The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes passwords with 100,000 iterations, which costs about 10 ms of CPU per hash. A login, a sign-up, and a password reset each hash a password. The Workers Free plan allows 10 ms of CPU per request in total, so on Free those requests fail when the hash and Payload's own work pass the limit. The Paid plan allows 30 seconds by default.
-
-## Create customers through the Worker
-
-A password hash made in Node, through `vite dev`, the Payload CLI, or a seed script, uses 600,000 iterations, and a deployed Worker can't verify it. Create customers through sign-up, the deployed admin, or the deployed REST API, and never from a seed script. [Known limits](/limits#passwords) has the details.
-
-Payload gives every auth collection `POST /api/<slug>/first-register`, which creates the first account of an empty collection past access control. `accountCollection()` answers it with 403, so the first customer signs up like the rest.
-
-## Email and password changes
-
-Payload lets a user change their own email and password through REST, with no current password and without verifying the new email. A stolen session could then lock the real customer out for good. `accountCollection()` refuses an update that changes `email` or sets `password`, with a 403, unless the user is one of the admin's users or the server code passes `overrideAccess: true`. A customer can still update other fields of their own account, such as a name.
-
-A customer changes their password on the page above, through `changePassword()`. It checks the current password first, keeps the customer logged in, and ends their other sessions. Changing an account's email is for the admin's users only in this version, through the admin.
+The [PBKDF2 patch](/patches/workers-pbkdf2-cap) hashes passwords with 100,000 iterations, which costs about 10 ms of CPU per hash. A login, a sign-up, a password reset, and a password change each hash a password. The Workers Free plan allows 10 ms of CPU per request in total, so on Free those requests fail when the hash and Payload's own work pass the limit. The Paid plan allows 30 seconds by default.
 
 ## Change the emails
 
-The verification and reset emails link to the site's own pages, `/verify-email` and `/reset-password` under `siteURL`, and never to `/admin`. If the site's pages have other paths, set `paths`. To write the emails yourself, set `emails`. Each function receives the link to put in the email:
+The emails link to the site's own pages under `siteURL`, never to `/admin`. If the site's pages have other paths than the [defaults](/accounts#emails), set `paths`. To write the emails yourself, set `emails`:
 
 ```ts src/collections/Customers.ts
 export const Customers = accountCollection(
@@ -566,13 +520,11 @@ export const Customers = accountCollection(
 );
 ```
 
-`siteURL` is required, so a request's `Host` header never decides where the links point.
-
 ## Keep CSRF protection
 
 Payload checks the `Origin` of each request that authenticates with the cookie. Setting `serverURL` adds it to `csrf`, and once `csrf` lists an origin, Payload accepts the cookie only from the origins in the list. If the config sets `serverURL`, list every origin that serves the site in `csrf`, such as a `workers.dev` preview host. Otherwise a customer on an unlisted host looks logged out.
 
-TanStack Start protects server functions with its CSRF middleware when the site has no `src/start.ts`. If the site adds `src/start.ts` with its own `requestMiddleware`, add `createCsrfMiddleware({ filter: (ctx) => ctx.handlerType === "serverFn" })` from `@tanstack/react-start` to it.
+TanStack Start adds its CSRF middleware to server functions only when the site has no `src/start.ts`. The site's `src/start.ts`, which registers `hideServerErrors`, turns that default off, so keep `createCsrfMiddleware()` in its `requestMiddleware`, as [`hideServerErrors`](/tanstack#hideservererrors) shows.
 
 ## Social login and magic links
 

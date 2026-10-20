@@ -169,7 +169,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`pages_blocks_quote\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`pages_blocks_quote_locales_locale_parent_id_unique\` ON \`pages_blocks_quote_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`pages_blocks_quote_locales_parent_id_locale_unique\` ON \`pages_blocks_quote_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`pages_blocks_cta\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -288,7 +288,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`pages_meta_meta_image_idx\` ON \`pages_locales\` (\`meta_image_id\`,\`_locale\`);`)
   await db.run(sql`CREATE INDEX \`pages__status_idx\` ON \`pages_locales\` (\`_status\`,\`_locale\`);`)
-  await db.run(sql`CREATE UNIQUE INDEX \`pages_locales_locale_parent_id_unique\` ON \`pages_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`pages_locales_parent_id_locale_unique\` ON \`pages_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`pages_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -328,7 +328,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_pages_v_blocks_quote\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_pages_v_blocks_quote_locales_locale_parent_id_unique\` ON \`_pages_v_blocks_quote_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_pages_v_blocks_quote_locales_parent_id_locale_unique\` ON \`_pages_v_blocks_quote_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_pages_v_blocks_cta\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -464,7 +464,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`_pages_v_version_meta_version_meta_image_idx\` ON \`_pages_v_locales\` (\`version_meta_image_id\`,\`_locale\`);`)
   await db.run(sql`CREATE INDEX \`_pages_v_version_version__status_idx\` ON \`_pages_v_locales\` (\`version__status\`,\`_locale\`);`)
-  await db.run(sql`CREATE UNIQUE INDEX \`_pages_v_locales_locale_parent_id_unique\` ON \`_pages_v_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_pages_v_locales_parent_id_locale_unique\` ON \`_pages_v_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_pages_v_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -521,7 +521,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`posts_meta_meta_image_idx\` ON \`posts_locales\` (\`meta_image_id\`,\`_locale\`);`)
   await db.run(sql`CREATE INDEX \`posts__status_idx\` ON \`posts_locales\` (\`_status\`,\`_locale\`);`)
-  await db.run(sql`CREATE UNIQUE INDEX \`posts_locales_locale_parent_id_unique\` ON \`posts_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`posts_locales_parent_id_locale_unique\` ON \`posts_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`posts_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -597,7 +597,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   `)
   await db.run(sql`CREATE INDEX \`_posts_v_version_meta_version_meta_image_idx\` ON \`_posts_v_locales\` (\`version_meta_image_id\`,\`_locale\`);`)
   await db.run(sql`CREATE INDEX \`_posts_v_version_version__status_idx\` ON \`_posts_v_locales\` (\`version__status\`,\`_locale\`);`)
-  await db.run(sql`CREATE UNIQUE INDEX \`_posts_v_locales_locale_parent_id_unique\` ON \`_posts_v_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_posts_v_locales_parent_id_locale_unique\` ON \`_posts_v_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_posts_v_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -753,7 +753,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`media\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`media_locales_locale_parent_id_unique\` ON \`media_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`media_locales_parent_id_locale_unique\` ON \`media_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`media_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -885,7 +885,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_media_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_media_v_locales_locale_parent_id_unique\` ON \`_media_v_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_media_v_locales_parent_id_locale_unique\` ON \`_media_v_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_media_v_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -1020,7 +1020,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`field_types\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`field_types_locales_locale_parent_id_unique\` ON \`field_types_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`field_types_locales_parent_id_locale_unique\` ON \`field_types_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`field_types_texts\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer NOT NULL,
@@ -1385,7 +1385,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`search\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`search_locales_locale_parent_id_unique\` ON \`search_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`search_locales_parent_id_locale_unique\` ON \`search_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`search_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -1424,7 +1424,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_checkbox\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_checkbox_locales_locale_parent_id_unique\` ON \`forms_blocks_checkbox_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_checkbox_locales_parent_id_locale_unique\` ON \`forms_blocks_checkbox_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_country\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1448,7 +1448,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_country\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_country_locales_locale_parent_id_unique\` ON \`forms_blocks_country_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_country_locales_parent_id_locale_unique\` ON \`forms_blocks_country_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_email\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1472,7 +1472,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_email\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_email_locales_locale_parent_id_unique\` ON \`forms_blocks_email_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_email_locales_parent_id_locale_unique\` ON \`forms_blocks_email_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_message\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1493,7 +1493,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_message\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_message_locales_locale_parent_id_unique\` ON \`forms_blocks_message_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_message_locales_parent_id_locale_unique\` ON \`forms_blocks_message_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_number\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1518,7 +1518,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_number\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_number_locales_locale_parent_id_unique\` ON \`forms_blocks_number_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_number_locales_parent_id_locale_unique\` ON \`forms_blocks_number_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_select_options\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` text NOT NULL,
@@ -1537,7 +1537,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_select_options\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_select_options_locales_locale_parent_id_unique\` ON \`forms_blocks_select_options_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_select_options_locales_parent_id_locale_unique\` ON \`forms_blocks_select_options_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_select\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1563,7 +1563,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_select\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_select_locales_locale_parent_id_unique\` ON \`forms_blocks_select_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_select_locales_parent_id_locale_unique\` ON \`forms_blocks_select_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_state\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1587,7 +1587,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_state\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_state_locales_locale_parent_id_unique\` ON \`forms_blocks_state_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_state_locales_parent_id_locale_unique\` ON \`forms_blocks_state_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_text\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1612,7 +1612,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_text\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_text_locales_locale_parent_id_unique\` ON \`forms_blocks_text_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_text_locales_parent_id_locale_unique\` ON \`forms_blocks_text_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_blocks_textarea\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1637,7 +1637,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_blocks_textarea\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_textarea_locales_locale_parent_id_unique\` ON \`forms_blocks_textarea_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_blocks_textarea_locales_parent_id_locale_unique\` ON \`forms_blocks_textarea_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_emails\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1661,7 +1661,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms_emails\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_emails_locales_locale_parent_id_unique\` ON \`forms_emails_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_emails_locales_parent_id_locale_unique\` ON \`forms_emails_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`title\` text NOT NULL,
@@ -1682,7 +1682,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`forms\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`forms_locales_locale_parent_id_unique\` ON \`forms_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`forms_locales_parent_id_locale_unique\` ON \`forms_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`forms_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -1725,7 +1725,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_checkbox\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_checkbox_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_checkbox_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_checkbox_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_checkbox_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_country\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1750,7 +1750,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_country\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_country_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_country_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_country_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_country_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_email\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1775,7 +1775,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_email\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_email_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_email_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_email_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_email_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_message\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1797,7 +1797,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_message\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_message_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_message_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_message_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_message_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_number\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1823,7 +1823,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_number\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_number_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_number_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_number_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_number_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_select_options\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1843,7 +1843,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_select_options\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_select_options_locales_locale_parent_id_uniq\` ON \`_forms_v_blocks_select_options_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_select_options_locales_parent_id_locale_uniq\` ON \`_forms_v_blocks_select_options_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_select\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1870,7 +1870,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_select\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_select_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_select_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_select_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_select_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_state\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1895,7 +1895,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_state\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_state_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_state_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_state_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_state_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_text\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1921,7 +1921,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_text\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_text_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_text_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_text_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_text_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_blocks_textarea\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1947,7 +1947,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_blocks_textarea\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_textarea_locales_locale_parent_id_unique\` ON \`_forms_v_blocks_textarea_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_blocks_textarea_locales_parent_id_locale_unique\` ON \`_forms_v_blocks_textarea_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_version_emails\` (
   	\`_order\` integer NOT NULL,
   	\`_parent_id\` integer NOT NULL,
@@ -1972,7 +1972,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v_version_emails\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_version_emails_locales_locale_parent_id_unique\` ON \`_forms_v_version_emails_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_version_emails_locales_parent_id_locale_unique\` ON \`_forms_v_version_emails_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`parent_id\` integer,
@@ -2000,7 +2000,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_forms_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_locales_locale_parent_id_unique\` ON \`_forms_v_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_forms_v_locales_parent_id_locale_unique\` ON \`_forms_v_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_forms_v_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -2958,7 +2958,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`site_settings\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`site_settings_locales_locale_parent_id_unique\` ON \`site_settings_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`site_settings_locales_parent_id_locale_unique\` ON \`site_settings_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`site_settings_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,
@@ -3007,7 +3007,7 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	FOREIGN KEY (\`_parent_id\`) REFERENCES \`_site_settings_v\`(\`id\`) ON UPDATE no action ON DELETE cascade
   );
   `)
-  await db.run(sql`CREATE UNIQUE INDEX \`_site_settings_v_locales_locale_parent_id_unique\` ON \`_site_settings_v_locales\` (\`_locale\`,\`_parent_id\`);`)
+  await db.run(sql`CREATE UNIQUE INDEX \`_site_settings_v_locales_parent_id_locale_unique\` ON \`_site_settings_v_locales\` (\`_parent_id\`,\`_locale\`);`)
   await db.run(sql`CREATE TABLE \`_site_settings_v_rels\` (
   	\`id\` integer PRIMARY KEY NOT NULL,
   	\`order\` integer,

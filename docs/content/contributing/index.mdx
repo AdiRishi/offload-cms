@@ -11,7 +11,9 @@ pnpm upstream checkout
 pnpm check
 ```
 
-`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests. It lints and type-checks every directory except `e2e`, whose dependencies exist only after `pnpm release e2e` installs them from its registry. `pnpm release e2e` lints and type-checks `e2e` after that install.
+`pnpm upstream checkout` clones Payload at the pinned commit into `upstream/payload` and applies the patches. `pnpm check` runs the linter, the format check, the type checks, and the tests. It builds Payload first, because the packages in `packages/` type-check against the patched build: that build writes `upstream/tsconfig.payload.json`, which maps each Payload entry point to its built declarations, and `@repo/tsconfig/library.json` extends it. Turborepo's cache inside `upstream/payload` makes later builds take seconds.
+
+`pnpm check` skips `e2e`, whose dependencies exist only after `pnpm release e2e` installs them from its registry. `pnpm release e2e` lints and type-checks `e2e` after that install.
 
 ## Layout
 
@@ -42,21 +44,7 @@ The docs build runs `docs/registry.ts`, which runs `shadcn build` on the `regist
 
 ## Commands
 
-| Command                                         | What it does                                                                      |
-| ----------------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm check`                                    | Lint, format check, type checks, and tests                                        |
-| `pnpm format:fix`, `pnpm lint:fix`              | Fix formatting and lint problems                                                  |
-| `pnpm build`                                    | Build Payload, the packages in `packages/`, and this site                         |
-| `pnpm docs:dev`                                 | Serve this site locally                                                           |
-| `pnpm upstream checkout [--force]`              | Create `upstream/payload` from the pin and the patches                            |
-| `pnpm upstream export`                          | Write the commits in `upstream/payload` to `upstream/patches` and the patch pages |
-| `pnpm upstream status [--against <tag>]`        | Show each patch's upstream pull request, and whether `<tag>` already contains it  |
-| `pnpm upstream upgrade <tag> [--drop <id>]`     | Move the patch series to a newer Payload release                                  |
-| `pnpm release e2e [--postgres]`                 | Publish the working tree to a throwaway registry and run the e2e suite            |
-| `pnpm release use-version <site-dir> [version]` | Point a site's Offload dependencies at a release                                  |
-| `pnpm release publish`                          | Build and publish the packages at the pinned version to `OFFLOAD_REGISTRY`        |
-
-Run `pnpm upstream` or `pnpm release` with no command to print its options.
+`pnpm format:fix` and `pnpm lint:fix` fix most of what `pnpm check` reports, and `pnpm docs:dev` serves this site. Run `pnpm upstream` or `pnpm release` with no command to print its commands.
 
 ## Editor
 

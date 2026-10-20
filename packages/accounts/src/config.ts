@@ -12,9 +12,6 @@ import { APIError } from "payload";
 
 import { signUpAttempt } from "./context.ts";
 
-/** A Workers Rate Limiting binding, or anything with its `limit()` method. */
-export type RateLimiter = { limit: (options: { key: string }) => Promise<{ success: boolean }> };
-
 export type AccountEmail = { subject: string; html: string };
 
 type EmailTemplate<TArgs> = (
@@ -31,7 +28,7 @@ export type AccountOptions = {
    * The Rate Limiting binding for logins and password reset requests. A function, because
    * Cloudflare's upload validation loads the config without bindings.
    */
-  rateLimit: () => RateLimiter;
+  rateLimit: () => RateLimit;
   /**
    * Whether an account must verify its email before it can log in. Default `true`. Without
    * verification, sign-up logs a new account in at once, so its answer shows which emails are new.
@@ -92,7 +89,7 @@ const adminOrSelf =
  * requests also count per email, so nobody floods one inbox with reset emails.
  */
 const rateLimitHook =
-  (slug: string, rateLimit: () => RateLimiter): CollectionBeforeOperationHook =>
+  (slug: string, rateLimit: () => RateLimit): CollectionBeforeOperationHook =>
   async ({ args, operation, req }) => {
     if (operation !== "login" && operation !== "forgotPassword") return args;
     const ip = req.headers.get("cf-connecting-ip");

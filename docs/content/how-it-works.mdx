@@ -1,13 +1,15 @@
 ---
 title: How Offload works
-description: Why Offload is a pinned Payload release with a few patches and a few packages, and why sites install it under Payload's own names.
+description: Why Offload is a pinned Payload release with a patch series and its own packages, and why sites install it under Payload's own names.
 ---
 
 Offload has three parts:
 
 - **A pinned Payload release.** [`upstream/payload.json`](https://github.com/AdiRishi/offload-cms/blob/main/upstream/payload.json) names the Payload tag and commit that Offload builds on.
 - **A patch series.** [`upstream/patches`](https://github.com/AdiRishi/offload-cms/tree/main/upstream/patches) holds one `git format-patch` file per change to Payload. The [patch pages](/patches) list them.
-- **Offload's own packages.** [`@adirishi/offload-cloudflare`](/cloudflare) has the Workers setup, and [`@adirishi/offload-email-cloudflare`](/email) sends Payload's email through Cloudflare Email Service. [`@adirishi/offload-tanstack`](/tanstack) reads Payload content in the site's routes, with drafts and Live Preview for editors. [`@adirishi/offload-form-builder`](/form-builder) saves form-builder submissions from public pages, [`@adirishi/offload-accounts`](/accounts) lets site visitors sign up and log in, and [`@adirishi/offload-payments`](/payments) takes payments through Razorpay and mIPS for Payload's ecommerce plugin.
+- **Offload's own packages**, of two kinds:
+  - The Workers setup: [`@adirishi/offload-cloudflare`](/cloudflare) builds and runs the site on Workers, and [`@adirishi/offload-email-cloudflare`](/email) sends Payload's email through Cloudflare Email Service.
+  - Extensions for site features: [`@adirishi/offload-tanstack`](/tanstack) reads content per request with drafts and Live Preview, [`@adirishi/offload-form-builder`](/form-builder) takes public form submissions, [`@adirishi/offload-accounts`](/accounts) gives visitors accounts, and [`@adirishi/offload-payments`](/payments) adds Razorpay and mIPS to Payload's ecommerce plugin.
 
 A release builds Payload with the patches applied, packs every package that Payload publishes, and renames each one to `@adirishi/offload-<name>`. All packages share one version, `<Payload version>-offload.<n>`, because Payload checks that its packages share a version. `<n>` counts Offload's releases on that Payload tag, starting at 0.
 
@@ -17,7 +19,7 @@ A site installs `npm:@adirishi/offload-payload@{{version}}` under the name `payl
 
 The alternative was renaming the source. That would change about 2,900 import lines and 117 import-map strings, and every upgrade would conflict with them, for no difference at runtime. Aliases cost one line per dependency in a site's `package.json`.
 
-## Most of the Workers support is not a patch
+## Where a change goes
 
 A change goes in the first place that can hold it:
 
@@ -25,11 +27,11 @@ A change goes in the first place that can hold it:
 2. A package in `packages/`, when it's new and reusable.
 3. A patch to Payload, only for behaviour that has no extension point.
 
-The proof of concept that started Offload needed ten fixes to run Payload on Workers. Eight fit in a Vite preset and a Worker entry, which became `@adirishi/offload-cloudflare`. The ninth, the GraphQL route, is one route file. Only password hashing needed a change inside Payload.
-
 One kind of patch adds no behaviour of Offload's own: a backport of an upstream package that Payload hasn't released yet. The [Cloudflare Images transformer](/patches/transformer-cloudflare) is one. Upload transformers are an extension point, so a package in `packages/` could hold it, but that copy would fork code that upstream maintains, and it would publish under the name that upstream's package gets. The backport publishes like every other Payload package and goes away when the pinned release includes it.
 
-Patches are the expensive layer. Each one must be carried across every Payload upgrade, and each one is a way Offload differs from the Payload that Payload's docs describe. So a patch says when it can go: its `Drop-When` names the upstream fix that makes it unnecessary. The series should shrink over time.
+Patches are the expensive layer. Each one must be carried across every Payload upgrade, and each one is a way Offload differs from the Payload that Payload's docs describe. So a patch says when it can go: its `Drop-When` names the upstream fix that makes it unnecessary, and its `Upstream` trailer links the pull request or issue that proposes the fix. A patch without one has no route out of the series.
+
+A Vite plugin that rewrites Payload's source is a patch too, without the `Drop-When` that says when it can go. So `offloadVite()` changes only how the build resolves and bundles modules. It rewrites source only for `import.meta.url`, which site code and other packages use as well as Payload.
 
 ## Patches are files, not a fork branch
 

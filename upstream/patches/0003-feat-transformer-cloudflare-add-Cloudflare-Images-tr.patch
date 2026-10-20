@@ -60,7 +60,7 @@ Tests: pnpm --filter @payloadcms/transformer-cloudflare exec vitest run; e2e sui
  create mode 100644 packages/transformer-cloudflare/tsconfig.json
 
 diff --git a/docs/upload/transformers.mdx b/docs/upload/transformers.mdx
-index 28c6eef30..2cc17b792 100644
+index a06b88ed7..20476b3f4 100644
 --- a/docs/upload/transformers.mdx
 +++ b/docs/upload/transformers.mdx
 @@ -11,7 +11,7 @@ A file transformer is a small, ordered stage in Payload's upload pipeline. Trans
@@ -72,7 +72,7 @@ index 28c6eef30..2cc17b792 100644
  
  <Banner type="info">
    **Note:** If you only need Sharp-based image resizing at upload time — the
-@@ -402,3 +402,54 @@ The transformer boundary intentionally does not include:
+@@ -400,3 +400,54 @@ The transformer boundary intentionally does not include:
  - **A background jobs queue.** All transformation happens synchronously, in the request/upload path. A future version may accept a job-shaped input for expensive, queueable transforms, but no such queue exists today.
  
  None of the above is implemented as a stub or a partial feature — they are simply not built yet.
@@ -128,7 +128,7 @@ index 28c6eef30..2cc17b792 100644
 +See the [package README](https://github.com/payloadcms/payload/tree/main/packages/transformer-cloudflare)
 +for the full configuration and companion Worker setup.
 diff --git a/package.json b/package.json
-index 4591a6014..c055b1f6b 100644
+index 667835a65..5be6eb8e3 100644
 --- a/package.json
 +++ b/package.json
 @@ -65,6 +65,7 @@
@@ -2866,10 +2866,10 @@ index 000000000..45209999a
 +  "references": [{ "path": "../payload" }]
 +}
 diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
-index b9cf12fce..dee1fedf7 100644
+index 60df612ef..fa30ed01d 100644
 --- a/pnpm-lock.yaml
 +++ b/pnpm-lock.yaml
-@@ -1720,6 +1720,15 @@ importers:
+@@ -1723,6 +1723,15 @@ importers:
          specifier: '>=8.0.0'
          version: 8.3.0(@types/node@25.9.9)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
  

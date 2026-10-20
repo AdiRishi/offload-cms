@@ -29,15 +29,29 @@ export type WebhookEvent =
 
 const paidEvents = new Set(["payment.authorized", "payment.captured", "order.paid"]);
 
+/** A webhook body as Razorpay sent it. */
+export type RazorpayWebhookBody = { event: string; payload: Record<string, unknown> };
+
+const webhookBodySchema = z.looseObject({
+  event: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+});
+
 /** Reads a webhook body. Returns `undefined` when the body is not a Razorpay event. */
-export const parseWebhookEvent = (body: string): WebhookEvent | undefined => {
-  let json: unknown;
+export const readWebhookBody = (body: string): RazorpayWebhookBody | undefined => {
   try {
-    json = JSON.parse(body);
+    const parsed = webhookBodySchema.safeParse(JSON.parse(body));
+    return parsed.success ? parsed.data : undefined;
   } catch {
     return undefined;
   }
-  const parsed = webhookEventSchema.safeParse(json);
+};
+
+/** What the adapter does for an event. Returns `undefined` for a body that isn't a Razorpay event. */
+export const parseWebhookEvent = (body: string | RazorpayWebhookBody): WebhookEvent | undefined => {
+  const parsed = webhookEventSchema.safeParse(
+    typeof body === "string" ? readWebhookBody(body) : body,
+  );
   if (!parsed.success) return undefined;
 
   const { event, payload } = parsed.data;

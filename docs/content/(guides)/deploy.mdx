@@ -55,10 +55,6 @@ The Payload CLI runs in Node and reaches D1 through Wrangler. To run migrations 
   <Step title="Create the first user on the Worker">
     Open `/admin` on the deployed Worker and create the first user there.
 
-    :::warning
-    Create users through the Worker, not through the Payload CLI or a seed script in Node. Node hashes passwords with more PBKDF2 iterations than a deployed Worker can verify, so those users can't log in. The [PBKDF2 patch](/patches/workers-pbkdf2-cap) explains the limit.
-    :::
-
   </Step>
 </Steps>
 

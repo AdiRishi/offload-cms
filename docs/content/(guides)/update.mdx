@@ -15,9 +15,11 @@ pnpm release use-version ../my-site {{version}}
 
 Leave out the version to use the latest release.
 
+The registry serves components for the latest release only. If the site installed Offload's form, account, or checkout components, add them again with `--overwrite` after the update, and review the diff.
+
 ## Verify a package
 
-Every published tarball has a signed build provenance attestation, except `4.0.0-beta.2-offload.10`, whose attestation step failed on a Sigstore outage ([details](/contributing/releasing#a-release-without-an-attestation)). It ties the tarball to the commit and the workflow run that built it. To check a package, download it and verify it with the GitHub CLI:
+Published tarballs from `4.0.0-beta.2-offload.11` on have a signed build provenance attestation, which ties the tarball to the commit and the workflow run that built it. To check a package, download it and verify it with the GitHub CLI:
 
 ```bash
 npm pack @adirishi/offload-payload@{{version}}

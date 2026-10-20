@@ -24,7 +24,7 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
     For Razorpay, use a merchant account with KYC done. Charging in a currency other than INR needs international payments enabled on the account. From the Dashboard, you need:
 
     - the key id and key secret;
-    - a webhook for `https://<site>/api/payments/razorpay/webhooks` with the events `payment.authorized`, `payment.captured`, `payment.failed`, and `order.paid`, and its secret.
+    - a webhook for `https://<site>/api/payments/razorpay/webhooks` with the events `payment.authorized`, `payment.captured`, `payment.failed`, and `order.paid`, and its secret. Add any other event that the adapter's `webhooks` handlers take, such as `refund.processed`.
 
     Razorpay refuses a webhook URL on `localhost` or a tunnel such as ngrok. Test webhooks on a deployed staging Worker. Test mode has its own keys and its own webhooks.
 
@@ -70,6 +70,7 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
     import { mipsAdapter } from "@adirishi/offload-payments/mips";
     import { razorpayAdapter } from "@adirishi/offload-payments/razorpay";
     import { ecommercePlugin } from "@payloadcms/plugin-ecommerce";
+    import { buildConfig } from "payload";
 
     const env = await getBindings();
 
@@ -111,7 +112,7 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
 
     Pass the same adapter objects to `paymentMethods` and to `reconcilePaymentsTask()`. Use only the gateways you have accounts with. Each one is its own entry point, so a site that uses one doesn't bundle the other.
 
-    `access` takes the access functions that Payload's [ecommerce plugin docs](https://payloadcms.com/docs/ecommerce/plugin) describe. A logged-in user of the `customers.slug` collection owns the transactions and orders they start. Anyone else checks out as a guest, known by the email the checkout sends. Guest carts are on by default.
+    `access` takes the access functions that Payload's [ecommerce plugin docs](https://payloadcms.com/docs/ecommerce/plugin) describe. Only a logged-in user of the `customers.slug` collection owns the orders they pay for. Anyone else, including an admin, checks out as a guest, known by the email that the checkout sends.
 
     The plugin adds the products, variants, carts, transactions, and orders collections, among others. Run `pnpm payload migrate:create`, then `pnpm payload generate:types` and `pnpm payload generate:importmap`.
 
@@ -131,7 +132,7 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
     pnpm dlx shadcn@latest add @offload/razorpay-checkout @offload/mips-payment-zone @offload/mips-confirm-order
     ```
 
-    The CLI copies them into `src/components/payments/`. They use the shadcn `button` and `spinner`, which they don't install. Add the ones the site lacks with `pnpm dlx shadcn@latest add button spinner`, without `--overwrite`. [The registry reference](/payments#registry) describes each item.
+    The CLI copies them into `src/components/payments/`. They use the shadcn `button` and `spinner`, which they don't install. Add the ones the site lacks with `pnpm dlx shadcn@latest add button spinner`, without `--overwrite`. [The registry reference](/payments#registry) describes what each component does.
 
     When you update `@adirishi/offload-payments`, add the items again with `--overwrite`, which replaces only the files in `src/components/payments/`, and merge your own edits back in.
 
@@ -201,7 +202,7 @@ The site needs the setup from [Getting started](/getting-started), and Tailwind 
   <Step title="Allow the gateways in a Content-Security-Policy">
     Offload, Payload's TanStack Start adapter, and TanStack Start send no Content-Security-Policy for pages. Skip this step unless the site adds one.
 
-    Both gateways run their own script in the site's origin, which also serves `/admin` and `/api`. A site that takes payments trusts Razorpay's and MIPS's scripts with everything a page script can do. `MipsPaymentZone` runs only MIPS's script and frame from the origins it allows, and never the inline scripts or other HTML in MIPS's answer.
+    Both gateways run their own script in the site's origin, so the policy must allow each gateway's script host. [`MipsPaymentZone`](/payments#mipspaymentzone) explains why a frame can't isolate MIPS's script.
 
     - Razorpay Checkout loads `https://checkout.razorpay.com/v1/checkout.js` and opens its own iframe. Allow `https://checkout.razorpay.com` in `script-src`, and the Razorpay hosts that Checkout frames and calls in `frame-src` and `connect-src`. Check the hosts in your browser's console with test keys, because Razorpay's docs don't list them.
     - The mIPS payment zone is a script, `https://go.mips.mu/gomips.js`, and an iframe on `https://go.mips.mu`. Allow that host in `script-src` and `frame-src`. If the card's 3-D Secure page opens inside the iframe, `frame-src` must allow the bank's host too.
@@ -221,11 +222,7 @@ Payments with test keys never reach a local Worker's webhook, because Razorpay w
 
 ## Watch for payments that need a refund
 
-Every payment that can't become an order goes to its transaction's `lastError` and to the Worker's log at error level. The message names the payment and says when to refund it from the gateway's dashboard. That happens when:
-
-- a customer pays twice for one cart, for example from two tabs;
-- a payment arrives for a transaction that failed or was cancelled;
-- the gateway reports an amount or currency that differs from the transaction's.
+Every payment that can't become an order goes to its transaction's `lastError` and to the Worker's log at error level. The message names the payment, and most messages say to refund it from the gateway's dashboard. A customer who pays twice for one cart, for example from two tabs, causes one. [The reference](/payments#how-an-order-is-settled) lists every case.
 
 The adapters never refund on their own. In the admin, open **Transactions** and filter on the gateway's **Last Error** field, such as `razorpay.lastError` exists, to list them. Workers Logs, or a Tail Worker that alerts on error-level logs, shows them as they happen.
 

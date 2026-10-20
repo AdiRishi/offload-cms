@@ -11,20 +11,21 @@ Offload runs a whole [Payload](https://payloadcms.com) site as one Cloudflare Wo
 
 Payload v4 can run on TanStack Start instead of Next.js, which makes Workers a realistic host. Upstream Payload doesn't build for Workers yet. A deployed Worker rejects its password hashing, GraphQL queries with arguments fail, and its Vite setup expects a Node server with `node_modules`. Offload fixes each of these and publishes the result to GitHub Packages as `@adirishi/offload-*`.
 
-Your code doesn't change. A site installs Offload under the upstream package names, so `import { buildConfig } from "payload"` still works and Payload's own documentation still applies.
+A site installs Offload under the upstream package names, so `import { buildConfig } from "payload"` still works and Payload's own documentation still applies.
 
 ## What you get
 
-- **Upstream Payload with a short patch list.** Offload is a pinned Payload release plus a few patches. Each patch says what breaks without it and when it can be dropped, so the list shrinks as upstream merges fixes. [See the patches](https://adirishi.github.io/offload-cms/patches).
-- **Packages for the Workers setup.** `@adirishi/offload-cloudflare` has the Vite preset, the bindings helper, and the Worker entry that runs Payload's jobs on a Cron Trigger. `@adirishi/offload-email-cloudflare` sends Payload's email through Cloudflare Email Service, and a backport of Payload's Cloudflare Images transformer generates image variants. `@adirishi/offload-tanstack` and `@adirishi/offload-form-builder` give the site's pages drafts, Live Preview, redirects, and public forms.
+- **Payload with patches for Workers.** Offload is a pinned Payload release plus a patch series. Each patch says what breaks without it, links the upstream change when there is one, and names the condition for dropping it. [See the patches](https://adirishi.github.io/offload-cms/patches).
+- **The Workers setup.** `@adirishi/offload-cloudflare` has the Vite preset, the bindings helper, and the Worker entry that runs Payload's jobs on a Cron Trigger. `@adirishi/offload-email-cloudflare` sends Payload's email through Cloudflare Email Service.
+- **Extensions for site features.** `@adirishi/offload-tanstack` reads content per request with drafts and Live Preview. `@adirishi/offload-form-builder`, `@adirishi/offload-accounts`, and `@adirishi/offload-payments` add public forms, visitor accounts, and Razorpay and mIPS checkout, with UI from a shadcn registry.
 - **A real site under test.** Every pull request publishes the packages to a throwaway registry, installs them in a Payload site, and runs a Playwright suite against its Worker build, once on D1 and once on Postgres.
-- **Signed packages.** Every published tarball has a build provenance attestation that `gh attestation verify` checks, except `4.0.0-beta.2-offload.10`, whose attestation step failed on a Sigstore outage.
+- **Signed packages.** Published tarballs carry a build provenance attestation that `gh attestation verify` checks.
 
 ## Quick start
 
 These steps add Offload to an existing TanStack Start site. [Getting started](https://adirishi.github.io/offload-cms/getting-started) covers the whole setup, including routes, Wrangler, and the first run.
 
-1. GitHub Packages needs a token, even for public packages. Create a classic token with the `read:packages` scope and save it in your pnpm user config. Then point the `@adirishi` scope at GitHub Packages in the site's `.npmrc`:
+1. GitHub Packages needs a classic token with the `read:packages` scope, even for public packages. Save it in your pnpm user config, and point the `@adirishi` scope at GitHub Packages in the site's `.npmrc`:
 
    ```bash
    pnpm config set "//npm.pkg.github.com/:_authToken" <token>

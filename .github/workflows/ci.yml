@@ -24,7 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Offload's packages type-check against the patched Payload build.
       - uses: ./.github/actions/setup
+        with:
+          payload: "true"
       - run: pnpm check
 
   e2e:

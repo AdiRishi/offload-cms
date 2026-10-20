@@ -76,6 +76,10 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     ```
 
   </Step>
+  <Step title="Hide server errors">
+    Skip this step if the site has `src/start.ts` from [Preview drafts and Live Preview](/live-preview). Otherwise create it as [`hideServerErrors`](/tanstack#hideservererrors) shows, so a failed query in a server function doesn't send its SQL to the browser.
+
+  </Step>
   <Step title="Write the submission server function">
     The registry components import `submitForm` from `@/server/forms.functions`. Create that file:
 
@@ -83,14 +87,12 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     import { getBindings } from "@adirishi/offload-cloudflare";
     import { submissionInput } from "@adirishi/offload-form-builder";
     import { saveFormSubmission } from "@adirishi/offload-form-builder/server";
-    import { hideServerErrors } from "@adirishi/offload-tanstack";
     import { createServerFn } from "@tanstack/react-start";
     import { getRequest } from "@tanstack/react-start/server";
 
     import { getVisitorPayload } from "@/lib/payload.server";
 
     export const submitForm = createServerFn({ method: "POST" })
-      .middleware([hideServerErrors])
       .validator(submissionInput)
       .handler(async ({ data }) => {
         const [env, payload] = await Promise.all([getBindings(), getVisitorPayload()]);
@@ -111,8 +113,6 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
         });
       });
     ```
-
-    `getBindings()` returns the Worker's bindings and secrets. Under `vite dev`, it reuses the Wrangler platform proxy that `payload.config.ts` started.
 
     `isOffered` accepts a form only when a page that a visitor can read has it in a block. [Choose which forms take submissions](#choose-which-forms-take-submissions) explains the rule.
 
@@ -198,7 +198,6 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     A server function can't return a form document as JSON, because TanStack Start rejects rich text as not serializable. Render `FormBuilderForm` with `renderServerComponent()` in the page's server function instead, and return the element:
 
     ```tsx src/app/_frontend/$slug.tsx
-    import { hideServerErrors } from "@adirishi/offload-tanstack";
     import { createFileRoute, notFound } from "@tanstack/react-router";
     import { createServerFn } from "@tanstack/react-start";
     import { renderServerComponent } from "@tanstack/react-start/rsc";
@@ -207,7 +206,6 @@ The site needs the setup from [Getting started](/getting-started). A form uses T
     import { getPayloadForRequest } from "@/lib/payload.server";
 
     const getPage = createServerFn({ method: "GET" })
-      .middleware([hideServerErrors])
       .validator((slug: string) => slug)
       .handler(async ({ data: slug }) => {
         const { payload, draft, user } = await getPayloadForRequest();
@@ -307,7 +305,7 @@ When you update `@adirishi/offload-form-builder`, add the items again at the new
 
 3. Review the changes with `git diff`, and merge your own edits back in.
 
-The CLI never deletes a file. If you update from `4.0.0-beta.2-offload.8` or earlier, delete `src/components/form-builder/fields.tsx`, which is now `src/components/form-fields.tsx`. Delete `src/components/ui/native-select.tsx` too, if nothing else imports it.
+The CLI never deletes a file. If a release renames or drops a component file, delete the old copy yourself.
 
 ## Use real Turnstile keys
 

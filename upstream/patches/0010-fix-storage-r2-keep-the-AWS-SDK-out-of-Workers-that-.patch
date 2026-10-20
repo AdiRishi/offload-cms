@@ -70,10 +70,10 @@ index 2932a1e7b..2870da437 100644
  Payload removes versioned upload objects only after their last document or saved version reference is gone and the database operation has committed. If an object deletion fails, Payload logs the complete storage key and leaves the object in place. Before retrying manually, check the current file, original, and stored variants in every current document and retained version. Each representation's `filename`, `prefix`, and `_objectKey` identify its location through the configured adapter's path resolver. Remove the failed object through the storage provider only when none of these locations resolves to its exact key. Failed deletions are not retried automatically.
  
 diff --git a/packages/storage-r2/package.json b/packages/storage-r2/package.json
-index 0faedfbd5..a3a53d385 100644
+index 6fa71147a..6a7d3882c 100644
 --- a/packages/storage-r2/package.json
 +++ b/packages/storage-r2/package.json
-@@ -29,6 +29,11 @@
+@@ -34,6 +34,11 @@
        "import": "./src/exports/client.ts",
        "types": "./src/exports/client.ts",
        "default": "./src/exports/client.ts"
@@ -84,8 +84,8 @@ index 0faedfbd5..a3a53d385 100644
 +      "default": "./src/exports/copyFile.ts"
      }
    },
-   "main": "./src/index.ts",
-@@ -72,6 +77,11 @@
+   "publishConfig": {
+@@ -49,6 +54,11 @@
          "import": "./dist/exports/client.js",
          "types": "./dist/exports/client.d.ts",
          "default": "./dist/exports/client.js"
@@ -95,8 +95,8 @@ index 0faedfbd5..a3a53d385 100644
 +        "types": "./dist/exports/copyFile.d.ts",
 +        "default": "./dist/exports/copyFile.js"
        }
-     },
-     "main": "./dist/index.js",
+     }
+   },
 diff --git a/packages/storage-r2/src/adapter.ts b/packages/storage-r2/src/adapter.ts
 index 2d389edd9..bbadc01d4 100644
 --- a/packages/storage-r2/src/adapter.ts

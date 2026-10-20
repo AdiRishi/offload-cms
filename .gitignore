@@ -6,8 +6,9 @@ dist
 .turbo
 .tanstack
 
-# Payload checkout (pnpm upstream checkout)
+# Payload checkout (pnpm upstream checkout), and the declarations map its build writes
 /upstream/payload/
+/upstream/tsconfig.payload.json
 
 # Cloudflare local state, secrets and generated types
 .wrangler

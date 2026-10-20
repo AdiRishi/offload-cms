@@ -44,6 +44,7 @@
     "@cloudflare/workers-types": "catalog:",
     "@payloadcms/plugin-ecommerce": "catalog:",
     "@repo/tsconfig": "workspace:*",
+    "@repo/upstream": "workspace:*",
     "@types/node": "catalog:",
     "payload": "catalog:",
     "typescript": "catalog:",
@@ -51,8 +52,8 @@
   },
   "peerDependencies": {
     "@adirishi/offload-cloudflare": "workspace:*",
-    "@payloadcms/plugin-ecommerce": "4.0.0-beta.2",
-    "payload": "4.0.0-beta.2",
+    "@payloadcms/plugin-ecommerce": "4.0.0-beta.3",
+    "payload": "4.0.0-beta.3",
     "zod": "^4.0.0"
   }
 }
